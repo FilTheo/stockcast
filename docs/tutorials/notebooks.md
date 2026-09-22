@@ -23,8 +23,6 @@ Notebook 10 is an integration pattern, not a prescribed production
 architecture. Pyforia is modular; a real deployment can use a different
 orchestration, approval, storage, and monitoring arrangement.
 
-Notebooks 04c and 09 call Smooth's simulated interval, which Smooth does not
-seed through a public parameter. Their simulated targets carry Monte Carlo
-variability and can differ between runs; they are working examples, not
-deterministic acceptance benchmarks. Each notebook records this limitation
-alongside its results.
+Note: notebooks 04c and 09 use Smooth's simulated interval, which has no
+public seed parameter, so their simulated targets can vary slightly between
+runs.
