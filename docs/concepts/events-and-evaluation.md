@@ -35,3 +35,19 @@ report = InventoryEvaluator().fit(result, window="scoring").evaluate(
 Cost metrics are intentionally strict: specify active `cost_components` and
 every corresponding rate in the evaluation context or event frame. See
 [evaluation and metrics](../reference/evaluation.md) for units and denominators.
+
+`fill_rate` measures demand fulfilled immediately; later backlog clearance is
+recorded separately. `avg_on_hand`, `avg_on_order`, and
+`avg_inventory_position` average SKU-period rows, so a pooled result is a
+per-SKU-period mean, not average total portfolio stock. In contrast,
+`peak_ending_on_hand` and `ending_on_hand_variance` operate on portfolio totals
+by period.
+
+`order_event_count` is a system-wide count stored on one SKU row per event to
+preserve additivity. Use it for the complete portfolio; use
+`sku_order_line_count` for per-SKU ordering activity.
+
+Purchase cost is charged when orders are placed. Scoring-window costs exclude
+orders and holding exposure outside that window. For finite-horizon economic
+comparisons, explicitly choose whether to include warmup/opening costs,
+settlement effects, terminal backlog/pipeline charges, and salvage credit.

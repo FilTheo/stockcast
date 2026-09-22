@@ -1,8 +1,9 @@
 # Forecast targets
 
 Pyforia consumes forecast-derived inventory information; it does not fit a
-forecasting model or manufacture uncertainty. The policy validates that a
-target means what the inventory decision needs it to mean.
+forecasting model or manufacture uncertainty. The policy validates declared
+target metadata and numerical inputs. It cannot establish whether an external
+forecast is calibrated or whether its declared assumptions are true.
 
 ## Direct cumulative targets
 
@@ -34,6 +35,27 @@ When independent normal per-step forecast errors are an appropriate declared
 assumption, `OrderUpToPolicy.fit(...)` can aggregate supplied means and standard
 deviations with `aggregation_method="independent_normal"`. Every required
 standard deviation must be present; Pyforia does not substitute a heuristic.
+
+For dependent forecast errors, cumulative variance also includes cross-horizon
+covariances. Supply a direct cumulative target from a joint forecast model or
+joint sample paths when independence is unsuitable. Do not pass marginal
+standard deviations through the independent-normal route in that case.
+
+## Target probability and realized service
+
+`service_level=0.95` declares the target quantile probability. It does not
+guarantee a 95% realized fill rate or cycle service level. Forecast calibration,
+discrete review timing, opening stock, lost sales, expiry, and ordering
+constraints affect realized service. Measure those outcomes from the event
+ledger on held-out demand.
+
+The built-in `(R,S)` target uses `lead_time + review_period` under the frozen
+0.1 contract. `ContinuousReviewPolicy` is evaluated once per simulated period;
+it is not a continuous-time simulator or an optimal lost-sales policy solver.
+
+External targets are declarations: a caller could sum marginal quantiles
+before passing a single number, and Pyforia cannot detect that mistake from
+the number alone. Preserve the upstream calculation and training cutoff.
 
 ## Later forecast snapshots
 
