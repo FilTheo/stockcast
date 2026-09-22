@@ -1,5 +1,12 @@
 # 90 — Pyforia extraction guide
 
+Current-status note (2026-09-22): the extraction decisions below describe the
+earlier staging phase. Their no-build gate, undecided URL/version support,
+and candidate-API wording are superseded by the current `pyproject.toml`,
+knowledge 93, and the owner's release-readiness audit request. Local builds
+and tests are authorized; publication is not authorized by this audit.
+See `RELEASE_READINESS.md` for fresh evidence and remaining decisions.
+
 ## 90.1 Confirmed decisions
 
 - Project/package name: **Pyforia**.

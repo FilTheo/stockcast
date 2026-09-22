@@ -2,18 +2,22 @@
 
 ## 80.1 Current executable evidence
 
-The staging unit directory contains 9 client-independent files, 131 top-level
-test functions, and 154 pytest cases after parametrization. The suite includes
-focused regressions for the retired namespace and removed API names and passes
-against `src/pyforia`. This verifies source-path behavior in the staging tree.
-It is not evidence for an installed distribution, wheel, source distribution,
-or frozen public API.
+The unit directory now contains 12 client-independent files. The release audit
+added 12 delivery-calendar reference cases and two artifact-check regressions.
+The original 155 cases plus the 12 reference cases passed against source and
+an installed wheel on Python 3.12.13, with NumPy 2.5.3, pandas 3.0.6, and
+Matplotlib 3.11.2. The same 167 cases passed against an installed wheel on
+Python 3.10.12 with NumPy 1.23.0, pandas 1.5.0, and Matplotlib 3.6.0.
+
+Current release-audit commands and final counts are recorded in
+`RELEASE_READINESS.md`; do not infer publication or complete platform coverage
+from local checks. The frozen public API is recorded in knowledge 93.
 
 ## 80.2 Test-file map
 
 | File | Top-level test functions | Main evidence |
 |---|---:|---|
-| `test_callbacks.py` | 32 | lifecycle timing, built-ins/custom callbacks, validation failures, defensive inputs/outputs, audit, manifests, preflight/repeated/comparison reset, inventory-sensitive prediction, FIFO integration, fixtures, executable examples |
+| `test_callbacks.py` | 31 | lifecycle timing, built-ins/custom callbacks, validation failures, defensive inputs/outputs, audit, manifests, preflight/repeated/comparison reset, inventory-sensitive prediction, FIFO integration, fixtures, executable examples |
 | `test_data_structures.py` | 23 | IDs, initialization, readiness, receipts, backlog/lost sales, demand and order timing |
 | `test_demand_generator.py` | 4 | demand source shapes, negative handling, reproducibility/provenance |
 | `test_inventory_evaluation.py` | 9 | canonical validation, metric surface, evaluator grouping/window choices, metrics and costs |
@@ -22,6 +26,9 @@ or frozen public API.
 | `test_shelf_life.py` | 11 | lot balance, FIFO expiry/consumption, opening-lot modes, event integration |
 | `test_simulation_contracts.py` | 21 | preflight, demand grid, events, schedules, comparisons, provenance |
 | `test_extension_contracts.py` | 2 | removed `after_step` surface and absence of an active `pystate` package |
+| `test_public_api_contract.py` | 2 | frozen namespace exports and version |
+| `test_inventory_reference_model.py` | 1 | 12 independent delivery-calendar cases covering lead time, review period, shortage mode, opening orders, settlement, and costs |
+| `test_release_artifacts.py` | 2 | rejection of foreign distribution metadata and missing artifact types |
 
 The M5 and SPAR adapter-contract files remain in the private source repository
 and are intentionally absent from the staging test tree.
@@ -65,8 +72,8 @@ When package construction is authorized, create evidence in layers:
    artifact;
 9. run scientific regression fixtures with immutable expected event ledgers.
 
-No package build has been performed because packaging remains a separate owner
-decision and release gate.
+Package builds and isolated installs were exercised in the September 2026
+release audit. Publication remains a separate owner action.
 
 ## 80.5 Removed live-state hooks and typed callback evidence
 

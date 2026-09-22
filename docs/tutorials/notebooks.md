@@ -11,6 +11,7 @@ installing Pyforia and any notebook-specific optional packages.
 | [03 — Component loop](https://github.com/FilTheo/pyforia/blob/main/examples/notebooks/03_component_loop.ipynb) | When should a caller own the loop, and what does the engine add? |
 | [04 — Forecast integration](https://github.com/FilTheo/pyforia/blob/main/examples/notebooks/04_forecast_to_inventory_integration.ipynb) | How can a forecast become a valid inventory target? |
 | [04b — Rolling updates](https://github.com/FilTheo/pyforia/blob/main/examples/notebooks/04b_rolling_forecast_updates.ipynb) | How are later forecast snapshots scheduled? |
+| [04c — Cumulative targets](https://github.com/FilTheo/pyforia/blob/main/examples/notebooks/04c_cumulative_target_methods.ipynb) | How do independent-normal, external approximate, and external simulated targets enter the same inventory replay? |
 | [05 — Custom policies](https://github.com/FilTheo/pyforia/blob/main/examples/notebooks/05_custom_policies.ipynb) | How can a supported policy extension be written? |
 | [06 — Fair comparisons](https://github.com/FilTheo/pyforia/blob/main/examples/notebooks/06_fair_forecast_and_policy_comparisons.ipynb) | How can forecasts and policies be compared on the same demand path? |
 | [07 — FIFO shelf life](https://github.com/FilTheo/pyforia/blob/main/examples/notebooks/07_m5_fifo_perishable_scenario.ipynb) | How do dated lots, FIFO use, and expiry affect a scenario? |
@@ -21,3 +22,9 @@ installing Pyforia and any notebook-specific optional packages.
 Notebook 10 is an integration pattern, not a prescribed production
 architecture. Pyforia is modular; a real deployment can use a different
 orchestration, approval, storage, and monitoring arrangement.
+
+Notebooks 04c and 09 call Smooth's simulated interval, which Smooth does not
+seed through a public parameter. Their simulated targets carry Monte Carlo
+variability and can differ between runs; they are working examples, not
+deterministic acceptance benchmarks. Each notebook records this limitation
+alongside its results.

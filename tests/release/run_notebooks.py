@@ -49,6 +49,8 @@ def main():
         shutil.copytree(root / "examples/notebooks/data", work / "examples/notebooks/data")
         notebook = nbformat.read(path, as_version=4)
         nbformat.validate(notebook)
+        # Upgrade the temporary copy before inserting a current-format cell.
+        notebook = nbformat.v4.upgrade(notebook)
         for index, cell in enumerate(notebook.cells):
             if cell.cell_type == "code":
                 compile(TransformerManager().transform_cell(cell.source), f"{path.name}:{index}", "exec")

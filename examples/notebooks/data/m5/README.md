@@ -14,6 +14,10 @@ are excluded from source distributions and wheels. They are M5-derived data,
 not Pyforia code, and are not covered by Pyforia's Apache-2.0 license; their
 upstream terms continue to apply.
 
+The maintainer confirmed permission to retain this subset in the repository
+on 2026-09-22. This statement does not grant a new license to downstream users.
+The subset preparation script is planned for a later addition.
+
 Source and attribution: Makridakis, S., Spiliotis, E., & Assimakopoulos, V.
 (2022). *M5 accuracy competition: Results, findings, and conclusions*.
 International Journal of Forecasting, 38(4), 1346–1364.

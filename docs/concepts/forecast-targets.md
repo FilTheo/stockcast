@@ -57,6 +57,36 @@ External targets are declarations: a caller could sum marginal quantiles
 before passing a single number, and Pyforia cannot detect that mistake from
 the number alone. Preserve the upstream calculation and training cutoff.
 
+## Targets from simulation or bootstrap paths
+
+For each SKU, obtain joint future-demand paths from the external forecasting
+workflow. Each row represents one possible future, with one column per period
+over `H = lead_time + review_period`. Sum within each path, then take the
+desired quantile across those cumulative totals:
+
+```python
+# demand_paths is supplied by the external forecasting model: (n_paths, H).
+cumulative_samples = demand_paths.sum(axis=1)
+target = np.quantile(cumulative_samples, 0.95)
+```
+
+Here `np` denotes NumPy. Validate the input paths and retain the model,
+training cutoff, assumptions, random seed state, sample count, and quantile
+method beside the target table. Supply the resulting target through the
+direct cumulative route above; Pyforia does not generate these paths.
+
+Bootstrap constructions must preserve the relevant dependence, for example
+through complete multi-horizon error rows or a justified block bootstrap.
+Independent residual resampling is appropriate only when its independence
+assumption is justified. A resampled error path must be combined with its
+forecast location to represent demand, not mistaken for demand itself.
+
+Notebook 04c compares independent-normal aggregation, an external approximate
+cumulative target, and an external simulated cumulative target. Each method
+states its assumptions and enters the same inventory replay. The example
+documents external Monte Carlo variability; target probability and realized
+inventory service remain separate quantities.
+
 ## Later forecast snapshots
 
 Use `policy_schedule` to supply fitted policy snapshots at later eligible

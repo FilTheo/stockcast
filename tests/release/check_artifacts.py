@@ -17,8 +17,9 @@ def members(path: Path) -> set[str]:
 
 
 def main(dist_dir: Path) -> None:
-    artifacts = sorted(dist_dir.glob("pyforia-*") )
-    if len(artifacts) != 2:
+    artifacts = sorted(dist_dir.glob("pyforia-*"))
+    if (len(artifacts) != 2 or sum(p.suffix == ".whl" for p in artifacts) != 1
+            or sum(p.name.endswith(".tar.gz") for p in artifacts) != 1):
         raise AssertionError(f"expected one wheel and one sdist, found: {artifacts}")
 
     forbidden = ("/data/", "/arxiv/", "/docs/", "/examples/", "/.venv/", "__pycache__")
@@ -32,6 +33,15 @@ def main(dist_dir: Path) -> None:
         leaked = sorted(name for name in names if any(token in f"/{name}" for token in forbidden))
         if leaked:
             raise AssertionError(f"{artifact.name} contains excluded material: {leaked}")
+        foreign_metadata = sorted(
+            name for name in names
+            if any(part.endswith(".egg-info") and part != "pyforia.egg-info"
+                   for part in Path(name).parts)
+        )
+        if foreign_metadata:
+            raise AssertionError(
+                f"{artifact.name} contains foreign distribution metadata: {foreign_metadata}"
+            )
         print(f"checked {artifact.name}: {len(names)} members")
 
 

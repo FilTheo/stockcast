@@ -16,9 +16,36 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install --upgrade pip build twine
+      - run: python -m pip install --upgrade pip build twine pytest
+      - name: Check release tag matches package version
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+          version = tomllib.loads(Path('pyproject.toml').read_text())['project']['version']
+          if os.environ['RELEASE_TAG'] != f'v{version}':
+              raise SystemExit(f'Release tag must be v{version}')
+          PY
       - run: python -m build
       - run: python -m twine check dist/*
+      - run: python tests/release/check_artifacts.py dist
+      - name: Test the built wheel
+        run: |
+          python -m pip install dist/*.whl
+          python -m pip check
+          python -I -m pytest -p no:cacheprovider -q -o addopts='' tests/unit
+          python -I tests/release/artifact_smoke.py
+      - name: Test source distribution installation
+        run: |
+          artifact_environment="$(mktemp -d)"
+          python -m venv "$artifact_environment/venv"
+          "$artifact_environment/venv/bin/python" -m pip install dist/*.tar.gz
+          "$artifact_environment/venv/bin/python" -m pip check
+          "$artifact_environment/venv/bin/python" -I tests/release/artifact_smoke.py
       - uses: actions/upload-artifact@v4
         with:
           name: dist
