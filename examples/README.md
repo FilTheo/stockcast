@@ -1,7 +1,7 @@
-# Pyforia examples
+# Stockcast examples
 
 The notebooks in `notebooks/` are runnable examples for a repository clone.
-Run them from the repository root after installing Pyforia and any
+Run them from the repository root after installing Stockcast and any
 notebook-specific optional dependencies.
 
 `notebooks/data/m5/` contains the small M5-derived assets used by Notebooks 07,

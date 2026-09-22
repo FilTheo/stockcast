@@ -1,6 +1,6 @@
 # Forecast targets
 
-Pyforia consumes forecast-derived inventory information; it does not fit a
+Stockcast consumes forecast-derived inventory information; it does not fit a
 forecasting model or manufacture uncertainty. The policy validates declared
 target metadata and numerical inputs. It cannot establish whether an external
 forecast is calibrated or whether its declared assumptions are true.
@@ -34,7 +34,7 @@ provenance is not a complete protection target.
 When independent normal per-step forecast errors are an appropriate declared
 assumption, `OrderUpToPolicy.fit(...)` can aggregate supplied means and standard
 deviations with `aggregation_method="independent_normal"`. Every required
-standard deviation must be present; Pyforia does not substitute a heuristic.
+standard deviation must be present; Stockcast does not substitute a heuristic.
 
 For dependent forecast errors, cumulative variance also includes cross-horizon
 covariances. Supply a direct cumulative target from a joint forecast model or
@@ -54,7 +54,7 @@ The built-in `(R,S)` target uses `lead_time + review_period` under the frozen
 it is not a continuous-time simulator or an optimal lost-sales policy solver.
 
 External targets are declarations: a caller could sum marginal quantiles
-before passing a single number, and Pyforia cannot detect that mistake from
+before passing a single number, and Stockcast cannot detect that mistake from
 the number alone. Preserve the upstream calculation and training cutoff.
 
 ## Targets from simulation or bootstrap paths
@@ -73,7 +73,7 @@ target = np.quantile(cumulative_samples, 0.95)
 Here `np` denotes NumPy. Validate the input paths and retain the model,
 training cutoff, assumptions, random seed state, sample count, and quantile
 method beside the target table. Supply the resulting target through the
-direct cumulative route above; Pyforia does not generate these paths.
+direct cumulative route above; Stockcast does not generate these paths.
 
 Bootstrap constructions must preserve the relevant dependence, for example
 through complete multi-horizon error rows or a justified block bootstrap.

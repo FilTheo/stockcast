@@ -4366,5 +4366,5 @@
       "unique_id": "FOODS_1_102_CA_1"
     }
   ],
-  "schema_version": "pyforia.notebook08.covariance_normal_checkpoint.v1"
+  "schema_version": "stockcast.notebook08.covariance_normal_checkpoint.v1"
 }

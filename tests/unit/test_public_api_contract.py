@@ -1,15 +1,15 @@
-"""Locked public import surface for the Pyforia 0.1 release line."""
+"""Locked public import surface for the Stockcast 0.1 release line."""
 
-import pyforia
-import pyforia.core as core
-import pyforia.evaluation as evaluation
-import pyforia.policies as policies
-import pyforia.utils as utils
-import pyforia.visualization as visualization
+import stockcast
+import stockcast.core as core
+import stockcast.evaluation as evaluation
+import stockcast.policies as policies
+import stockcast.utils as utils
+import stockcast.visualization as visualization
 
 
 def test_public_export_sets_are_frozen_for_0_1():
-    assert pyforia.__all__ == [
+    assert stockcast.__all__ == [
         "BasePolicy", "CallbackContext", "CallbackError",
         "ColumnPeriodicReviewTargets", "ComparisonResult", "ConstraintContext",
         "ConstraintResult", "ContinuousReviewPolicy", "FixedPeriodicReviewTargets",

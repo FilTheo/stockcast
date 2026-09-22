@@ -1,4 +1,4 @@
-# Pyforia 0.1.0 release-readiness audit
+# Stockcast 0.1.0 release-readiness audit
 
 Audit date: 2026-09-22. Baseline: `a8252c2`, plus the local audit changes.
 No package was published, no release/tag was created, and no changes were
@@ -53,7 +53,7 @@ failures. Some notebooks emit pandas datetime-rounding warnings, and Notebook
 figures; these are presentation limitations, not failed stock balances.
 
 GitHub's release-check run
-[35709225369](https://github.com/FilTheo/pyforia/actions/runs/35709225369)
+[35709225369](https://github.com/FilTheo/stockcast/actions/runs/35709225369)
 was confirmed successful for commit `291d8ce`, including Python 3.10, 3.11,
 3.12, 3.13 and the installed-artifact job. It predates the audit's final
 workflow/manifest changes and does not validate those uncommitted changes.
@@ -70,7 +70,7 @@ the scoring window had fill rate 1.0, average on-hand approximately 12.027,
 and 51 ordered units. The forecast and holdout were chronologically separated.
 
 The scalar reference model independently schedules receipts by delivery date;
-it does not use Pyforia's pipeline-array implementation. Its period-by-period
+it does not use Stockcast's pipeline-array implementation. Its period-by-period
 receipts, fulfillment, shortages, old-backlog clearance, ending stock,
 backlog, pipeline, orders, fill rate and cost matched engine results. Existing
 tests additionally exercise FIFO/expiry, constraints, callbacks, target
@@ -105,7 +105,7 @@ Scientific interpretation still requires care:
    in public documentation; added the joint-path target explanation.
 3. Corrected five incompatible cell-ID fields in the format-4.4 Notebook 06.
    Its code and scientific calculations were unchanged.
-4. Narrowed the source manifest: a local `src/py_foria.egg-info` directory had
+4. Narrowed the source manifest: a local `src/stockcast.egg-info` directory had
    entered the sdist via `graft src`. The local directory was preserved;
    artifacts now exclude it. Added regression tests and a checker rejection.
 5. Added publishing gates for artifact content, installed-wheel tests,
@@ -132,9 +132,9 @@ policy-target tests passed (22 tests), and the strict documentation build
 passed in 6.02 seconds. Validation commands:
 
 ```bash
-/tmp/pyforia-release-Jp8oV1/tools/bin/python tests/release/run_notebooks.py /tmp/pyforia-release-Jp8oV1/valid-04c-accepted --match '04c*'
-/tmp/pyforia-release-Jp8oV1/tools/bin/python -I -m pytest -q -p no:cacheprovider tests/unit/test_policy_target_contracts.py
-/tmp/pyforia-release-Jp8oV1/tools/bin/python -m mkdocs build --strict --site-dir /tmp/pyforia-release-Jp8oV1/valid-04c-site
+/tmp/stockcast-release-Jp8oV1/tools/bin/python tests/release/run_notebooks.py /tmp/stockcast-release-Jp8oV1/valid-04c-accepted --match '04c*'
+/tmp/stockcast-release-Jp8oV1/tools/bin/python -I -m pytest -q -p no:cacheprovider tests/unit/test_policy_target_contracts.py
+/tmp/stockcast-release-Jp8oV1/tools/bin/python -m mkdocs build --strict --site-dir /tmp/stockcast-release-Jp8oV1/valid-04c-site
 ```
 
 The updated notebook SHA-256 is
@@ -187,40 +187,40 @@ No credentials or account configuration were requested or changed.
 6. After validation and owner approval, create the matching `v0.1.0` tag and
    GitHub release. The current workflow publishes on `release: published`;
    publishing that GitHub release is a consequential action, not a draft step.
-7. Install `pyforia==0.1.0` from PyPI in a fresh environment, run the smoke,
+7. Install `stockcast==0.1.0` from PyPI in a fresh environment, run the smoke,
    verify documentation links and retain the final uploaded artifact hashes.
    [Python packaging guide](https://packaging.python.org/en/latest/tutorials/packaging-projects/).
 
 ## Reproduction and retained local evidence
 
-The disposable audit root is `/tmp/pyforia-release-Jp8oV1`. It contains tools,
+The disposable audit root is `/tmp/stockcast-release-Jp8oV1`. It contains tools,
 isolated install environments, source/wheel/sdist builds, rendered docs, and
 executed notebook copies. Temporary storage is not a permanent release record.
 
 Commands used (from the repository unless a working directory is shown):
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /tmp/pyforia-release-Jp8oV1/tools/bin/python -m pytest -p no:cacheprovider -q -o addopts='' tests/unit
-# Installed package, cwd=/tmp/pyforia-release-Jp8oV1:
-/tmp/pyforia-release-Jp8oV1/tools/bin/python -I -m pytest -p no:cacheprovider -q -o addopts='' /home/filtheo/pyforia/tests/unit
-/tmp/pyforia-release-Jp8oV1/floor-env/bin/python -I -m pytest -p no:cacheprovider -q -o addopts='' /home/filtheo/pyforia/tests/unit
-/tmp/pyforia-release-Jp8oV1/tools/bin/python -m build --outdir /tmp/pyforia-release-Jp8oV1/final-dist
-/tmp/pyforia-release-Jp8oV1/tools/bin/python -m twine check /tmp/pyforia-release-Jp8oV1/final-dist/*
-/tmp/pyforia-release-Jp8oV1/tools/bin/python tests/release/check_artifacts.py /tmp/pyforia-release-Jp8oV1/final-dist
-/tmp/pyforia-release-Jp8oV1/tools/bin/python tests/release/run_notebooks.py /tmp/pyforia-release-Jp8oV1/current-notebooks
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /tmp/stockcast-release-Jp8oV1/tools/bin/python -m pytest -p no:cacheprovider -q -o addopts='' tests/unit
+# Installed package, cwd=/tmp/stockcast-release-Jp8oV1:
+/tmp/stockcast-release-Jp8oV1/tools/bin/python -I -m pytest -p no:cacheprovider -q -o addopts='' /home/filtheo/stockcast/tests/unit
+/tmp/stockcast-release-Jp8oV1/floor-env/bin/python -I -m pytest -p no:cacheprovider -q -o addopts='' /home/filtheo/stockcast/tests/unit
+/tmp/stockcast-release-Jp8oV1/tools/bin/python -m build --outdir /tmp/stockcast-release-Jp8oV1/final-dist
+/tmp/stockcast-release-Jp8oV1/tools/bin/python -m twine check /tmp/stockcast-release-Jp8oV1/final-dist/*
+/tmp/stockcast-release-Jp8oV1/tools/bin/python tests/release/check_artifacts.py /tmp/stockcast-release-Jp8oV1/final-dist
+/tmp/stockcast-release-Jp8oV1/tools/bin/python tests/release/run_notebooks.py /tmp/stockcast-release-Jp8oV1/current-notebooks
 # After correcting 06's schema, resume the remaining notebooks in a new directory:
-/tmp/pyforia-release-Jp8oV1/tools/bin/python tests/release/run_notebooks.py /tmp/pyforia-release-Jp8oV1/current-tail --match '[01][06789]*.ipynb'
-PYTHONPATH=src /tmp/pyforia-release-Jp8oV1/tools/bin/mkdocs build --strict --site-dir /tmp/pyforia-release-Jp8oV1/final-site
+/tmp/stockcast-release-Jp8oV1/tools/bin/python tests/release/run_notebooks.py /tmp/stockcast-release-Jp8oV1/current-tail --match '[01][06789]*.ipynb'
+PYTHONPATH=src /tmp/stockcast-release-Jp8oV1/tools/bin/mkdocs build --strict --site-dir /tmp/stockcast-release-Jp8oV1/final-site
 ```
 
 For each of `wheel-env` and `sdist-env`, installed the corresponding final
 artifact, ran `python -m pip check`, and invoked
-`python -I /home/filtheo/pyforia/tests/release/artifact_smoke.py`.
+`python -I /home/filtheo/stockcast/tests/release/artifact_smoke.py`.
 The `current-notebooks`, `current-tail`, and `valid-04c-accepted` reports
 jointly cover all twelve current sources, with the last report superseding
 04c's earlier result. A final SHA-256 comparison confirmed all twelve current
 notebooks match successful execution reports (44 figures total). A byte-level
-comparison also confirmed every current `src/pyforia/**/*.py` file matches the
+comparison also confirmed every current `src/stockcast/**/*.py` file matches the
 tested wheel. The artifact checker passed again: 28 wheel members and 43 sdist
 members. The first notebook run stopped at 06's invalid schema before its
 correction. Notebook 04c's local completion row was updated only after execution,
@@ -230,6 +230,6 @@ its local update is not part of the tracked release diff.
 Final local artifact SHA-256:
 
 ```text
-d6826548ce1f0fa4b120c1e3f33b7a42d7bd266d44c84f3ddf2c3496022bc989  pyforia-0.1.0-py3-none-any.whl
-8f989ba5cb4224012a167a54b435104170e7d77360c7379d5ec3ada751e270fc  pyforia-0.1.0.tar.gz
+d6826548ce1f0fa4b120c1e3f33b7a42d7bd266d44c84f3ddf2c3496022bc989  stockcast-0.1.0-py3-none-any.whl
+8f989ba5cb4224012a167a54b435104170e7d77360c7379d5ec3ada751e270fc  stockcast-0.1.0.tar.gz
 ```

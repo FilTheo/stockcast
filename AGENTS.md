@@ -1,9 +1,9 @@
-  # Pyforia agent guide
+  # Stockcast agent guide
 
 ## A. Status and authority
 
-This is a staging repository. The active source tree uses the `pyforia`
-namespace, but there is no installable Pyforia distribution yet.
+This is a staging repository. The active source tree uses the `stockcast`
+namespace, but there is no installable Stockcast distribution yet.
 
 Use sources in this order:
 
@@ -56,7 +56,7 @@ an implementation authority.
 
 The archive is read-only documentation evidence by default. Do not modernize
 files inside it to make old prose appear current. The approved staging
-implementation is under `src/pyforia/`; do not package or redesign it further
+implementation is under `src/stockcast/`; do not package or redesign it further
 without explicit authorization.
 
 ## E. Documentation workflow

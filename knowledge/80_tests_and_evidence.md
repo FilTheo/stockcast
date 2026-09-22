@@ -38,7 +38,7 @@ instead of copying these numbers into release claims.
 
 ## 80.3 What the passing suite does not prove
 
-- that `pyforia` is currently available on package registries or collision-free
+- that `stockcast` is currently available on package registries or collision-free
   in every supported environment;
 - that metadata, Apache notices, classifiers, dependencies, or Python versions
   are correct;
@@ -82,7 +82,7 @@ The copied engine formerly validated and appended a period event before calling
 canonical event was recorded. A reproduced case produced event
 `ending_on_hand = 0.0` while returned final inventory had `on_hand = 100.0`.
 
-The owner decided not to expose that unrestricted hook in Pyforia 0.1.0. The
+The owner decided not to expose that unrestricted hook in Stockcast 0.1.0. The
 staging implementation removes both the invocation and method. A focused
 staging test asserts that `SimulationEngine` no longer exposes `after_step`.
 Before the namespace migration, the focused test plus all 108

@@ -1,6 +1,6 @@
 # Inputs and time
 
-Pyforia validates complete, explicit scenarios rather than completing missing
+Stockcast validates complete, explicit scenarios rather than completing missing
 business information on a caller's behalf.
 
 ## Minimum scenario inputs

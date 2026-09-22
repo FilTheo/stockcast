@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from pyforia.core.data_structures import _require_identifiers, _require_unique
+from stockcast.core.data_structures import _require_identifiers, _require_unique
 
 CANONICAL_EVENT_COLUMNS = (
     "unique_id", "event_type", "demand_period", "period", "date", "policy",

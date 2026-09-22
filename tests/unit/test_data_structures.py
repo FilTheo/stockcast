@@ -1,13 +1,13 @@
 import pandas as pd
 import pytest
 
-import pyforia
-from pyforia import InventoryStateDataFrame, OrderUpToPolicy, SimulationEngine
-from pyforia.core.base_policy import BasePolicy
-from pyforia.core.data_structures import OrderDecision
-from pyforia.policies import ContinuousReviewPolicy
-from pyforia.utils import process_demand, update_inventory_with_orders
-from pyforia.visualization import (
+import stockcast
+from stockcast import InventoryStateDataFrame, OrderUpToPolicy, SimulationEngine
+from stockcast.core.base_policy import BasePolicy
+from stockcast.core.data_structures import OrderDecision
+from stockcast.policies import ContinuousReviewPolicy
+from stockcast.utils import process_demand, update_inventory_with_orders
+from stockcast.visualization import (
     plot_demand_vs_orders,
     plot_inventory,
     plot_simulation_dashboard,
@@ -47,10 +47,10 @@ class NoOrderPolicy(BasePolicy):
         )
 
 
-def test_public_pyforia_exports():
-    assert pyforia.InventoryStateDataFrame is InventoryStateDataFrame
-    assert pyforia.OrderUpToPolicy is OrderUpToPolicy
-    assert pyforia.SimulationEngine is SimulationEngine
+def test_public_stockcast_exports():
+    assert stockcast.InventoryStateDataFrame is InventoryStateDataFrame
+    assert stockcast.OrderUpToPolicy is OrderUpToPolicy
+    assert stockcast.SimulationEngine is SimulationEngine
 
 
 def test_summary_uses_event_frame_and_catches_final_stockout():

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from pyforia.core.data_structures import (
+from stockcast.core.data_structures import (
     InventoryStateDataFrame,
     OrderDecision,
     _identifier_sample,

@@ -1,29 +1,29 @@
 <p align="center">
-  <img src="./pyforia_logo.png" width="180" alt="Pyforia logo">
+  <img src="./stockcast_logo.png" width="180" alt="Stockcast logo">
 </p>
 
-# Pyforia
+# Stockcast
 
 > A modular Python library for inventory decisions based on forecast-derived inputs.
 
-Pyforia is for researchers and practitioners who have forecast-derived inputs
+Stockcast is for researchers and practitioners who have forecast-derived inputs
 and need to turn them into clear replenishment decisions. It lets you simulate
 the consequences of those decisions and compare forecasts and policies through
 operational outcomes.
 
-Pyforia does not replace a forecasting library. It provides the inventory
+Stockcast does not replace a forecasting library. It provides the inventory
 decision and evaluation layer that follows a forecasting workflow.
 
-## Use Pyforia in a Python workflow
+## Use Stockcast in a Python workflow
 
-Pyforia can be called after a forecasting step and before a downstream ordering
+Stockcast can be called after a forecasting step and before a downstream ordering
 or approval step. The calling application remains responsible for producing
 forecasts and applying approved orders.
 
 ```text
 forecasting code
     -> forecast-derived target
-    -> Pyforia policy and order decision
+    -> Stockcast policy and order decision
     -> inventory simulation and event records
     -> evaluation results for the calling workflow
 ```
@@ -45,10 +45,10 @@ This supports questions such as:
 
 ## Build the workflow you need
 
-Pyforia is modular. You can keep the parts that already exist in your work and
+Stockcast is modular. You can keep the parts that already exist in your work and
 choose the parts you want to study or change.
 
-| You provide or choose | Pyforia provides |
+| You provide or choose | Stockcast provides |
 |---|---|
 | Forecast-derived targets or a supported forecast representation | Validation of target timing and provenance |
 | Opening inventory, demand path, lead time, review period, and costs | Inventory state transitions and lead-time pipeline handling |
@@ -75,13 +75,13 @@ You can use the built-in components or extend the workflow:
 After the first release is available, install it from PyPI:
 
 ```bash
-pip install pyforia
+pip install stockcast
 ```
 
 Until then, install the current repository version from GitHub:
 
 ```bash
-pip install "git+https://github.com/FilTheo/pyforia.git"
+pip install "git+https://github.com/FilTheo/stockcast.git"
 ```
 
 ### Run a first inventory decision
@@ -93,7 +93,7 @@ operational results. It does not fit a forecasting model.
 ```python
 import pandas as pd
 
-from pyforia import InventoryStateDataFrame, OrderUpToPolicy, SimulationEngine
+from stockcast import InventoryStateDataFrame, OrderUpToPolicy, SimulationEngine
 
 sku = "tea_250g"
 origin = pd.Timestamp("2026-01-05")
@@ -159,11 +159,11 @@ README.
 
 After the quick start, use these three notebook entry points:
 
-1. [Make a first inventory decision](https://github.com/FilTheo/pyforia/blob/main/examples/notebooks/01_introduction_to_inventory_flow.ipynb) — see the explicit state, target, policy, order, and lead-time flow.
-2. [Run a first simulation](https://github.com/FilTheo/pyforia/blob/main/examples/notebooks/02_first_engine_simulation.ipynb) — let the engine run the complete scenario, then inspect the event records and operational measures.
-3. [Use an external forecast](https://github.com/FilTheo/pyforia/blob/main/examples/notebooks/04_forecast_to_inventory_integration.ipynb) — map a dated forecast-derived target into an inventory decision and evaluate the result.
+1. [Make a first inventory decision](https://github.com/FilTheo/stockcast/blob/main/examples/notebooks/01_introduction_to_inventory_flow.ipynb) — see the explicit state, target, policy, order, and lead-time flow.
+2. [Run a first simulation](https://github.com/FilTheo/stockcast/blob/main/examples/notebooks/02_first_engine_simulation.ipynb) — let the engine run the complete scenario, then inspect the event records and operational measures.
+3. [Use an external forecast](https://github.com/FilTheo/stockcast/blob/main/examples/notebooks/04_forecast_to_inventory_integration.ipynb) — map a dated forecast-derived target into an inventory decision and evaluate the result.
 
-These are the suggested order for a new user. The [full notebook collection](https://github.com/FilTheo/pyforia/tree/main/examples/notebooks)
+These are the suggested order for a new user. The [full notebook collection](https://github.com/FilTheo/stockcast/tree/main/examples/notebooks)
 contains the complete, runnable examples, including rolling forecast updates,
 custom policies, fair comparisons, FIFO and shelf-life scenarios, and typed
 callbacks.
@@ -171,14 +171,14 @@ callbacks.
 ## Documentation and support
 
 The public documentation is maintained in the
-[documentation directory](https://github.com/FilTheo/pyforia/tree/main/docs).
-Use the [repository](https://github.com/FilTheo/pyforia) for source code and
-[GitHub Issues](https://github.com/FilTheo/pyforia/issues) for bug reports and
+[documentation directory](https://github.com/FilTheo/stockcast/tree/main/docs).
+Use the [repository](https://github.com/FilTheo/stockcast) for source code and
+[GitHub Issues](https://github.com/FilTheo/stockcast/issues) for bug reports and
 feature requests.
 
 ## Scope and assumptions
 
-Pyforia is an inventory decision, simulation, and evaluation library. It is
+Stockcast is an inventory decision, simulation, and evaluation library. It is
 designed for research and for use inside Python-based decision workflows.
 
 It does not:
@@ -188,14 +188,14 @@ It does not:
 - act as an ERP, procurement system, or order-approval application; or
 - hide model, policy, or inventory assumptions behind a black box.
 
-Users supply the information needed for a scenario. Pyforia validates and
+Users supply the information needed for a scenario. Stockcast validates and
 records the inventory decision path that follows.
 
 ## Compatibility and API status
 
 - **Python requirement:** Python 3.10 or later, as declared in the package
   metadata. The supported-version test matrix will be confirmed at release.
-- **Release status:** Pyforia `0.1.0` is in release preparation; it is not yet
+- **Release status:** Stockcast `0.1.0` is in release preparation; it is not yet
   published as an installable distribution.
 - **API status:** The public imports, durable outputs, metrics, and documented
   scientific behaviour are frozen for the 0.1.x release line. Compatible
@@ -204,4 +204,4 @@ records the inventory decision path that follows.
 
 ## License
 
-Pyforia is licensed under the [Apache License 2.0](https://github.com/FilTheo/pyforia/blob/main/LICENSE).
+Stockcast is licensed under the [Apache License 2.0](https://github.com/FilTheo/stockcast/blob/main/LICENSE).

@@ -1,7 +1,7 @@
 # Contributing
 
-Pyforia welcomes focused issues and contributions through the
-[GitHub repository](https://github.com/FilTheo/pyforia).
+Stockcast welcomes focused issues and contributions through the
+[GitHub repository](https://github.com/FilTheo/stockcast).
 
 Before proposing a change, identify whether it affects a frozen public import,
 output schema, metric, timing rule, or documented workflow. Public changes need
@@ -37,7 +37,7 @@ To execute the notebook collection against an installed wheel, use Python
 3.11+ with `smooth==1.0.7`, `nbclient`, and `ipykernel` installed:
 
 ```bash
-python tests/release/run_notebooks.py /tmp/pyforia-notebook-review
+python tests/release/run_notebooks.py /tmp/stockcast-notebook-review
 ```
 
 Use a new output directory for each run. The runner retains executed copies,

@@ -19,7 +19,7 @@ Cost metrics use only explicitly activated `cost_components`, and each active
 rate must be provided in the evaluator context or event frame. `CoverageMetric`
 requires a forward or trailing demand-rate choice.
 
-::: pyforia.evaluation
+::: stockcast.evaluation
     options:
       show_root_heading: false
       members: true

@@ -1,6 +1,6 @@
 # System model and timing
 
-Pyforia separates the decision workflow into components with distinct owners.
+Stockcast separates the decision workflow into components with distinct owners.
 
 ```text
 forecast-derived target -> fitted policy -> requested order

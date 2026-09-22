@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pyforia import (
+from stockcast import (
     CallbackError,
     InventoryAdjustmentResult,
     InventoryStateDataFrame,
@@ -18,9 +18,9 @@ from pyforia import (
     SimulationCallback,
     SimulationEngine,
 )
-from pyforia.core.base_policy import BasePolicy
-from pyforia.core.data_structures import OrderDecision
-from pyforia.core.shelf_life import ShelfLifeEngine
+from stockcast.core.base_policy import BasePolicy
+from stockcast.core.data_structures import OrderDecision
+from stockcast.core.shelf_life import ShelfLifeEngine
 
 
 class FixedPolicy(BasePolicy):

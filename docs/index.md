@@ -1,18 +1,18 @@
-![Pyforia logo](https://raw.githubusercontent.com/FilTheo/pyforia/main/pyforia_logo.png){ width="180" }
+![Stockcast logo](https://raw.githubusercontent.com/FilTheo/stockcast/main/stockcast_logo.png){ width="180" }
 
-# Pyforia
+# Stockcast
 
 > Turn forecast-derived inputs into inspectable inventory decisions.
 
-Pyforia is a Python library for researchers, data scientists, and practitioners
+Stockcast is a Python library for researchers, data scientists, and practitioners
 who need to connect a forecasting workflow to replenishment decisions. Supply
 explicit forecast-derived targets and inventory assumptions, simulate the
 resulting decisions, and evaluate operational outcomes from a validated event
 ledger.
 
-Pyforia is not a forecasting trainer, ERP, procurement system, or black-box
+Stockcast is not a forecasting trainer, ERP, procurement system, or black-box
 optimizer. Your forecasting workflow remains responsible for producing
-forecast information; Pyforia owns the inventory decision, simulation, and
+forecast information; Stockcast owns the inventory decision, simulation, and
 evaluation layer that follows.
 
 ```text
@@ -26,7 +26,7 @@ forecasting code
 
 ## Start here
 
-- [Install Pyforia](installation.md), then run the [first simulation](tutorials/first-simulation.md).
+- [Install Stockcast](installation.md), then run the [first simulation](tutorials/first-simulation.md).
 - Use [forecast integration with smooth](guides/forecast-integration.md) to
   connect an external forecast to a dated inventory target.
 - Explore the [notebook collection](tutorials/notebooks.md) for foundations,
@@ -43,13 +43,13 @@ forecasting code
 - Build a complete simulation with auditable state transitions and event rows.
 - Extend a workflow with supported policies, target providers, constraints, and
   typed callbacks.
-- Use Pyforia as one component in a larger Python decision pipeline.
+- Use Stockcast as one component in a larger Python decision pipeline.
 
 ## The 0.1 public contract
 
-Pyforia 0.1 documents a frozen public import surface across `pyforia`,
-`pyforia.core`, `pyforia.policies`, `pyforia.evaluation`, `pyforia.utils`, and
-`pyforia.visualization`. The reference documents every exported object in
+Stockcast 0.1 documents a frozen public import surface across `stockcast`,
+`stockcast.core`, `stockcast.policies`, `stockcast.evaluation`, `stockcast.utils`, and
+`stockcast.visualization`. The reference documents every exported object in
 those namespaces. The durable outputs are the event ledger, callback audit
 frame, run manifest, and compact summary; see [events, results, and
 evaluation](concepts/events-and-evaluation.md).

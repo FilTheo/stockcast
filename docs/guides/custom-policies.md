@@ -15,6 +15,6 @@ Notebook 05 is the executable starting point.
 `PeriodicReviewPolicy` delegates its target construction to a
 `PeriodicReviewTargetProvider`. A custom provider returns `PeriodicReviewTargets`
 with one `reorder_point` and `order_up_to_level` per SKU plus serializable
-metadata. Pyforia validates its result centrally. Use
+metadata. Stockcast validates its result centrally. Use
 `ColumnPeriodicReviewTargets` when those two values already exist in named
 columns, or `FixedPeriodicReviewTargets` for declared scalar/per-SKU scenarios.

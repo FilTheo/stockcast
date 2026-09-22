@@ -105,8 +105,8 @@ without sharing mutable inventory.
 ## 10.7 Where to verify claims
 
 The central implementation paths are
-[`data_structures.py`](../src/pyforia/core/data_structures.py),
-[`simulation_engine.py`](../src/pyforia/core/simulation_engine.py),
+[`data_structures.py`](../src/stockcast/core/data_structures.py),
+[`simulation_engine.py`](../src/stockcast/core/simulation_engine.py),
 and
-[`event_validation.py`](../src/pyforia/evaluation/event_validation.py).
+[`event_validation.py`](../src/stockcast/evaluation/event_validation.py).
 The [module reference](70_module_reference.md) maps every remaining file.

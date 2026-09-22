@@ -45,22 +45,22 @@ from uuid import uuid4
 import numpy as np
 import pandas as pd
 
-from pyforia.core.base_policy import BasePolicy
-from pyforia.core.callbacks import (
+from stockcast.core.base_policy import BasePolicy
+from stockcast.core.callbacks import (
     CallbackContext,
     CallbackError,
     InventoryAdjustmentResult,
     OrderAdjustmentResult,
     SimulationCallback,
 )
-from pyforia.core.data_structures import (
+from stockcast.core.data_structures import (
     InventoryStateDataFrame,
     OrderDecision,
     _identifier_sample,
     _require_forward_frequency,
     _require_identifiers,
 )
-from pyforia.core.order_constraints import ConstraintContext, OrderingConstraints
+from stockcast.core.order_constraints import ConstraintContext, OrderingConstraints
 
 CALLBACK_AUDIT_COLUMNS = (
     "callback_position",
@@ -809,7 +809,7 @@ class SimulationEngine:
         )
 
         # Deferred import to avoid circular dependency (core ↔ utils)
-        from pyforia.utils.inventory_operations import (
+        from stockcast.utils.inventory_operations import (
             process_demand,
             update_inventory_with_orders,
         )
@@ -1525,7 +1525,7 @@ class SimulationEngine:
             sort_columns=["period", sku_column],
         )
         try:
-            package_version = importlib.metadata.version("pyforia")
+            package_version = importlib.metadata.version("stockcast")
         except importlib.metadata.PackageNotFoundError:
             package_version = None
         try:
@@ -1544,7 +1544,7 @@ class SimulationEngine:
                 'rows': len(demand_data),
                 'random_seed': random_seed,
                 'generation_provenance': copy.deepcopy(
-                    demand_data.attrs.get("pyforia_demand_provenance")
+                    demand_data.attrs.get("stockcast_demand_provenance")
                 ),
             },
             'package': {
@@ -1766,7 +1766,7 @@ class SimulationEngine:
             if not isinstance(frame, pd.DataFrame):
                 raise TypeError("demand_source callable must return a pandas DataFrame")
             frames.append(frame.copy())
-            provenance = frame.attrs.get("pyforia_demand_provenance")
+            provenance = frame.attrs.get("stockcast_demand_provenance")
             if provenance is not None:
                 provenance_rows.append(copy.deepcopy(provenance))
         if not frames:
@@ -1786,7 +1786,7 @@ class SimulationEngine:
                 for row in provenance_rows
                 if row.get("minimum_clipped_value") is not None
             ]
-            materialized.attrs["pyforia_demand_provenance"] = {
+            materialized.attrs["stockcast_demand_provenance"] = {
                 "negative_demand_handling": modes.pop(),
                 "clipped_negative_count": sum(
                     int(row.get("clipped_negative_count", 0)) for row in provenance_rows

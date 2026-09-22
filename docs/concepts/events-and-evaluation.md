@@ -24,7 +24,7 @@ identities. See the complete [schema reference](../reference/schemas.md).
 evaluating. It can evaluate built-in functions or a custom `BaseInventoryMetric`.
 
 ```python
-from pyforia.evaluation import InventoryEvaluator, fill_rate, avg_on_hand
+from stockcast.evaluation import InventoryEvaluator, fill_rate, avg_on_hand
 
 report = InventoryEvaluator().fit(result, window="scoring").evaluate(
     metrics=[fill_rate, avg_on_hand],

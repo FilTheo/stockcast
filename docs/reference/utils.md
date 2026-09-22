@@ -6,7 +6,7 @@ frequency and reproducibility settings. `process_demand` and
 loop; use the engine when you need canonical run outputs and lifecycle
 orchestration.
 
-::: pyforia.utils
+::: stockcast.utils
     options:
       show_root_heading: false
       members: true

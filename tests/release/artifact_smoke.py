@@ -1,17 +1,17 @@
 """Installed-artifact imports and README quick-start smoke."""
 
-import pyforia
-import pyforia.core
-import pyforia.evaluation
-import pyforia.policies
-import pyforia.utils
-import pyforia.visualization
+import stockcast
+import stockcast.core
+import stockcast.evaluation
+import stockcast.policies
+import stockcast.utils
+import stockcast.visualization
 import pandas as pd
 
 
 sku = "tea_250g"
 origin = pd.Timestamp("2026-01-05")
-inventory = pyforia.InventoryStateDataFrame(
+inventory = stockcast.InventoryStateDataFrame(
     [sku], max_lead_time=1, allow_backorders=False
 ).initialize_from_observed(
     pd.DataFrame({"unique_id": [sku], "on_hand": [5.0]}),
@@ -25,7 +25,7 @@ target = pd.DataFrame(
         "target_end_date": [origin + pd.Timedelta(days=2)],
     }
 )
-policy = pyforia.OrderUpToPolicy(
+policy = stockcast.OrderUpToPolicy(
     lead_time=1, review_period=1, service_level=0.95, allow_backorders=False
 ).fit(
     target,
@@ -45,7 +45,7 @@ demand = pd.DataFrame(
         "y": [4.0] * 6,
     }
 )
-result = pyforia.SimulationEngine().run(
+result = stockcast.SimulationEngine().run(
     policy=policy,
     demand_source=demand,
     inventory=inventory,

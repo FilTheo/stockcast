@@ -5,13 +5,13 @@ unit-sales data. It is used only as demand observations in Notebooks 07, 09,
 and 10; it does not supply inventory, shelf-life, cost, lead-time, or service
 assumptions.
 
-`notebook08_covariance_normal_checkpoint_2016-02-28.json` is a Pyforia
+`notebook08_covariance_normal_checkpoint_2016-02-28.json` is a Stockcast
 example checkpoint derived from the Notebook 09 scenario. It is not an M5
 source artifact.
 
 These files are intentionally committed for reproducible GitHub examples but
 are excluded from source distributions and wheels. They are M5-derived data,
-not Pyforia code, and are not covered by Pyforia's Apache-2.0 license; their
+not Stockcast code, and are not covered by Stockcast's Apache-2.0 license; their
 upstream terms continue to apply.
 
 The maintainer confirmed permission to retain this subset in the repository

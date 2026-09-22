@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from pyforia import (
+from stockcast import (
     ConstraintResult,
     InventoryStateDataFrame,
     MaximumOrderQuantity,
@@ -11,8 +11,8 @@ from pyforia import (
     OrderMultiple,
     SimulationEngine,
 )
-from pyforia.core.base_policy import BasePolicy
-from pyforia.core.data_structures import OrderDecision
+from stockcast.core.base_policy import BasePolicy
+from stockcast.core.data_structures import OrderDecision
 
 
 class FixedOrderPolicy(BasePolicy):
@@ -58,7 +58,7 @@ def _inventory(skus=("A",)):
 
 
 def _context(inventory):
-    from pyforia import ConstraintContext
+    from stockcast import ConstraintContext
     return ConstraintContext(inventory=inventory, policy=None, decision_period=1)
 
 

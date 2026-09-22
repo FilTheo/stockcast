@@ -1,10 +1,10 @@
 import pandas as pd
 import pytest
 
-from pyforia import InventoryStateDataFrame, SimulationEngine
-from pyforia.core.base_policy import BasePolicy
-from pyforia.core.data_structures import OrderDecision
-from pyforia.utils import DemandGenerator
+from stockcast import InventoryStateDataFrame, SimulationEngine
+from stockcast.core.base_policy import BasePolicy
+from stockcast.core.data_structures import OrderDecision
+from stockcast.utils import DemandGenerator
 
 
 class FixedOrderPolicy(BasePolicy):

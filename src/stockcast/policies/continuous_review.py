@@ -1,6 +1,6 @@
 """Traditional ``(s,Q)`` and ``(s,S)`` continuous-review policies.
 
-Pyforia is a discrete-period simulator. These policies are evaluated once per
+Stockcast is a discrete-period simulator. These policies are evaluated once per
 simulated period, not continuously in physical time.
 """
 
@@ -8,9 +8,9 @@ import pandas as pd
 import numpy as np
 from typing import Optional, Union, Literal
 
-from pyforia.core.data_structures import InventoryStateDataFrame, OrderDecision
-from pyforia.core.base_policy import BasePolicy
-from pyforia.policies._target_validation import (
+from stockcast.core.data_structures import InventoryStateDataFrame, OrderDecision
+from stockcast.core.base_policy import BasePolicy
+from stockcast.policies._target_validation import (
     prepare_direct_targets,
     prepare_inventory_positions,
     validate_forecast_origin_and_frequency,
@@ -44,7 +44,7 @@ class ContinuousReviewPolicy(BasePolicy):
             allow_backorders=False,
         )
 
-        # Fit explicit protection-period targets calculated outside Pyforia
+        # Fit explicit protection-period targets calculated outside Stockcast
         policy.fit(
             target_df,
             reorder_point_column='lead_time_q95',
@@ -137,7 +137,7 @@ class ContinuousReviewPolicy(BasePolicy):
 
         ``target_df`` must contain one row per SKU. Reorder points and, for an
         (s,S) policy, order-up-to levels must be protection-period targets
-        calculated outside Pyforia. Their probability and source are mandatory
+        calculated outside Stockcast. Their probability and source are mandatory
         and recorded on the policy.
         """
         origin, forecast_offset = validate_forecast_origin_and_frequency(

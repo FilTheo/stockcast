@@ -1,4 +1,4 @@
-# 93 — Pyforia 0.1 public API contract
+# 93 — Stockcast 0.1 public API contract
 
 Status: **frozen for the 0.1 release line** on 2026-08-25 by the repository
 owner. This is the agent-facing release contract. Public documentation must
@@ -7,7 +7,7 @@ create a broader promise.
 
 ## 93.1 Compatibility promise
 
-For the `0.1.x` series, Pyforia will not intentionally remove, rename, or
+For the `0.1.x` series, Stockcast will not intentionally remove, rename, or
 reinterpret a public import, required call argument, output field, metric, or
 scientific behavior defined here. Backward-compatible additions and fixes to
 demonstrably incorrect behavior are allowed, but must be documented and tested.
@@ -22,20 +22,20 @@ implementation modules are not part of this promise.
 The exact exports of the following namespaces are public and are locked by
 `tests/unit/test_public_api_contract.py`:
 
-- `pyforia`: the concise main workflow and supported extension objects in its
+- `stockcast`: the concise main workflow and supported extension objects in its
   `__all__`;
-- `pyforia.core`: specialist state, engine, constraint, callback, and
+- `stockcast.core`: specialist state, engine, constraint, callback, and
   shelf-life objects in its `__all__`;
-- `pyforia.policies`: built-in policies and periodic-target provider objects;
-- `pyforia.evaluation`: evaluator, event validation/schema constant, and all
+- `stockcast.policies`: built-in policies and periodic-target provider objects;
+- `stockcast.evaluation`: evaluator, event validation/schema constant, and all
   exported metric functions/classes;
-- `pyforia.utils`: demand generation and supported manual-loop primitives;
-- `pyforia.visualization`: all six exported plotting functions.
+- `stockcast.utils`: demand generation and supported manual-loop primitives;
+- `stockcast.visualization`: all six exported plotting functions.
 
 The top-level namespace is the normal starting point. The specialist namespaces
 above are endorsed public imports, not implementation details. For example,
-`ShelfLifeEngine` is imported from `pyforia.core`, evaluation from
-`pyforia.evaluation`, and plots from `pyforia.visualization`.
+`ShelfLifeEngine` is imported from `stockcast.core`, evaluation from
+`stockcast.evaluation`, and plots from `stockcast.visualization`.
 
 ## 93.3 Supported extensions
 
@@ -60,7 +60,7 @@ the ambiguous `backorder_units_end` metric are not public APIs.
 `SimulationResult.to_event_frame(window=...)` is the authoritative accounting
 output for a run. It returns the canonical event ledger: one row per SKU and
 period, plus a separately typed opening-decision row when requested. Every
-column in `pyforia.evaluation.CANONICAL_EVENT_COLUMNS` is required, with its
+column in `stockcast.evaluation.CANONICAL_EVENT_COLUMNS` is required, with its
 current name and scientific meaning stable throughout `0.1.x`. Additive new
 columns are permitted; existing columns must not be silently renamed,
 repurposed, or removed.
@@ -71,11 +71,11 @@ contract. Metrics and downstream analyses should use this ledger, not
 caller-owned history snapshots.
 
 `SimulationResult.to_callback_audit_frame()` is also durable output. Its
-columns are defined by `pyforia.core.CALLBACK_AUDIT_COLUMNS` and may be used to
+columns are defined by `stockcast.core.CALLBACK_AUDIT_COLUMNS` and may be used to
 inspect accepted typed intervention effects.
 
 `SimulationResult.run_manifest` is the durable reproducibility receipt. The
-top-level sections in `pyforia.core.RUN_MANIFEST_REQUIRED_SECTIONS` are stable:
+top-level sections in `stockcast.core.RUN_MANIFEST_REQUIRED_SECTIONS` are stable:
 `run_id`, `created_at_utc`, `demand_source`, `package`, `policy`,
 `opening_inventory`, `run_settings`, and `dependencies`. Their documented core
 meaning remains stable; nested descriptive fields may be added. Provenance may

@@ -1,11 +1,11 @@
 import pandas as pd
 import pytest
 
-import pyforia.evaluation as evaluation
-from pyforia.core.base_policy import BasePolicy
-from pyforia.core.data_structures import InventoryStateDataFrame, OrderDecision
-from pyforia.core.simulation_engine import RUN_MANIFEST_REQUIRED_SECTIONS, SimulationEngine
-from pyforia.evaluation import (
+import stockcast.evaluation as evaluation
+from stockcast.core.base_policy import BasePolicy
+from stockcast.core.data_structures import InventoryStateDataFrame, OrderDecision
+from stockcast.core.simulation_engine import RUN_MANIFEST_REQUIRED_SECTIONS, SimulationEngine
+from stockcast.evaluation import (
     BaseInventoryMetric,
     CANONICAL_EVENT_COLUMNS,
     CoverageMetric,

@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pyforia import InventoryStateDataFrame, OrderUpToPolicy, SimulationEngine
-from pyforia.evaluation import fill_rate, total_cost
+from stockcast import InventoryStateDataFrame, OrderUpToPolicy, SimulationEngine
+from stockcast.evaluation import fill_rate, total_cost
 
 
 @pytest.mark.parametrize("backorders", [False, True])

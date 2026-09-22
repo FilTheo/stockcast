@@ -5,7 +5,7 @@ This module provides:
     - InventoryStateDataFrame: Multi-SKU inventory state container
     - OrderDecision: Multi-SKU order decision container
 
-The supported staging import boundary is the ``pyforia`` package. Legacy
+The supported staging import boundary is the ``stockcast`` package. Legacy
 duplicate top-level source trees are not part of that boundary.
 """
 from typing import Dict, Optional, Any, List, Union

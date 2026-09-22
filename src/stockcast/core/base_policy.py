@@ -21,7 +21,7 @@ from typing import Optional, Union
 import math
 import pandas as pd
 
-from pyforia.core.data_structures import InventoryStateDataFrame, OrderDecision
+from stockcast.core.data_structures import InventoryStateDataFrame, OrderDecision
 
 
 class BasePolicy:

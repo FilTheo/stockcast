@@ -3,7 +3,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyforia"
+name = "stockcast"
 version = "0.1.0"
 description = "DataFrame-first inventory simulation and replenishment library."
 readme = "README.md"
@@ -38,11 +38,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/FilTheo/pyforia"
-Documentation = "https://filtheo.github.io/pyforia/"
-Source = "https://github.com/FilTheo/pyforia"
-Issues = "https://github.com/FilTheo/pyforia/issues"
+Homepage = "https://github.com/FilTheo/stockcast"
+Documentation = "https://filtheo.github.io/stockcast/"
+Source = "https://github.com/FilTheo/stockcast"
+Issues = "https://github.com/FilTheo/stockcast/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["pyforia*"]
+include = ["stockcast*"]

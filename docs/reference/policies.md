@@ -6,7 +6,7 @@ never mutate engine-owned inventory. Choose `OrderUpToPolicy` for `(R,S)`,
 `PeriodicReviewPolicy` for `(R,s,S)`. See [forecast targets](../concepts/forecast-targets.md)
 before fitting a forecast-derived policy.
 
-::: pyforia.policies
+::: stockcast.policies
     options:
       show_root_heading: false
       members: true

@@ -1,4 +1,4 @@
-# 90 — Pyforia extraction guide
+# 90 — Stockcast extraction guide
 
 Current-status note (2026-09-22): the extraction decisions below describe the
 earlier staging phase. Their no-build gate, undecided URL/version support,
@@ -9,11 +9,11 @@ See `RELEASE_READINESS.md` for fresh evidence and remaining decisions.
 
 ## 90.1 Confirmed decisions
 
-- Project/package name: **Pyforia**.
-- Distribution and import namespace: `pyforia`; no `pystate` compatibility
+- Project/package name: **Stockcast**.
+- Distribution and import namespace: `stockcast`; no `pystate` compatibility
   package.
 - First public version: `0.1.0`.
-- Source layout: `src/pyforia/` with the existing five subsystem directories;
+- Source layout: `src/stockcast/` with the existing five subsystem directories;
   tests, docs, and examples live outside `src/`.
 - License: **Apache License 2.0**.
 - Existing implementation/tests remain in the main tree; old documentation and
@@ -30,7 +30,7 @@ See `RELEASE_READINESS.md` for fresh evidence and remaining decisions.
   the ambiguous `backorder_units_end` metric. Use explicit zero/observed state
   initialization and the precise `backlog_unit_periods` or
   `terminal_backlog_units` metric.
-- Pyforia 0.1.0 will include a small ordered callback interface whose first
+- Stockcast 0.1.0 will include a small ordered callback interface whose first
   intervention point is after policy prediction. The engine must validate,
   apply, audit, and record typed callback adjustments; callbacks must not
   directly mutate live inventory or finalized events.
@@ -78,7 +78,7 @@ repository boundary; it does not approve packaging or publication.
 ## 90.4 Approved hierarchy and current state
 
 ```text
-src/pyforia/
+src/stockcast/
   core/
   policies/
   evaluation/

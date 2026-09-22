@@ -1,12 +1,12 @@
-# Pyforia knowledge index
+# Stockcast knowledge index
 
 Status: source-grounded extraction knowledge, not public API documentation.
 
 This folder explains the reusable inventory engine under
-[`src/pyforia`](../src/pyforia).
+[`src/stockcast`](../src/stockcast).
 It is the fastest route for an agent that must understand the staging code
-before preparing the future **Pyforia** distribution. The import namespace is
-`pyforia` and the first version is `0.1.0`; package metadata and the repository
+before preparing the future **Stockcast** distribution. The import namespace is
+`stockcast` and the first version is `0.1.0`; package metadata and the repository
 URL remain undecided.
 
 ## 0.1 Minimal reading path
@@ -21,7 +21,7 @@ the task:
 | Add or change a policy | [40](40_policies_and_targets.md) | [20](20_data_and_time_contracts.md), [30](30_execution_flow.md) |
 | Add an operational constraint | [50](50_constraints_and_shelf_life.md) | [30](30_execution_flow.md), [60](60_events_evaluation_and_outputs.md) |
 | Add a metric | [60](60_events_evaluation_and_outputs.md) | [80](80_tests_and_evidence.md) |
-| Prepare the new package | [90](90_pyforia_extraction_guide.md) | [10](10_system_context.md), [80](80_tests_and_evidence.md) |
+| Prepare the new package | [90](90_stockcast_extraction_guide.md) | [10](10_system_context.md), [80](80_tests_and_evidence.md) |
 | Check the frozen 0.1 public API | [93](93_public_api_contract.md) | [20](20_data_and_time_contracts.md), [30](30_execution_flow.md), [40](40_policies_and_targets.md), [50](50_constraints_and_shelf_life.md), [60](60_events_evaluation_and_outputs.md) |
 | Review or align the public example notebooks | [92](92_public_example_notebook_specification.md) | [10](10_system_context.md), [20](20_data_and_time_contracts.md), [30](30_execution_flow.md), [40](40_policies_and_targets.md), [50](50_constraints_and_shelf_life.md), [60](60_events_evaluation_and_outputs.md), [91](91_smooth_python_forecasting_research.md) |
 
@@ -40,14 +40,14 @@ series. The notebooks remain the authority for their demonstrated workflows.
   explain that evidence; they do not override it.
 - “Legacy” identifies the PyState lineage and private pre-migration evidence,
   not code that is safe to discard or an active import namespace.
-- “Confirmed” means stated by the repository owner: future name **Pyforia**,
-  `pyforia` import/distribution name, version `0.1.0`, approved source layout,
+- “Confirmed” means stated by the repository owner: future name **Stockcast**,
+  `stockcast` import/distribution name, version `0.1.0`, approved source layout,
   Apache-2.0 license, no package build yet, URL open.
 - “Candidate” means a proposed extraction boundary that still needs approval.
 - “Known defect” means observed behavior that should not be normalized into a
   future contract without an explicit decision.
 - The retired import name `pystate` is used only for historical lineage and
-  private pre-migration evidence; the active staging namespace is `pyforia`.
+  private pre-migration evidence; the active staging namespace is `stockcast`.
 
 ## 0.3 Non-negotiable scientific posture
 

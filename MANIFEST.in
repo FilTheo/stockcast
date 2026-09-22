@@ -1,7 +1,7 @@
 include README.md
 include LICENSE
-graft src/pyforia
-prune src/py_foria.egg-info
+graft src/stockcast
+prune src/stockcast.egg-info
 prune arxiv
 prune data
 prune docs

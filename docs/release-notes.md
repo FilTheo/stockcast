@@ -2,7 +2,7 @@
 
 ## 0.1.0
 
-Initial public release line for Pyforia's DataFrame-first inventory decision,
+Initial public release line for Stockcast's DataFrame-first inventory decision,
 simulation, and evaluation workflow.
 
 The 0.1.x public contract freezes the documented import namespaces, public

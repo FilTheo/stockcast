@@ -41,12 +41,12 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 
-from pyforia.core.data_structures import (
+from stockcast.core.data_structures import (
     InventoryStateDataFrame,
     _identifier_sample,
     _require_identifiers,
 )
-from pyforia.core.simulation_engine import SimulationEngine
+from stockcast.core.simulation_engine import SimulationEngine
 
 
 class FIFOLotLedger:
@@ -209,7 +209,7 @@ class ShelfLifeEngine(SimulationEngine):
         2. Stock arriving this period (in_transit[0]) is recorded as a new lot.
 
     After demand, fulfilled units are consumed from the oldest lots before
-    typed physical callbacks run. The ledger is asserted to match Pyforia
+    typed physical callbacks run. The ledger is asserted to match Stockcast
     on_hand after demand and after every accepted callback batch.
 
     Opening lot ages are mandatory run inputs. Backorder clearances consume the
@@ -431,7 +431,7 @@ class ShelfLifeEngine(SimulationEngine):
         expected = state[inventory.sku_column].map(lot_balance).fillna(0.0).to_numpy(dtype=float)
         actual = state["on_hand"].to_numpy(dtype=float)
         if not np.allclose(actual, expected, atol=1e-6):
-            raise AssertionError("FIFO shelf-life ledger no longer matches Pyforia on_hand")
+            raise AssertionError("FIFO shelf-life ledger no longer matches Stockcast on_hand")
 
     def _after_inventory_adjustment_batch(self, inventory):
         self._assert_lot_balance(inventory)

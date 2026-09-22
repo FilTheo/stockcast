@@ -7,8 +7,8 @@ external forecasting process, and evaluates the resulting event ledger.
 ```python
 import pandas as pd
 
-from pyforia import InventoryStateDataFrame, OrderUpToPolicy, SimulationEngine
-from pyforia.evaluation import InventoryEvaluator, fill_rate
+from stockcast import InventoryStateDataFrame, OrderUpToPolicy, SimulationEngine
+from stockcast.evaluation import InventoryEvaluator, fill_rate
 
 sku = "tea_250g"
 origin = pd.Timestamp("2026-01-05")
@@ -21,7 +21,7 @@ inventory = InventoryStateDataFrame(
     start_date=origin,
 )
 
-# Cumulative two-day target calculated outside Pyforia.
+# Cumulative two-day target calculated outside Stockcast.
 target = pd.DataFrame({
     "unique_id": [sku],
     "target": [20.0],
@@ -77,4 +77,4 @@ receipts and demand transitions, and writes the canonical event rows used for
 evaluation.
 
 Next, read [inputs and time](../concepts/input-and-time.md) or open Notebook
-[02 — First engine simulation](https://github.com/FilTheo/pyforia/blob/main/examples/notebooks/02_first_engine_simulation.ipynb).
+[02 — First engine simulation](https://github.com/FilTheo/stockcast/blob/main/examples/notebooks/02_first_engine_simulation.ipynb).

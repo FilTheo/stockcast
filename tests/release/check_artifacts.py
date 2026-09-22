@@ -1,4 +1,4 @@
-"""Reject non-package material from built Pyforia artifacts."""
+"""Reject non-package material from built Stockcast artifacts."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ def members(path: Path) -> set[str]:
 
 
 def main(dist_dir: Path) -> None:
-    artifacts = sorted(dist_dir.glob("pyforia-*"))
+    artifacts = sorted(dist_dir.glob("stockcast-*"))
     if (len(artifacts) != 2 or sum(p.suffix == ".whl" for p in artifacts) != 1
             or sum(p.name.endswith(".tar.gz") for p in artifacts) != 1):
         raise AssertionError(f"expected one wheel and one sdist, found: {artifacts}")
@@ -35,7 +35,7 @@ def main(dist_dir: Path) -> None:
             raise AssertionError(f"{artifact.name} contains excluded material: {leaked}")
         foreign_metadata = sorted(
             name for name in names
-            if any(part.endswith(".egg-info") and part != "pyforia.egg-info"
+            if any(part.endswith(".egg-info") and part != "stockcast.egg-info"
                    for part in Path(name).parts)
         )
         if foreign_metadata:

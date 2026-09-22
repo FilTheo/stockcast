@@ -12,9 +12,9 @@ import warnings
 from statistics import NormalDist
 from typing import Optional, Union
 
-from pyforia.core.data_structures import InventoryStateDataFrame, OrderDecision
-from pyforia.core.base_policy import BasePolicy
-from pyforia.policies._target_validation import (
+from stockcast.core.data_structures import InventoryStateDataFrame, OrderDecision
+from stockcast.core.base_policy import BasePolicy
+from stockcast.policies._target_validation import (
     prepare_direct_targets,
     prepare_independent_normal_forecasts,
     prepare_inventory_positions,
@@ -43,7 +43,7 @@ class OrderUpToPolicy(BasePolicy):
             allow_backorders=False,
         )
 
-        # Fit: accept a protection-period target calculated outside Pyforia
+        # Fit: accept a protection-period target calculated outside Stockcast
         policy.fit(
             target_df,
             target_column="protection_q95",
@@ -136,7 +136,7 @@ class OrderUpToPolicy(BasePolicy):
             sku_column: SKU identifier column.
             mean_column: Marginal forecast mean column for independent-normal mode.
             std_column: Marginal forecast standard deviation column for
-                independent-normal mode. It is required; Pyforia never invents it.
+                independent-normal mode. It is required; Stockcast never invents it.
             forecast_date_column: Target date column for horizon forecasts.
 
         Returns:

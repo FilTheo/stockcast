@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "docs/**"
-      - "src/pyforia/**"
+      - "src/stockcast/**"
       - "mkdocs.yml"
       - "pyproject.toml"
       - "requirements-docs.txt"
@@ -12,7 +12,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
-      - "src/pyforia/**"
+      - "src/stockcast/**"
       - "mkdocs.yml"
       - "pyproject.toml"
       - "requirements-docs.txt"

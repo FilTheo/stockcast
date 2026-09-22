@@ -7,7 +7,7 @@ in a multi-SKU DataFrame-based system.
 
 import pandas as pd
 import numpy as np
-from pyforia.core.data_structures import (
+from stockcast.core.data_structures import (
     InventoryStateDataFrame,
     OrderDecision,
     _identifier_sample,
@@ -54,8 +54,8 @@ def update_inventory_with_orders(
         ValueError: If orders.lead_time is None or if max_lead_time is insufficient
 
     Example:
-        from pyforia import InventoryStateDataFrame, OrderDecision
-        from pyforia.utils import update_inventory_with_orders
+        from stockcast import InventoryStateDataFrame, OrderDecision
+        from stockcast.utils import update_inventory_with_orders
 
         # Current inventory state
         inventory = InventoryStateDataFrame(inventory_df, max_lead_time=14)
@@ -239,8 +239,8 @@ def process_demand(
         value from the configured policy before processing demand.
 
     Example:
-        from pyforia import InventoryStateDataFrame
-        from pyforia.utils import process_demand
+        from stockcast import InventoryStateDataFrame
+        from stockcast.utils import process_demand
 
         # Current inventory state (period 0)
         inventory = InventoryStateDataFrame(inventory_df, max_lead_time=14)

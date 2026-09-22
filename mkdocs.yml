@@ -1,8 +1,8 @@
-site_name: Pyforia
-site_url: https://filtheo.github.io/pyforia/
+site_name: Stockcast
+site_url: https://filtheo.github.io/stockcast/
 site_description: DataFrame-first inventory decisions, simulation, and evaluation.
-repo_url: https://github.com/FilTheo/pyforia
-repo_name: FilTheo/pyforia
+repo_url: https://github.com/FilTheo/stockcast
+repo_name: FilTheo/stockcast
 edit_uri: edit/main/docs/
 
 theme:

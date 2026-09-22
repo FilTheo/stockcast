@@ -1,8 +1,8 @@
 """
-Pyforia inventory simulation and replenishment primitives.
+Stockcast inventory simulation and replenishment primitives.
 """
 
-from pyforia.core import (
+from stockcast.core import (
     BasePolicy,
     CallbackContext,
     CallbackError,
@@ -27,7 +27,7 @@ from pyforia.core import (
     SimulationEngine,
     SimulationResult,
 )
-from pyforia.policies import (
+from stockcast.policies import (
     ColumnPeriodicReviewTargets,
     ContinuousReviewPolicy,
     FixedPeriodicReviewTargets,

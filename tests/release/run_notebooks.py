@@ -1,6 +1,6 @@
 """Execute examples against an installed package, retaining review artifacts.
 
-Run with a Python 3.11+ environment containing Pyforia, smooth==1.0.7,
+Run with a Python 3.11+ environment containing Stockcast, smooth==1.0.7,
 nbclient and ipykernel. Output belongs outside the source tree. Each notebook
 gets a fresh working directory containing only the declared example assets.
 """
@@ -58,9 +58,9 @@ def main():
                 cell.execution_count = None
         # Explicitly prove the kernel imports the distribution, not this checkout.
         notebook.cells.insert(0, nbformat.v4.new_code_cell(
-            "import pathlib, pyforia, sys\n"
-            f"assert not pathlib.Path(pyforia.__file__).resolve().is_relative_to(pathlib.Path({str(root)!r}))\n"
-            "print('Installed package:', pyforia.__file__, '| Python:', sys.version)\n"
+            "import pathlib, stockcast, sys\n"
+            f"assert not pathlib.Path(stockcast.__file__).resolve().is_relative_to(pathlib.Path({str(root)!r}))\n"
+            "print('Installed package:', stockcast.__file__, '| Python:', sys.version)\n"
             "%matplotlib inline"
         ))
         report = {"notebook": path.name, "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}

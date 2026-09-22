@@ -3,10 +3,10 @@ import pandas as pd
 import pytest
 from test_data_structures import NoOrderPolicy
 
-from pyforia import InventoryStateDataFrame
-from pyforia.core import FIFOLotLedger, ShelfLifeEngine
-from pyforia.core.base_policy import BasePolicy
-from pyforia.core.data_structures import OrderDecision
+from stockcast import InventoryStateDataFrame
+from stockcast.core import FIFOLotLedger, ShelfLifeEngine
+from stockcast.core.base_policy import BasePolicy
+from stockcast.core.data_structures import OrderDecision
 
 
 class OrderOncePolicy(BasePolicy):

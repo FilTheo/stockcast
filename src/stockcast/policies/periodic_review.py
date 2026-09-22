@@ -5,13 +5,13 @@ import json
 import numpy as np
 import pandas as pd
 
-from pyforia.core.base_policy import BasePolicy
-from pyforia.core.data_structures import InventoryStateDataFrame, OrderDecision
-from pyforia.policies._target_validation import (
+from stockcast.core.base_policy import BasePolicy
+from stockcast.core.data_structures import InventoryStateDataFrame, OrderDecision
+from stockcast.policies._target_validation import (
     prepare_inventory_positions,
     validate_forecast_origin_and_frequency,
 )
-from pyforia.policies.periodic_targets import (
+from stockcast.policies.periodic_targets import (
     PeriodicReviewTargetProvider,
     validate_periodic_review_targets,
 )
@@ -21,7 +21,7 @@ class PeriodicReviewPolicy(BasePolicy):
     """Periodic ``(R,s,S)`` policy checked every ``review_period`` periods.
 
     The policy executes the replenishment rule. A target provider supplies the
-    already-calculated ``s`` and ``S`` values. Pyforia does not imply a forecast
+    already-calculated ``s`` and ``S`` values. Stockcast does not imply a forecast
     horizon or aggregation method for externally supplied targets.
     """
 

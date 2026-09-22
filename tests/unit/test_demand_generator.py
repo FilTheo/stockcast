@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from pyforia.utils import DemandGenerator
+from stockcast.utils import DemandGenerator
 
 
 def _generator(**kwargs):
@@ -86,7 +86,7 @@ def test_negative_draw_handling_is_explicit():
     with pytest.warns(RuntimeWarning, match="clipped to zero"):
         clipped = clipping.trend(2, initial=0.0, growth_rate=-1.0, std=0.0)
     assert clipped["y"].tolist() == [0.0, 0.0]
-    assert clipped.attrs["pyforia_demand_provenance"] == {
+    assert clipped.attrs["stockcast_demand_provenance"] == {
         "negative_demand_handling": "clip_zero",
         "clipped_negative_count": 1,
         "minimum_clipped_value": -1.0,

@@ -355,7 +355,7 @@ def backlog_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> f
 def ordering_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
     """Return SKU-level fixed line cost plus variable unit cost.
 
-    Pyforia does not model a shared/global order-event fixed cost. Each positive
+    Stockcast does not model a shared/global order-event fixed cost. Each positive
     SKU order line incurs its own explicit ``order_cost_per_sku_line`` rate, so
     pooled cost is the sum of SKU-level costs and is independent of row order.
     """

@@ -1,13 +1,13 @@
 # 70 — Module reference
 
 This page accounts for every Python module in the candidate reusable source.
-Paths are relative to `src/pyforia`.
+Paths are relative to `src/stockcast`.
 
 ## 70.1 Package surface
 
 ### `__init__.py`
 
-The staging `pyforia` top-level surface provisionally preserves the inherited
+The staging `stockcast` top-level surface provisionally preserves the inherited
 exports for the main state, policy, engine, result, and constraint types and
 exports the approved callback types and built-ins. It
 does not export shelf-life classes, evaluator, metrics, demand generation, or

@@ -8,7 +8,7 @@ from typing import Iterable, List, Optional, Sequence
 
 import pandas as pd
 
-from pyforia.core.simulation_engine import SimulationResult
+from stockcast.core.simulation_engine import SimulationResult
 
 from .metrics import BaseInventoryMetric
 from .event_validation import validate_event_frame

@@ -47,7 +47,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from pyforia.core.data_structures import (
+from stockcast.core.data_structures import (
     _require_forward_frequency,
     _require_identifiers,
 )
@@ -191,7 +191,7 @@ class DemandGenerator:
         arrays = [np.asarray(values, dtype=float).reshape(-1) for values in raw_values]
         combined = np.concatenate(arrays) if arrays else np.asarray([], dtype=float)
         negatives = combined[combined < 0]
-        frame.attrs["pyforia_demand_provenance"] = {
+        frame.attrs["stockcast_demand_provenance"] = {
             "negative_demand_handling": self.negative_demand_handling,
             "clipped_negative_count": int(negatives.size),
             "minimum_clipped_value": float(negatives.min()) if negatives.size else None,

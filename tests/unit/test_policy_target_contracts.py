@@ -4,7 +4,7 @@ from statistics import NormalDist
 import pandas as pd
 import pytest
 
-from pyforia.policies import (
+from stockcast.policies import (
     ColumnPeriodicReviewTargets,
     ContinuousReviewPolicy,
     FixedPeriodicReviewTargets,
