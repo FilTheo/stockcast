@@ -6,6 +6,7 @@ on:
       - "docs/**"
       - "src/pyforia/**"
       - "mkdocs.yml"
+      - "pyproject.toml"
       - "requirements-docs.txt"
   push:
     branches: [main]
@@ -13,7 +14,15 @@ on:
       - "docs/**"
       - "src/pyforia/**"
       - "mkdocs.yml"
+      - "pyproject.toml"
       - "requirements-docs.txt"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -26,3 +35,23 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . -r requirements-docs.txt
       - run: mkdocs build --strict
+      - uses: actions/configure-pages@v5
+        if: github.event_name == 'push'
+      - uses: actions/upload-pages-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

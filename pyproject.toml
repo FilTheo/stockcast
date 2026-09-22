@@ -38,6 +38,8 @@ dependencies = [
 ]
 
 [project.urls]
+Homepage = "https://github.com/FilTheo/pyforia"
+Documentation = "https://filtheo.github.io/pyforia/"
 Source = "https://github.com/FilTheo/pyforia"
 Issues = "https://github.com/FilTheo/pyforia/issues"
 

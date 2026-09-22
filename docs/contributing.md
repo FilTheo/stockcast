@@ -13,9 +13,8 @@ public extension points.
 Run the source contract suite from the repository root:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src \
-  /home/filtheo/inventory/.venv/bin/python -m pytest \
-  -p no:cacheprovider -q -o addopts='' tests/unit
+python -m pip install -e . pytest
+python -m pytest -p no:cacheprovider -q -o addopts='' tests/unit
 ```
 
 Build the documentation after installing `requirements-docs.txt`:

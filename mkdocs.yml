@@ -1,4 +1,5 @@
 site_name: Pyforia
+site_url: https://filtheo.github.io/pyforia/
 site_description: DataFrame-first inventory decisions, simulation, and evaluation.
 repo_url: https://github.com/FilTheo/pyforia
 repo_name: FilTheo/pyforia

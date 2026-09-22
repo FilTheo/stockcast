@@ -51,6 +51,8 @@ an implementation authority.
 5. Add or update tests when implementation begins.
 6. Report exact commands and results; distinguish current evidence from
    historical evidence.
+7. Before completing, perform the documentation-impact check in §E and
+   report its outcome.
 
 The archive is read-only documentation evidence by default. Do not modernize
 files inside it to make old prose appear current. The approved staging
@@ -65,3 +67,16 @@ and update the module/test coverage pages when implementation changes. When the
 package exists, build user documentation in `docs/` from active code, tests,
 and executable examples. Never copy unsupported claims from archived reports
 or changelogs.
+
+Every implementation/code task must perform a documentation-impact check
+before completion. When a change affects public/user-visible behavior, APIs,
+parameters, return values, errors, workflows, installation, examples, or
+documented scientific semantics, update the relevant public documentation
+under `docs/` in the SAME change. When it affects internal
+architecture/contracts, execution flows, module responsibilities, or
+test/evidence coverage, update the relevant `knowledge/` document(s) where
+appropriate. Do NOT modify documentation merely because code changed
+internally if the documented behavior is unchanged. At task completion,
+explicitly report either "Documentation updated: <files>" or
+"Documentation impact: none". Documentation must reflect active code/tests
+and must not claim behavior that has not been implemented/tested.
