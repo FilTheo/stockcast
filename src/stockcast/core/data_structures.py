@@ -8,6 +8,7 @@ This module provides:
 The supported staging import boundary is the ``stockcast`` package. Legacy
 duplicate top-level source trees are not part of that boundary.
 """
+import copy
 from typing import Dict, Optional, Any, List, Union
 import numpy as np
 import pandas as pd
@@ -22,6 +23,16 @@ def _require_finite_nonnegative(df: pd.DataFrame, columns: List[str], frame_name
     for column in columns:
         if column not in df.columns:
             continue
+        numbers = _plain_numbers(df[column])
+        if numbers is not None:
+            # Same checks, in the same order, without pandas round-trips.
+            if np.isnan(numbers).any():
+                raise ValueError(f"{frame_name}.{column} must not contain null or non-numeric values")
+            if not np.isfinite(numbers).all():
+                raise ValueError(f"{frame_name}.{column} must contain finite values")
+            if (numbers < 0).any():
+                raise ValueError(f"{frame_name}.{column} must be non-negative")
+            continue
         values = pd.to_numeric(df[column], errors='coerce')
         if values.isna().any():
             raise ValueError(f"{frame_name}.{column} must not contain null or non-numeric values")
@@ -29,6 +40,38 @@ def _require_finite_nonnegative(df: pd.DataFrame, columns: List[str], frame_name
             raise ValueError(f"{frame_name}.{column} must contain finite values")
         if (values < 0).any():
             raise ValueError(f"{frame_name}.{column} must be non-negative")
+
+
+def _plain_numbers(values: pd.Series) -> Optional[np.ndarray]:
+    """Float view of a plain NumPy int/float column, else None."""
+    dtype = values.dtype
+    if isinstance(dtype, np.dtype) and dtype.kind in "fiu":
+        return values.to_numpy(dtype=float)
+    return None
+
+
+def _plain_dates(values: pd.Series) -> Optional[np.ndarray]:
+    """int64 view of a plain NumPy datetime64 column, else None.
+
+    ``pd.to_datetime`` returns such a column unchanged, so validators can
+    read it directly.
+    """
+    dtype = values.dtype
+    if isinstance(dtype, np.dtype) and dtype.kind == "M":
+        return values.to_numpy().view("i8")
+    return None
+
+
+def _one_valid_date(values: pd.Series) -> Optional[bool]:
+    """Whether a plain datetime64 column holds one date and no NaT, else None."""
+    stamps = _plain_dates(values)
+    if stamps is None:
+        return None
+    return (
+        len(stamps) > 0
+        and not (stamps == np.iinfo(np.int64).min).any()
+        and bool((stamps == stamps[0]).all())
+    )
 
 
 def _require_forward_frequency(value: str, name: str):
@@ -52,6 +95,8 @@ def _require_forward_frequency(value: str, name: str):
 
 def _require_unique(df: pd.DataFrame, columns: List[str], frame_name: str) -> None:
     """Validate uniqueness for a set of key columns."""
+    if len(columns) == 1 and df[columns[0]].is_unique:
+        return
     duplicates = int(df.duplicated(columns).sum())
     if duplicates:
         raise ValueError(f"{frame_name} contains {duplicates} duplicate rows for {columns}")
@@ -75,22 +120,101 @@ def _require_identifiers(
     values = df[column]
     if values.isna().any():
         raise ValueError(f"{frame_name}.{column} must not contain missing values")
-    if values.map(lambda value: isinstance(value, str) and not value.strip()).any():
+    items = values.tolist()
+    if any(isinstance(value, str) and not value.strip() for value in items):
         raise ValueError(f"{frame_name}.{column} must not contain blank strings")
     try:
-        for value in values:
-            hash(value)
+        identifiers = set(items)
     except TypeError as exc:
         raise ValueError(f"{frame_name}.{column} identifiers must be hashable") from exc
-    value_types = {type(value) for value in values}
+    value_types = set(map(type, items))
     if len(value_types) > 1:
         names = sorted(value_type.__name__ for value_type in value_types)
         raise ValueError(
             f"{frame_name}.{column} must use one identifier type; got {names}"
         )
-    if unique:
+    # Missing values are rejected above, so distinct Python identifiers
+    # cannot be pandas duplicates; only a collision needs the pandas count.
+    if unique and len(identifiers) != len(items):
         _require_unique(df, [column], frame_name)
-    return set(values.tolist())
+    return identifiers
+
+_FLOAT64 = np.dtype("float64")
+
+
+def _uniform_float_pipelines(values: pd.Series, max_lead_time: int) -> Optional[np.ndarray]:
+    """Stack valid float64 pipeline arrays, or return None for any other content.
+
+    ``None`` never means invalid: callers then use their general per-row path,
+    which applies the exact validation and error semantics.
+    """
+    shape = (max_lead_time,)
+    items = values.tolist()
+    if not items or not all(
+        type(item) is np.ndarray and item.dtype == _FLOAT64 and item.shape == shape
+        for item in items
+    ):
+        return None
+    stacked = np.stack(items) if max_lead_time else np.zeros((len(items), 0))
+    if not np.isfinite(stacked).all() or (stacked < 0).any():
+        return None
+    return stacked
+
+
+class _DeferredHistory(list):
+    """Engine-owned history list whose snapshot frames are built on first use.
+
+    ``SimulationEngine`` hands states to policies and constraints (and policies
+    receive deep copies). Materializing every earlier period for each copy
+    would make a run quadratic, so the snapshots are produced only when the
+    list is read or modified. A deep copy shares the immutable source.
+    """
+
+    __slots__ = ("_source",)
+
+    def __init__(self, source=None):
+        super().__init__()
+        self._source = source
+
+    def _load(self) -> "_DeferredHistory":
+        source = self._source
+        if source is not None:
+            self._source = None
+            list.extend(self, source())
+        return self
+
+    def __deepcopy__(self, memo):
+        if self._source is not None:
+            return _DeferredHistory(self._source)
+        return [copy.deepcopy(item, memo) for item in list.__iter__(self)]
+
+    def __copy__(self):
+        return list(self._load())
+
+    def __reduce_ex__(self, protocol):
+        return (list, (list(self._load()),))
+
+
+def _deferred_list_method(name):
+    method = getattr(list, name)
+
+    def load_then_call(self, *args, **kwargs):
+        return method(self._load(), *args, **kwargs)
+
+    load_then_call.__name__ = name
+    return load_then_call
+
+
+for _name in (
+    "__len__", "__iter__", "__getitem__", "__setitem__", "__delitem__",
+    "__contains__", "__reversed__", "__eq__", "__ne__", "__lt__", "__le__",
+    "__gt__", "__ge__", "__add__", "__iadd__", "__mul__", "__imul__",
+    "__rmul__", "__repr__", "append", "extend", "insert", "pop", "remove",
+    "clear", "index", "count", "sort", "reverse", "copy",
+):
+    setattr(_DeferredHistory, _name, _deferred_list_method(_name))
+del _name
+
 
 class InventoryStateDataFrame:
     """
@@ -221,9 +345,14 @@ class InventoryStateDataFrame:
             if pd.isna(inferred_date):
                 raise ValueError("start_date must be a valid timestamp")
         elif 'date' in df_input.columns:
-            valid_dates = pd.to_datetime(df_input['date'], errors='coerce')
-            if valid_dates.notna().all() and valid_dates.nunique() == 1:
-                inferred_date = valid_dates.iloc[0]
+            one_date = _one_valid_date(df_input['date'])
+            if one_date is not None:
+                if one_date:
+                    inferred_date = df_input['date'].iloc[0]
+            else:
+                valid_dates = pd.to_datetime(df_input['date'], errors='coerce')
+                if valid_dates.notna().all() and valid_dates.nunique() == 1:
+                    inferred_date = valid_dates.iloc[0]
 
         # Store inferred date as instance attribute for preservation across initialization methods
         self._inferred_start_date = inferred_date
@@ -283,7 +412,7 @@ class InventoryStateDataFrame:
         if 'date' not in self.data.columns:
             # Date column doesn't exist, create it with inferred date
             self.data['date'] = inferred_date
-        else:
+        elif _plain_dates(self.data['date']) is None:
             self.data['date'] = pd.to_datetime(self.data['date'], errors='coerce')
 
         # Drop columns that are not part of the inventory state schema
@@ -296,6 +425,35 @@ class InventoryStateDataFrame:
         self.has_stockout = False
         self.has_backorder = False
 
+    @classmethod
+    def _from_trusted(
+        cls,
+        data: pd.DataFrame,
+        *,
+        sku_column: str,
+        max_lead_time: int,
+        allow_backorders: Optional[bool],
+        history: List[pd.DataFrame],
+        start_date: pd.Timestamp,
+        has_stockout: bool = False,
+        has_backorder: bool = False,
+    ) -> 'InventoryStateDataFrame':
+        """Wrap an engine-built complete state frame without re-validating it.
+
+        The engine builds ``data`` from state it has already validated, so it
+        already has every schema column and one period and date.
+        """
+        state = cls.__new__(cls)
+        state.sku_column = sku_column
+        state.max_lead_time = max_lead_time
+        state.allow_backorders = allow_backorders
+        state._history = history
+        state._inferred_start_date = start_date
+        state._source_data = data
+        state.data = data
+        state.has_stockout = has_stockout
+        state.has_backorder = has_backorder
+        return state
 
     def inventory_position(self) -> pd.DataFrame:
         """
@@ -313,9 +471,14 @@ class InventoryStateDataFrame:
         result = self.data.copy()
 
         # Calculate total in_transit per SKU (sum of array)
-        result['total_in_transit'] = result['in_transit'].apply(
-            lambda x: np.sum(x) if isinstance(x, np.ndarray) else 0.0
-        )
+        pipelines = _uniform_float_pipelines(result['in_transit'], self.max_lead_time)
+        if pipelines is not None:
+            # Row sums of a stacked float64 pipeline equal the per-array sums.
+            result['total_in_transit'] = pipelines.sum(axis=1)
+        else:
+            result['total_in_transit'] = result['in_transit'].apply(
+                lambda x: np.sum(x) if isinstance(x, np.ndarray) else 0.0
+            )
 
         # Calculate inventory position
         result['inventory_position'] = (
@@ -388,8 +551,12 @@ class InventoryStateDataFrame:
             ],
             'inventory_state',
         )
-        backorders = pd.to_numeric(self.data['backorders'], errors='coerce')
-        on_hand = pd.to_numeric(self.data['on_hand'], errors='coerce')
+        backorders = _plain_numbers(self.data['backorders'])
+        if backorders is None:
+            backorders = pd.to_numeric(self.data['backorders'], errors='coerce')
+        on_hand = _plain_numbers(self.data['on_hand'])
+        if on_hand is None:
+            on_hand = pd.to_numeric(self.data['on_hand'], errors='coerce')
         if not self.allow_backorders and (backorders > 0).any():
             raise ValueError(
                 "inventory_state.backorders must be zero when allow_backorders=False"
@@ -402,9 +569,14 @@ class InventoryStateDataFrame:
         periods = self.data['period'].to_numpy(dtype=float)
         if not np.equal(periods, np.floor(periods)).all() or len(set(periods)) != 1:
             raise ValueError("inventory_state.period must be one complete integer period")
-        dates = pd.to_datetime(self.data['date'], errors='coerce')
-        if dates.isna().any() or dates.nunique() != 1:
+        one_date = _one_valid_date(self.data['date'])
+        if one_date is None:
+            dates = pd.to_datetime(self.data['date'], errors='coerce')
+            one_date = not dates.isna().any() and dates.nunique() == 1
+        if not one_date:
             raise ValueError("inventory_state.date must contain one complete opening date")
+        if _uniform_float_pipelines(self.data['in_transit'], self.max_lead_time) is not None:
+            return
         bad_in_transit = []
         for idx, value in self.data['in_transit'].items():
             if not isinstance(value, np.ndarray):

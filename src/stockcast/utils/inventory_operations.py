@@ -156,11 +156,22 @@ def update_inventory_with_orders(
         merged['latest_received'] += received
         merged['latest_backorders_fulfilled'] += cleared
     else:
-        def add_to_pipeline(row):
-            pipeline = row['in_transit'].copy()
-            pipeline[lead_time - 1] += row['order_quantity']
+        def add_to_pipeline(pipeline, quantity):
+            pipeline = pipeline.copy()
+            pipeline[lead_time - 1] += quantity
             return pipeline
-        merged['in_transit'] = merged.apply(add_to_pipeline, axis=1)
+        updated = pd.Series(
+            [
+                add_to_pipeline(pipeline, quantity)
+                for pipeline, quantity in zip(
+                    merged['in_transit'].tolist(),
+                    merged['order_quantity'].astype(object).tolist(),
+                )
+            ],
+            index=merged.index,
+            dtype=object,
+        )
+        merged['in_transit'] = updated
 
     # Accumulate every order line placed in the current period. This matters
     # when a calendar engine executes multiple supplier events before demand

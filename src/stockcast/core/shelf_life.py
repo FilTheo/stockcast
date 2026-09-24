@@ -435,6 +435,44 @@ class ShelfLifeEngine(SimulationEngine):
         self._assert_lot_balance(inventory)
         return inventory
 
+    # Array forms of the hooks above, used while the engine holds NumPy state.
+    # Each performs the same ledger calls, in the same SKU order.
+
+    def _before_demand_arrays(self, state, current_date):
+        self.expired_this_period = self.ledger.expire(current_date)
+        if self.expired_this_period:
+            remaining = state.on_hand - state.map_by_sku(self.expired_this_period, 0.0)
+            # Series.clip(lower=0.0): keep values >= 0 (and NaN), else 0.0.
+            state = state.with_on_hand(np.where(remaining < 0.0, 0.0, remaining))
+        if state.schema.max_lead_time:
+            arriving = state.pipeline[:, 0]
+            skus = state.schema.sku_list()
+            for position in np.flatnonzero(arriving > 0):
+                self.ledger.receive(skus[position], float(arriving[position]), current_date)
+        return state
+
+    def _after_order_receipt_arrays(self, before, after):
+        received = (after.latest["latest_received"] - before.latest["latest_received"]).tolist()
+        for sku, quantity in zip(after.schema.sku_list(), received):
+            if quantity > 0:
+                self.ledger.receive(sku, quantity, after.date)
+
+    def _after_demand_arrays(self, state):
+        for unique_id, fulfilled, backorders_fulfilled in zip(
+            state.schema.sku_list(),
+            state.latest["latest_fulfilled"].tolist(),
+            state.latest["latest_backorders_fulfilled"].tolist(),
+        ):
+            self.ledger.consume(unique_id, fulfilled + backorders_fulfilled)
+        lots_by_sku = self.ledger.lots_by_sku
+        expected = np.array([
+            sum(float(lot["qty"]) for lot in lots_by_sku[unique_id])
+            if unique_id in lots_by_sku else 0.0
+            for unique_id in state.schema.sku_list()
+        ], dtype=float)
+        if not np.allclose(state.on_hand, expected, atol=1e-6):
+            raise AssertionError("FIFO shelf-life ledger no longer matches Stockcast on_hand")
+
     def _period_expired_units(self):
         return dict(self.expired_this_period)
 

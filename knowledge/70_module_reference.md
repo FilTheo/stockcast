@@ -22,6 +22,17 @@ Exports `InventoryStateDataFrame`, `OrderDecision`, `BasePolicy`,
 `SimulationEngine`, `SimulationResult`, `ComparisonResult`, all constraint
 types, callback types/built-ins, `FIFOLotLedger`, and `ShelfLifeEngine`.
 
+### `core/_array_state.py`
+
+Private NumPy period kernel for `SimulationEngine`: `ArrayState` (array
+mirror of one state, with advance, order, fulfilment and boundary
+materialization), `StateSchema` (column order, index, constants and dtypes),
+`DemandPath` (validated demand aligned to state SKU order), and the `RunLog`
+that assembles `result.history` and the event ledger once. Every frame it
+builds must equal the per-period pandas result exactly; states it cannot
+represent stay DataFrames. Not a public or extension surface. See
+[30.10](30_execution_flow.md#3010-internal-state-representation).
+
 ### `core/callbacks.py`
 
 Defines the public callback base, defensive context, typed inventory/order
@@ -40,7 +51,9 @@ backorder mode; base `fit` and `predict` raise until implemented.
 Defines `InventoryStateDataFrame` and `OrderDecision`. It owns identifier
 validation, opening-state initialization, state-readiness validation, inventory
 position, the receipt/backlog/demand transition, pipeline representation, and
-decision-row validation. See [20](20_data_and_time_contracts.md).
+decision-row validation. The private `_from_trusted` constructor and
+`_DeferredHistory` list serve the engine's array kernel only. See
+[20](20_data_and_time_contracts.md).
 
 ### `core/order_constraints.py`
 
@@ -62,8 +75,11 @@ Defines `SimulationEngine`, typed callback integration,
 `SimulationResult`, and `ComparisonResult` behavior. It owns run preflight,
 demand materialization, policy schedules, period ordering, constraints,
 canonical event construction, callback audit, flow assertions,
-comparison isolation, and run manifests. The removed legacy `after_step` hook
-is not part of the staging extension surface. See [30](30_execution_flow.md).
+comparison isolation, and run manifests. The private `_PeriodRun` executes
+periods on `core/_array_state.py` arrays and falls back to the pandas period
+path (kept here) for any state without an exact array form. The removed
+legacy `after_step` hook is not part of the staging extension surface. See
+[30](30_execution_flow.md).
 
 ## 70.3 Policies
 

@@ -140,3 +140,41 @@ The caller's original state and fitted policy are not the run's working objects.
 Deep copying isolates scenarios and permits post-run inspection. Reproducibility
 still requires callers to persist inputs, explicit demand-generation settings,
 target data, and package provenance. A seed alone is not a complete run record.
+
+## 30.10 Internal state representation
+
+The period sequence in 30.4 is a contract; how the engine stores state between
+its boundaries is not. Since 2026-09-24 `SimulationEngine` keeps live state as
+NumPy arrays (`core/_array_state.py`: `ArrayState`, `StateSchema`) and runs
+each period through the private `_PeriodRun` executor:
+
+- advance, receipt, demand fulfilment, flow-balance checks and the
+  `ShelfLifeEngine` lot hooks operate on arrays;
+- policies, order callbacks, constraints and physical callbacks still receive
+  an `InventoryStateDataFrame` or DataFrame, built at that boundary with the
+  exact columns, dtypes, column order and index the per-period pandas path
+  would hold. Policies still predict on a deep copy; constraints still see the
+  live boundary state, so with constraints the order primitive runs on it;
+- a boundary state's `get_history()` lists the completed periods, built only
+  when read (`_DeferredHistory`), so deep copies stay cheap;
+- `result.history` and the canonical event ledger are assembled once from a
+  run log, in blocks of consecutive periods with identical dtypes, then
+  concatenated exactly as the per-period frames would be.
+
+Exactness rule: a state without an exact array form stays a DataFrame, and
+that phase or period runs the original pandas code (`advance_period`,
+`fulfill_demand`, `update_inventory_with_orders`, `_build_period_event_frame`).
+Examples are an integer or extra-column opening state (period 0 only, because
+the first transition normalizes it), non-float order quantities or targets,
+unknown SKUs or inconsistent order timing (the primitive then raises its own
+error), and engine subclasses that override a lifecycle hook without its
+array form (`_before_demand_arrays`, `_after_order_receipt_arrays`,
+`_after_demand_arrays`); those run every period on the pandas path. Error
+behaviour is therefore unchanged: array checks only decide which path runs.
+
+Two observable-cost differences are intentional: callbacks that do not
+override `on_after_demand` are no longer called with a context for that phase
+(the base method returns `None` without reading it), and preflight skips the
+defensive policy deep copy when a policy has no `validate_decision_window` or
+`validate_demand_window`. Evidence: [80](80_tests_and_evidence.md) (kernel
+equivalence tests, golden-output comparison, benchmark).

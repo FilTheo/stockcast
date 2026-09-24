@@ -45,6 +45,16 @@ from uuid import uuid4
 import numpy as np
 import pandas as pd
 
+from stockcast.core._array_state import (
+    AUDIT_COLUMNS,
+    ArrayState,
+    DemandPath,
+    FastRecord,
+    FrameRecord,
+    RunLog,
+    assert_flow_balance,
+    audit_default,
+)
 from stockcast.core.base_policy import BasePolicy
 from stockcast.core.callbacks import (
     CallbackContext,
@@ -535,6 +545,252 @@ class ComparisonResult:
 
 
 # ============================================================================
+# PERIOD EXECUTION
+# ============================================================================
+
+class _PeriodRun:
+    """Engine-private executor for the periods of one ``SimulationEngine.run``.
+
+    Each period follows the documented before-demand sequence. A state is
+    either an ``ArrayState`` or an ``InventoryStateDataFrame``; every phase
+    has both forms, and a phase that meets a state the array form cannot
+    represent exactly continues on the DataFrame path.
+    """
+
+    def __init__(self, *, engine, demand_fn, period_offset, decision_periods,
+                 allow_backorders, max_lead_time, policy_schedule, update_log,
+                 use_arrays):
+        self.engine = engine
+        self.demand_fn = demand_fn
+        self.period_offset = period_offset
+        self.decision_periods = decision_periods
+        self.allow_backorders = allow_backorders
+        self.max_lead_time = max_lead_time
+        self.policy_schedule = policy_schedule
+        self.update_log = update_log
+        self.use_arrays = use_arrays
+        self.demand: Optional[DemandPath] = None
+        self.inventory_callbacks = False
+        self.log = RunLog()
+
+    def frame(self, state, history) -> InventoryStateDataFrame:
+        """DataFrame-backed state for a boundary or the DataFrame path."""
+        if not isinstance(state, ArrayState):
+            return state
+        return state.to_inventory(
+            history,
+            max_lead_time=self.max_lead_time,
+            allow_backorders=self.allow_backorders,
+        )
+
+    def absorb(self, frame: InventoryStateDataFrame, previous):
+        """Return an array state for ``frame`` when exact, else the frame."""
+        if not self.use_arrays:
+            return frame
+        hint = previous.schema if isinstance(previous, ArrayState) else None
+        return ArrayState.from_inventory(frame, opening=False, hint=hint) or frame
+
+    def period(self, opening, period: int, run_window: str, active_policy):
+        engine = self.engine
+        opening_frame = None
+        if isinstance(opening, ArrayState):
+            state = engine._before_demand_arrays(opening, self.demand.dates[period])
+        else:
+            opening_frame = copy.deepcopy(opening)
+            state = engine._before_demand_transition(opening, self.demand_fn(period), period)
+
+        # Open the demand epoch and receive due stock before the policy
+        # sees state. Latest demand fields are reset, preventing look-ahead.
+        review = period in self.decision_periods
+        if isinstance(state, ArrayState) and state.ready(self.allow_backorders):
+            state = state.advanced(
+                self.period_offset,
+                is_review=review,
+                allow_backorders=self.allow_backorders,
+            )
+            sim_period = int(state.period)
+        else:
+            state = self.frame(state, []).advance_period(
+                period_frequency=self.period_offset.freqstr,
+                is_review_period=review,
+            )
+            sim_period = int(state.data['period'].iloc[0])
+
+        engine._begin_order_capture()
+        if review:
+            active_policy = engine._policy_for_decision(
+                active_policy, self.policy_schedule, period, self.update_log,
+            )
+            state = self._decide(state, period, sim_period, run_window, active_policy)
+
+        demand = self.demand
+        if (
+            isinstance(state, ArrayState)
+            and demand.aligned(state.schema)
+            and state.ready(self.allow_backorders)
+            and state.date == demand.dates[period]
+        ):
+            state = state.fulfilled(demand.values(period), allow_backorders=self.allow_backorders)
+            engine._after_demand_arrays(state)
+        else:
+            frame = self.frame(state, [])
+            frame._history = []
+            state = frame.fulfill_demand(self.demand_fn(period))
+            state = engine._after_demand_transition(state, sim_period)
+
+        if isinstance(state, ArrayState) and not self.inventory_callbacks:
+            adjustments = {}
+        else:
+            frame = self.frame(state, [])
+            adjustments = engine._run_inventory_callbacks(
+                frame, period=sim_period, run_window=run_window,
+            )
+            state = self.absorb(frame, state) if isinstance(state, ArrayState) else frame
+
+        expired = engine._period_expired_units()
+        if (
+            isinstance(opening, ArrayState)
+            and isinstance(state, ArrayState)
+            and _same_skus(opening.schema.sku_event(), state.schema.sku_event())
+        ):
+            self._record_arrays(
+                opening, state, period, run_window, active_policy, review,
+                expired, adjustments,
+            )
+        else:
+            if opening_frame is None:
+                opening_frame = self.frame(opening, [])
+            final = self.frame(state, [])
+            period_event = _build_period_event_frame(
+                inventory_before=opening_frame,
+                inventory_after_demand=final,
+                inventory_after_orders=final,
+                policy=active_policy,
+                demand_period=period,
+                order_event_count=engine._captured_order_event_count,
+                sku_order_line_counts=engine._captured_sku_order_line_counts,
+                order_line_quantity_squared_sums=(
+                    engine._captured_order_line_quantity_squared_sums
+                ),
+            )
+            period_event['run_window'] = run_window
+            period_event = engine._attach_order_audit(period_event)
+            period_event['expired_units'] = (
+                period_event['unique_id'].map(expired).fillna(0.0)
+            )
+            period_event['inventory_adjustment_units'] = (
+                period_event['unique_id'].map(adjustments).fillna(0.0)
+            )
+            _assert_event_flow_balance(period_event)
+            # History is a completed-period snapshot, including orders and
+            # accepted physical callback adjustments.
+            self.log.records.append(FrameRecord(period_event, final.data.copy(deep=True)))
+        return state, active_policy
+
+    def _decide(self, state, period, sim_period, run_window, active_policy):
+        """One order decision; the order is applied on arrays when exact."""
+        engine = self.engine
+        arrays = isinstance(state, ArrayState) and state.ready(self.allow_backorders)
+        history = self.log.history_view(period)
+        before = self.frame(state, history)
+        before._history = history
+        engine._captured_decision_positions = (
+            state.inventory_positions() if arrays else engine._decision_positions(before)
+        )
+        orders = engine._decide_order(
+            before, active_policy, sim_period,
+            run_window=run_window, initial_decision=False,
+        )
+        # Constraints receive the live state in their context, so with
+        # constraints the primitive always runs on that same object.
+        if arrays and engine._active_order_constraints is None:
+            after_state = state.with_order(
+                orders,
+                allow_backorders=getattr(active_policy, 'allow_backorders', self.allow_backorders),
+            )
+            if after_state is not None:
+                engine._after_order_receipt_arrays(state, after_state)
+                return after_state
+        after = engine._update_inventory_primitive(before, orders, policy=active_policy)
+        engine._after_order_receipt(before, after)
+        return self.absorb(after, state)
+
+    def _record_arrays(self, opening, state, period, run_window, active_policy,
+                       review, expired, adjustments) -> None:
+        engine = self.engine
+        uid = opening.schema.sku_event()
+        audit = None
+        if review:
+            audit = self._decision_audit(uid, state.latest['latest_order'])
+            uid = audit['unique_id']
+        record = FastRecord(
+            demand_period=period,
+            run_window=run_window,
+            policy_name=active_policy.policy_name,
+            allow_backorders=active_policy.allow_backorders,
+            start=opening,
+            final=state,
+            order_event_count=engine._captured_order_event_count,
+            line_counts=engine._captured_sku_order_line_counts,
+            squared_sums=engine._captured_order_line_quantity_squared_sums,
+            audit=audit,
+            expired=uid.map(expired).fillna(0.0).to_numpy() if expired else None,
+            adjustments=uid.map(adjustments).fillna(0.0).to_numpy() if adjustments else None,
+        )
+        assert_flow_balance(record)
+        self.log.records.append(record)
+
+    def _decision_audit(self, uid: pd.Series, order_quantity: np.ndarray) -> dict:
+        """Order-audit columns for one decision period, keyed by column name.
+
+        Equal to ``_attach_order_audit`` on the full event frame. The common
+        case (one decision, no constraints, trail in ledger SKU order with
+        plain dtypes) is computed directly: grouping unique SKUs and summing
+        one value each is ``value + 0.0`` for floats and the value for ints.
+        Otherwise the pandas merges run on a two-column frame.
+        """
+        engine = self.engine
+        trails = engine._captured_callback_order_audits
+        if not engine._captured_order_audits and len(trails) == 1:
+            trail = trails[0]
+            ids = trail['unique_id']
+            if ids.dtype == uid.dtype and ids.equals(uid):
+                audit = {
+                    'unique_id': uid,
+                    'decision_inventory_position': uid.map(
+                        engine._captured_decision_positions
+                    ),
+                }
+                for name in (
+                    'requested_order_quantity',
+                    'callback_adjusted_order_quantity',
+                    'callback_adjustment_units',
+                ):
+                    values = trail[name]
+                    if values.dtype == np.dtype('float64'):
+                        audit[name] = values.to_numpy() + 0.0
+                    elif values.dtype == np.dtype('int64'):
+                        audit[name] = values.to_numpy()
+                    else:
+                        audit = None
+                        break
+                if audit is not None:
+                    for name in AUDIT_COLUMNS[4:]:
+                        audit[name] = audit_default(name, order_quantity)
+                    return audit
+        frame = engine._attach_order_audit(pd.DataFrame({
+            'unique_id': uid,
+            'order_quantity': order_quantity,
+        }))
+        return {name: frame[name] for name in ('unique_id',) + AUDIT_COLUMNS}
+
+
+def _same_skus(left: pd.Series, right: pd.Series) -> bool:
+    """Whether two states list the same SKUs, in order, with one dtype."""
+    return left is right or (left.dtype == right.dtype and left.equals(right))
+
+
+# ============================================================================
 # SIMULATION ENGINE
 # ============================================================================
 
@@ -734,6 +990,8 @@ class SimulationEngine:
         coverage_policy = policy
         for period in sorted(decision_periods):
             coverage_policy = policy_schedule.get(period, coverage_policy)
+            if not callable(getattr(coverage_policy, "validate_decision_window", None)):
+                continue
             validate_window = getattr(copy.deepcopy(coverage_policy), "validate_decision_window", None)
             if callable(validate_window):
                 validate_window(period, opening_date + period * period_offset, period_offset)
@@ -752,6 +1010,8 @@ class SimulationEngine:
             period_offset,
         )
         for snapshot in [policy, *policy_schedule.values()]:
+            if not callable(getattr(snapshot, "validate_demand_window", None)):
+                continue
             validate_window = getattr(copy.deepcopy(snapshot), "validate_demand_window", None)
             if callable(validate_window):
                 validate_window(demand_data.copy(deep=True), n_periods)
@@ -771,96 +1031,25 @@ class SimulationEngine:
             opening_date=opening_date,
         )
         update_log = []
-        event_frames = []
         n_skus = len(inventory.get_dataframe())
         self._log(
             f"[SimEngine] Starting: {n_periods} periods, "
             f"policy={policy.policy_name}, {n_skus} SKUs"
         )
-        milestones = {n_periods // 4, n_periods // 2, 3 * n_periods // 4}
+        inventory, history, event_frame = self._simulate_periods(
+            inventory=inventory,
+            demand_data=demand_data,
+            demand_fn=demand_fn,
+            n_periods=n_periods,
+            period_offset=period_offset,
+            decision_periods=decision_periods,
+            warmup_periods=warmup_periods,
+            scoring_periods=scoring_periods,
+            active_policy=active_policy,
+            policy_schedule=policy_schedule,
+            update_log=update_log,
+        )
 
-        for period in range(n_periods):
-            demand_df = demand_fn(period)
-            run_window = self._run_window(
-                period,
-                warmup_periods,
-                scoring_periods,
-            )
-
-            inventory_period_opening = copy.deepcopy(inventory)
-            inventory = self._before_demand_transition(inventory, demand_df, period)
-
-            # Open the demand epoch and receive due stock before the policy
-            # sees state. Latest demand fields are reset, preventing look-ahead.
-            inventory = inventory.advance_period(
-                period_frequency=period_offset.freqstr,
-                is_review_period=period in decision_periods,
-            )
-            sim_period = int(inventory.data['period'].iloc[0])
-            self._begin_order_capture()
-            if period in decision_periods:
-                active_policy = self._policy_for_decision(
-                    active_policy, policy_schedule, period, update_log,
-                )
-                before_order = inventory
-                inventory = self._execute_order_decision(
-                    inventory, active_policy, sim_period,
-                    run_window=run_window, initial_decision=False,
-                )
-                self._after_order_receipt(before_order, inventory)
-
-            inventory = inventory.fulfill_demand(demand_df)
-            inventory = self._after_demand_transition(inventory, sim_period)
-            inventory_adjustments = self._run_inventory_callbacks(
-                inventory, period=sim_period, run_window=run_window,
-            )
-            inventory_after_demand = inventory
-            inv_df = inventory.get_dataframe()
-            # History is a completed-period snapshot, including orders and
-            # accepted physical callback adjustments.
-            inventory._history[-1] = inventory.data.copy(deep=True)
-
-            period_event = _build_period_event_frame(
-                inventory_before=inventory_period_opening,
-                inventory_after_demand=inventory_after_demand,
-                inventory_after_orders=inventory,
-                policy=active_policy,
-                demand_period=period,
-                order_event_count=self._captured_order_event_count,
-                sku_order_line_counts=self._captured_sku_order_line_counts,
-                order_line_quantity_squared_sums=(
-                    self._captured_order_line_quantity_squared_sums
-                ),
-            )
-            period_event['run_window'] = run_window
-            period_event = self._attach_order_audit(period_event)
-            period_event['expired_units'] = (
-                period_event['unique_id'].map(self._period_expired_units()).fillna(0.0)
-            )
-            period_event['inventory_adjustment_units'] = (
-                period_event['unique_id'].map(inventory_adjustments).fillna(0.0)
-            )
-            _assert_event_flow_balance(period_event)
-            event_frames.append(period_event)
-
-            # Verbose logging
-            if period in milestones:
-                pct = int(100 * (period + 1) / n_periods)
-                self._log(f"[SimEngine] Period {period + 1}/{n_periods} ({pct}%)")
-
-            if self.verbose >= 2:
-                total_demand = inv_df['latest_incoming_demand'].sum()
-                total_orders = inv_df['latest_order'].sum()
-                total_on_hand = inv_df['on_hand'].sum()
-                stockout_flag = 'YES' if inventory.has_stockout else 'no'
-                self._log(
-                    f"  Period {sim_period}: demand={total_demand:.0f}, "
-                    f"orders={total_orders:.0f}, on_hand={total_on_hand:.0f}, "
-                    f"stockout={stockout_flag}",
-                    level=2,
-                )
-
-        history = inventory.get_history()
         resolved_commit = self._repository_commit()
         run_settings = {
             'period_frequency': period_offset.freqstr,
@@ -895,7 +1084,7 @@ class SimulationEngine:
             inventory=inventory,
             n_periods=n_periods,
             policy_name=policy.policy_name,
-            event_frame=pd.concat(event_frames, ignore_index=True) if event_frames else pd.DataFrame(),
+            event_frame=event_frame,
             run_settings=run_settings,
             run_manifest=run_manifest,
             callback_audit=pd.DataFrame(self._callback_audit_rows),
@@ -912,6 +1101,117 @@ class SimulationEngine:
             )
 
         return result
+
+    # ---- Period execution ----
+
+    def _array_hooks_supported(self) -> bool:
+        """Whether every overridden lifecycle hook also has an array form."""
+        engine = type(self)
+        for frame_hook, array_hook in (
+            ("_before_demand_transition", "_before_demand_arrays"),
+            ("_after_order_receipt", "_after_order_receipt_arrays"),
+            ("_after_demand_transition", "_after_demand_arrays"),
+        ):
+            if (
+                getattr(engine, frame_hook) is not getattr(SimulationEngine, frame_hook)
+                and getattr(engine, array_hook) is getattr(SimulationEngine, array_hook)
+            ):
+                return False
+        return True
+
+    def _simulate_periods(
+        self,
+        *,
+        inventory: InventoryStateDataFrame,
+        demand_data: pd.DataFrame,
+        demand_fn: Callable,
+        n_periods: int,
+        period_offset,
+        decision_periods: set,
+        warmup_periods: int,
+        scoring_periods: int,
+        active_policy: BasePolicy,
+        policy_schedule: Mapping[int, BasePolicy],
+        update_log: list,
+    ) -> tuple:
+        """Execute every period; return final state, history and event ledger.
+
+        Live state is held as NumPy arrays (``ArrayState``). Policies,
+        constraints and callbacks receive DataFrame-backed states built at
+        their boundary, and the history and event ledger are assembled once
+        from the run log. A state without an exact array form stays a
+        DataFrame, and that period runs on the pandas path, so results are
+        identical either way.
+        """
+        run = _PeriodRun(
+            engine=self,
+            demand_fn=demand_fn,
+            period_offset=period_offset,
+            decision_periods=decision_periods,
+            allow_backorders=inventory.allow_backorders,
+            max_lead_time=inventory.max_lead_time,
+            policy_schedule=policy_schedule,
+            update_log=update_log,
+            use_arrays=self._array_hooks_supported(),
+        )
+        current = inventory
+        if run.use_arrays:
+            run.demand = DemandPath(
+                demand_data,
+                inventory.sku_column,
+                pd.Index(inventory.data[inventory.sku_column].reset_index(drop=True)),
+                n_periods,
+            )
+            current = ArrayState.from_inventory(inventory, opening=True) or inventory
+        run.inventory_callbacks = any(
+            type(callback).on_after_demand is not SimulationCallback.on_after_demand
+            for callback in self._active_callbacks
+        )
+        milestones = {n_periods // 4, n_periods // 2, 3 * n_periods // 4}
+
+        for period in range(n_periods):
+            run_window = self._run_window(period, warmup_periods, scoring_periods)
+            current, active_policy = run.period(current, period, run_window, active_policy)
+
+            if period in milestones:
+                pct = int(100 * (period + 1) / n_periods)
+                self._log(f"[SimEngine] Period {period + 1}/{n_periods} ({pct}%)")
+            if self.verbose >= 2:
+                self._log_period_detail(current)
+
+        final = run.frame(current, run.log.history_view(n_periods))
+        final._history = run.log.history_view(n_periods)
+        return final, run.log.history(), run.log.event_frame()
+
+    def _log_period_detail(self, state) -> None:
+        if isinstance(state, ArrayState):
+            total_demand = pd.Series(state.latest['latest_incoming_demand']).sum()
+            total_orders = pd.Series(state.latest['latest_order']).sum()
+            total_on_hand = pd.Series(state.on_hand).sum()
+            sim_period = int(state.period)
+        else:
+            inv_df = state.get_dataframe()
+            total_demand = inv_df['latest_incoming_demand'].sum()
+            total_orders = inv_df['latest_order'].sum()
+            total_on_hand = inv_df['on_hand'].sum()
+            sim_period = int(inv_df['period'].iloc[0])
+        stockout_flag = 'YES' if state.has_stockout else 'no'
+        self._log(
+            f"  Period {sim_period}: demand={total_demand:.0f}, "
+            f"orders={total_orders:.0f}, on_hand={total_on_hand:.0f}, "
+            f"stockout={stockout_flag}",
+            level=2,
+        )
+
+    def _before_demand_arrays(self, state: ArrayState, current_date: pd.Timestamp) -> ArrayState:
+        """Array form of ``_before_demand_transition``."""
+        return state
+
+    def _after_order_receipt_arrays(self, before: ArrayState, after: ArrayState) -> None:
+        """Array form of ``_after_order_receipt``."""
+
+    def _after_demand_arrays(self, state: ArrayState) -> None:
+        """Array form of ``_after_demand_transition``."""
 
     def _prepare_callbacks(
         self,
@@ -1190,9 +1490,23 @@ class SimulationEngine:
     def _execute_order_decision(
         self, inventory, policy, period, *, run_window, initial_decision
     ):
-        self._captured_decision_positions = inventory.inventory_position().set_index(
+        self._captured_decision_positions = self._decision_positions(inventory)
+        orders = self._decide_order(
+            inventory, policy, period,
+            run_window=run_window, initial_decision=initial_decision,
+        )
+        return self._update_inventory_primitive(inventory, orders, policy=policy)
+
+    @staticmethod
+    def _decision_positions(inventory) -> dict:
+        return inventory.inventory_position().set_index(
             inventory.sku_column
         )["inventory_position"].to_dict()
+
+    def _decide_order(
+        self, inventory, policy, period, *, run_window, initial_decision
+    ) -> OrderDecision:
+        """Predict, apply order callbacks and constraints; return the final order."""
         raw = policy.predict(copy.deepcopy(inventory), current_period=period)
         if not isinstance(raw, OrderDecision):
             raise TypeError("policy.predict must return an OrderDecision")
@@ -1232,7 +1546,7 @@ class SimulationEngine:
                 ) from exc
             self._callback_audit_rows.extend(audit)
         self._capture_callback_order_trail(raw, adjusted, inventory)
-        return self._tracked_inventory_update(inventory, adjusted, policy=policy)
+        return self._constrain_and_count(inventory, adjusted, policy=policy)
 
     def _apply_order_adjustment_result(
         self, decision, result, inventory, callback, position, context
@@ -1313,16 +1627,22 @@ class SimulationEngine:
         }
 
     def _capture_callback_order_trail(self, raw, adjusted, inventory) -> None:
-        state_ids = inventory.get_dataframe()[inventory.sku_column].tolist()
-        raw_map = raw.get_dataframe().set_index(raw.sku_column)["order_quantity"]
-        adjusted_map = adjusted.get_dataframe().set_index(adjusted.sku_column)["order_quantity"]
+        # Read-only access to the engine-owned frames; nothing here mutates them.
+        state_ids = inventory.data[inventory.sku_column].tolist()
+        ids = pd.Series(state_ids)
+        raw_map = raw.data.set_index(raw.sku_column)["order_quantity"]
+        requested = ids.map(raw_map).fillna(0.0)
+        if adjusted is raw:
+            adjusted_quantity = requested.copy()
+        else:
+            adjusted_map = adjusted.data.set_index(adjusted.sku_column)["order_quantity"]
+            adjusted_quantity = ids.map(adjusted_map).fillna(0.0)
         self._captured_callback_order_audits.append(pd.DataFrame({
             "unique_id": state_ids,
-            "requested_order_quantity": pd.Series(state_ids).map(raw_map).fillna(0.0),
-            "callback_adjusted_order_quantity": pd.Series(state_ids).map(adjusted_map).fillna(0.0),
-        }).assign(callback_adjustment_units=lambda value: (
-            value["callback_adjusted_order_quantity"] - value["requested_order_quantity"]
-        )))
+            "requested_order_quantity": requested,
+            "callback_adjusted_order_quantity": adjusted_quantity,
+            "callback_adjustment_units": adjusted_quantity - requested,
+        }))
 
     @staticmethod
     def _run_window(period: int, warmup_periods: int, scoring_periods: int) -> str:
@@ -1343,6 +1663,11 @@ class SimulationEngine:
 
     def _tracked_inventory_update(self, inventory, orders, policy=None):
         """Execute one order decision and retain its direct event counts."""
+        orders = self._constrain_and_count(inventory, orders, policy=policy)
+        return self._update_inventory_primitive(inventory, orders, policy=policy)
+
+    def _constrain_and_count(self, inventory, orders, policy=None) -> OrderDecision:
+        """Apply constraints to one order decision and retain its event counts."""
         if self._active_order_constraints is not None:
             order_frame = orders.get_dataframe()
             if order_frame.empty:
@@ -1359,7 +1684,7 @@ class SimulationEngine:
             )
             orders = result.order
             self._captured_order_audits.append(result.audit)
-        order_frame = orders.get_dataframe()
+        order_frame = orders.data
         positive = order_frame['order_quantity'].fillna(0.0) > 0
         if positive.any():
             self._captured_order_event_count += 1
@@ -1377,7 +1702,7 @@ class SimulationEngine:
                     self._captured_order_line_quantity_squared_sums.get(sku, 0.0)
                     + quantity ** 2
                 )
-        return self._update_inventory_primitive(inventory, orders, policy=policy)
+        return orders
 
     @staticmethod
     def _repository_commit() -> Optional[str]:
@@ -1747,10 +2072,14 @@ class SimulationEngine:
             'inventory_state',
             unique=True,
         )
+        # Rows of each period in input order, without rescanning per period.
+        period_values = validated['period'].to_numpy()
+        row_order = np.argsort(period_values, kind='stable')
+        bounds = np.searchsorted(period_values[row_order], np.arange(n_periods + 1))
+        sku_values = validated[sku_column].tolist()
+        ordered_skus = [sku_values[row] for row in row_order]
         for period in range(n_periods):
-            period_skus = set(
-                validated.loc[validated['period'] == period, sku_column].tolist()
-            )
+            period_skus = set(ordered_skus[bounds[period]:bounds[period + 1]])
             if period_skus != expected_skus:
                 missing = _identifier_sample(expected_skus - period_skus)
                 extra = _identifier_sample(period_skus - expected_skus)
@@ -1767,9 +2096,18 @@ class SimulationEngine:
         if opening_dates.isna().any() or opening_dates.nunique() != 1:
             raise ValueError("inventory must contain one complete opening date")
         opening_date = opening_dates.iloc[0]
+        stamps = validated['date'].to_numpy()
+        plain_stamps = stamps.dtype.kind == 'M'
         for period in range(n_periods):
-            period_dates = validated.loc[validated['period'] == period, 'date']
             expected_date = opening_date + (period + 1) * period_offset
+            rows = row_order[bounds[period]:bounds[period + 1]]
+            if (
+                plain_stamps
+                and (stamps[rows] == stamps[rows[0]]).all()
+                and validated['date'].iloc[rows[0]] == expected_date
+            ):
+                continue
+            period_dates = validated.loc[validated['period'] == period, 'date']
             if period_dates.nunique() != 1 or period_dates.iloc[0] != expected_date:
                 actual = sorted(str(value) for value in period_dates.unique())
                 raise ValueError(

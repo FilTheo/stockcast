@@ -1,5 +1,27 @@
 # 80 — Tests and evidence
 
+NumPy period kernel (2026-09-24): `SimulationEngine` now keeps live state as
+arrays and assembles history and the event ledger once
+([30.10](30_execution_flow.md#3010-internal-state-representation)). Public
+API and outputs are unchanged. Evidence against a frozen copy of the previous
+engine, comparing event frames, history, final state, callback audit, run
+settings, manifests and every DataFrame handed to policies, callbacks and
+constraints (values, dtypes, column order, index, pipeline arrays): all 233
+engine runs in `tests/unit` + `tests/stress` identical under pandas 2.3.3 and
+3.0.6, and all 86 engine runs of the 18 notebooks identical under pandas 3.0.6
+from a frozen notebook snapshot with seeded random draws. Seeding was needed
+because notebooks 04e and 09 build targets from unseeded `smooth` Monte Carlo
+intervals; the previous engine also differs from itself on those runs. The
+comparison harness was local scratch tooling, not a repository test. The
+permanent guard is `tests/unit/test_array_kernel_equivalence.py`, which forces
+the DataFrame period path and requires exact equality (or the identical
+exception). `tests/benchmark/engine_benchmark.py` measured, on a 12-core WSL2
+machine with pandas 2.3.3, 10 / 1000 SKUs, ms per daily period, previous →
+new: weekly `(R,S)` 74 → 2.4 / 179 → 8.0; daily `(R,S)` 113 → 14.6 /
+211 → 31; constraints plus a physical callback 62 → 12 / 166 → 47; FIFO
+shelf life with daily review 98 → 17 / 235 → 48. Remaining decision-period
+cost is mostly the policy's own `predict`, which was deliberately not changed.
+
 Notebook 04d's forecasting-focused revision (2026-09-24) passed source-import
 nbclient execution in 4.26 seconds using
 `/tmp/stockcast-timing-validation/bin/python /tmp/run_stockcast_source_notebooks.py '04d_*.ipynb'`.
@@ -68,6 +90,7 @@ from local checks. The frozen public API is recorded in knowledge 93.
 | `test_public_api_contract.py` | 2 | frozen namespace exports and version |
 | `test_inventory_reference_model.py` | 1 | 12 independent delivery-calendar cases covering lead time, review period, shortage mode, opening orders, settlement, and costs |
 | `test_release_artifacts.py` | 2 | rejection of foreign distribution metadata and missing artifact types |
+| `test_array_kernel_equivalence.py` | 10 (36 cases) | array kernel versus forced DataFrame period path: randomized schedules, lead times, shortage modes, windows, constraints and callbacks; shelf life; non-canonical opening state; integer orders/targets/SKUs; custom SKU column with zero lead time; history-reading policy; rolling policy schedule; comparisons; identical errors; path usage |
 | `../stress/test_prerelease_stress.py` | 13 (77 cases) | randomized independent oracle, ledger invariants, causality, `L+R` identity and calibration, newsvendor economics, retailer workflow, fail-closed inputs |
 
 The M5 and SPAR adapter-contract files remain in the private source repository
@@ -165,6 +188,15 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src \
 
 Use a clean installed environment later for package evidence; passing against a
 source path can hide missing build files and incorrect distribution metadata.
+
+Engine wall-clock benchmark (not an acceptance gate; machine dependent):
+
+```bash
+env PYTHONPATH=src MPLCONFIGDIR=/tmp/stockcast-mpl \
+  .venv/bin/python tests/benchmark/engine_benchmark.py --skus 10 100 1000 --periods 365
+```
+
+Add `--seeds N --workers W` to time independent seeds in a process pool.
 
 ## 80.7 Documentation coverage audit
 
