@@ -38,6 +38,9 @@ def test_public_export_sets_are_frozen_for_0_1():
         # Additive order-level API (knowledge 93.7).
         "AllocationContext", "ORDER_FRAME_COLUMNS", "OrderLines", "Supplier",
         "SupplierAllocation", "SupplierShares", "SupplyModel",
+        # Additive inventory-process API (knowledge 93.8).
+        "Flow", "InventoryProcess", "PROCESS_FLOW_COLUMNS", "ProcessContext",
+        "ProcessFlows", "ShelfLife", "StockChange",
     ]
     assert policies.__all__ == [
         "OrderUpToPolicy", "ReorderPointPolicy", "PeriodicReviewPolicy",
@@ -72,6 +75,10 @@ def test_public_export_sets_are_frozen_for_0_1():
 
 
 def test_public_output_schema_constants_are_available_from_public_namespaces():
+    assert core.PROCESS_FLOW_COLUMNS == (
+        "unique_id", "period", "date", "demand_period", "run_window", "process",
+        "flow", "direction", "category", "phase", "quantity",
+    )
     assert core.CALLBACK_AUDIT_COLUMNS == (
         "callback_position", "callback_module", "callback_class", "phase", "period",
         "date", "run_window", "initial_decision", "unique_id", "before_value",

@@ -145,6 +145,7 @@ ending_on_hand
   - current_demand_fulfilled
   - expired
   + explicit_inventory_adjustment
+  + process_inflow - process_outflow   (only when the columns exist; see 98.3)
 
 ending_backorders
   = starting_backorders

@@ -678,9 +678,14 @@ class FastRecord:
         "demand_period", "run_window", "policy_name", "allow_backorders",
         "start", "final", "order_event_count", "line_counts", "squared_sums",
         "audit", "expired", "adjustments",
+        "process_columns", "process_in", "process_out",
     )
 
     def __init__(self, **values):
+        # Process flow columns exist only in runs with general process flows.
+        self.process_columns = False
+        self.process_in = None
+        self.process_out = None
         for name, value in values.items():
             setattr(self, name, value)
 
@@ -969,6 +974,13 @@ def _event_block(records: List[FastRecord]) -> pd.DataFrame:
             ],
             n,
         )
+    if first.process_columns:
+        columns["process_inflow_units"] = _optional_pieces(
+            [record.process_in for record in records], n
+        )
+        columns["process_outflow_units"] = _optional_pieces(
+            [record.process_out for record in records], n
+        )
     return pd.DataFrame(columns)
 
 
@@ -1022,6 +1034,11 @@ def assert_flow_balance(record: FastRecord) -> None:
     physical_expected = (
         start.on_hand + received - backorders_fulfilled - fulfilled - expired + adjustment
     )
+    if record.process_columns:
+        process_in = np.zeros(n) if record.process_in is None else record.process_in
+        process_out = np.zeros(n) if record.process_out is None else record.process_out
+        physical_terms += [process_in, process_out]
+        physical_expected = physical_expected + process_in - process_out
     backlog_terms = [start.backorders, increment, backorders_fulfilled]
     backlog_expected = start.backorders + increment - backorders_fulfilled
     pipeline_terms = [starting_on_order, received, latest["latest_order"]]

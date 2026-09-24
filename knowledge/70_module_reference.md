@@ -20,7 +20,18 @@ API.
 
 Exports `InventoryStateDataFrame`, `OrderDecision`, `BasePolicy`,
 `SimulationEngine`, `SimulationResult`, `ComparisonResult`, all constraint
-types, callback types/built-ins, `FIFOLotLedger`, and `ShelfLifeEngine`.
+types, callback types/built-ins, `FIFOLotLedger`, `ShelfLife`, `ShelfLifeEngine`,
+and the inventory-process types (`InventoryProcess`, `Flow`, `ProcessFlows`,
+`ProcessContext`, `StockChange`, `PROCESS_FLOW_COLUMNS`).
+
+### `core/processes.py`
+
+Public inventory-process contract (`InventoryProcess`, `Flow`, `ProcessFlows`,
+`ProcessContext`, `StockChange`, `PROCESS_FLOW_COLUMNS`), process-list
+validation and manifest, and the engine-private `ProcessRunner`. The runner
+builds contexts from array or DataFrame state, validates and applies flows,
+notifies other processes, accumulates the period's expiry, inflow and outflow
+totals, and assembles the flow frame. See [98](98_inventory_processes.md).
 
 ### `core/_array_state.py`
 
@@ -82,9 +93,10 @@ and final cross-validation. See [50](50_constraints_and_shelf_life.md).
 
 ### `core/shelf_life.py`
 
-Defines `FIFOLotLedger` and `ShelfLifeEngine`. It owns dated-lot validation,
-FIFO consumption, expiry timing, opening-lot fingerprints, and private engine integration
-with canonical events. See [50.4](50_constraints_and_shelf_life.md#504-shelf-life-model).
+Defines `FIFOLotLedger`, the `ShelfLife` process, and `ShelfLifeEngine`, a thin
+engine wrapper that runs one `ShelfLife`. It owns dated-lot validation, FIFO
+consumption, expiry timing, opening-lot fingerprints and opening write-off,
+and the mirroring of other processes' flows and callback adjustments. See [50.4](50_constraints_and_shelf_life.md#504-shelf-life-model).
 
 ### `core/simulation_engine.py`
 
@@ -213,9 +225,9 @@ and do not own display or scientific validation.
 | order timing | policies, callbacks, `inventory_operations.py`, engine event builder, constraints, event validator |
 | pipeline representation | `data_structures.py`, `_open_orders.py`, `_array_state.py`, `inventory_operations.py`, `supply.py`, shelf-life receipts |
 | target semantics | `_target_validation.py`, affected policy, engine policy schedule/manifest |
-| event schema | engine event builder, shelf-life hook, validator, evaluator, all metrics, plots |
+| event schema | engine event builder, `_array_state.py` event block, process runner, validator, evaluator, all metrics, plots |
 | shortage mode | state transition, engine event semantics, validator, service/cost metrics |
-| shelf life | lot ledger, private engine phase order, callbacks, event balance, waste metrics |
+| shelf life or other physical processes | `processes.py` runner and phases, `shelf_life.py`, engine period order, callbacks, event balance, validator, waste metrics |
 | provenance | demand generator, policy metadata, engine manifest, packaging/build metadata |
 
 ## Decision timing additions

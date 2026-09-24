@@ -132,3 +132,24 @@ No existing name, argument, output column or behavior changed. A run with
 audit, run settings and manifest as before. `supply` adds
 `run_settings["supply"]`. Declared opening orders add
 `opening_inventory["open_orders"]`.
+
+## 93.8 Additive inventory-process API (2026-09-24)
+
+Owner-approved backward-compatible addition ([98](98_inventory_processes.md)):
+
+- exports appended to `stockcast.core` only: `Flow`, `InventoryProcess`,
+  `PROCESS_FLOW_COLUMNS`, `ProcessContext`, `ProcessFlows`, `ShelfLife`,
+  `StockChange`;
+- new optional keyword `processes=None` on `SimulationEngine.run`,
+  `run_comparison` and the `ShelfLifeEngine` equivalents;
+- new result method `SimulationResult.to_process_flow_frame()` with columns
+  fixed by `PROCESS_FLOW_COLUMNS`;
+- optional event-ledger columns `process_inflow_units` and
+  `process_outflow_units`, present together only for runs with general
+  process flows and included in `validate_event_frame`'s physical balance;
+- `run_settings["processes"]` when `processes=` is used.
+
+No existing name, argument, output column or behavior changed.
+`ShelfLifeEngine` keeps its signature, attributes (`ledger`,
+`expired_this_period`, `shelf_life_days`) and outputs. Its private lifecycle
+hook overrides were removed; they were never public.

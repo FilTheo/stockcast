@@ -69,6 +69,7 @@ nav:
       - Compare scenarios fairly: guides/compare-scenarios.md
       - Custom policies and target providers: guides/custom-policies.md
       - Constraints, shelf life, and callbacks: guides/extensions.md
+      - Physical processes: guides/physical-processes.md
       - Open orders and suppliers: guides/suppliers-and-open-orders.md
       - Production integration patterns: guides/production-integration.md
   - Reference:

@@ -42,13 +42,13 @@ Stockcast uses **receive, decide, then meet demand** within each epoch:
 
 | Phase | Effect |
 |---|---|
-| Expire | `ShelfLifeEngine` removes opening lots unusable at the current date. |
+| Expire | `ShelfLifeEngine` removes lots unusable at the current date. More generally, inventory processes report `before_demand` flows here. |
 | Open and receive | Advance the clock, reset current flow fields, receive due pipeline goods, and serve old backlog first. |
 | Decide | At an enabled opportunity, select the fitted policy snapshot and predict from a defensive pre-demand state. |
 | Accept | Apply order callbacks, then constraints in their declared order. Record requested and accepted quantities. |
 | Receive immediately | Accepted `L=0` units arrive now, serving remaining old backlog first. Positive-lead goods enter the pipeline. |
 | Meet demand | Serve current demand; record lost sales or add unmet demand to backlog. |
-| Close | Apply after-demand physical adjustments, reconcile lot/state accounting, and validate the event row. |
+| Close | Apply `after_demand` process flows, then after-demand callback adjustments; reconcile lot/state accounting and validate the event row. |
 
 An order accepted at demand epoch `t` arrives **before demand at `t+L`**.
 Consequently, `L=0` means same-epoch supply and `L=1` means supply at the next
@@ -200,6 +200,10 @@ ending_backlog = starting_backlog + new_backlog - old_backlog_fulfilled
 ending_pipeline = starting_pipeline + accepted_order - receipts
 ending_inventory_position = ending_on_hand + ending_pipeline - ending_backlog
 ```
+
+When a run's [inventory processes](../guides/physical-processes.md) declare
+general flows, the on-hand identity also adds `process_inflow` and subtracts
+`process_outflow`; expiry processes add into `expired`.
 
 In lost-sales mode, shortages leave the system; in backorder mode they enter
 backlog. Immediate supply appears in both accepted orders and receipts, so it

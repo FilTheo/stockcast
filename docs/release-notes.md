@@ -65,3 +65,26 @@ unchanged.
 
 See [open orders and suppliers](guides/suppliers-and-open-orders.md) and
 Notebook 05d.
+
+## Inventory processes (2026-09-24, additive)
+
+Backward-compatible addition. Existing runs, including `ShelfLifeEngine`
+runs, produce the same event ledger, history, final state, callback audit,
+run settings and manifest as before.
+
+- `SimulationEngine.run(..., processes=[...])` (also `run_comparison`, and
+  `ShelfLifeEngine` for extra processes) adds physical on-hand flows at
+  defined phases: `before_demand`, `on_receipt` and `after_demand`.
+  Processes subclass `InventoryProcess`, declare named `Flow`s and return
+  `ProcessFlows`.
+- `ShelfLife(shelf_life_days, opening_lots, ...)` is the FIFO shelf-life
+  process. `ShelfLifeEngine` now runs it internally, and both forms give the
+  same results.
+- Ledgers from runs with general (non-expiry) process flows gain
+  `process_inflow_units` and `process_outflow_units`, and these enter the
+  physical-inventory identity in the engine and in `validate_event_frame`.
+  Expiry flows add into `expired_units`.
+- `SimulationResult.to_process_flow_frame()` lists every flow
+  (`PROCESS_FLOW_COLUMNS`); `run_settings["processes"]` records each process.
+
+See [physical processes](guides/physical-processes.md) and Notebook 05e.

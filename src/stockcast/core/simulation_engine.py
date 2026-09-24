@@ -77,6 +77,14 @@ from stockcast.core._open_orders import (
     pipeline_mismatch,
 )
 from stockcast.core.order_constraints import ConstraintContext, OrderingConstraints
+from stockcast.core.processes import (
+    PROCESS_FLOW_COLUMNS,
+    InventoryProcess,
+    ProcessRunner,
+    StockChange,
+    prepare_processes,
+    process_manifest,
+)
 from stockcast.core.supply import AllocationContext, SupplyModel
 
 CALLBACK_AUDIT_COLUMNS = (
@@ -143,6 +151,7 @@ class SimulationResult:
         run_manifest: Optional[dict] = None,
         callback_audit: Optional[pd.DataFrame] = None,
         order_frame: Optional[pd.DataFrame] = None,
+        process_flows: Optional[pd.DataFrame] = None,
     ):
         self.history = history
         self.inventory = inventory
@@ -162,6 +171,10 @@ class SimulationResult:
         self._order_frame = pd.DataFrame(
             order_frame.copy(deep=True) if order_frame is not None else None,
             columns=ORDER_FRAME_COLUMNS,
+        )
+        self._process_flows = pd.DataFrame(
+            process_flows.copy(deep=True) if process_flows is not None else None,
+            columns=PROCESS_FLOW_COLUMNS,
         )
 
     def to_event_frame(self, window: Optional[str] = None) -> pd.DataFrame:
@@ -210,6 +223,23 @@ class SimulationResult:
         ``received_units`` and open ones to ``on_order_end``.
         """
         return self._order_frame.copy(deep=True)
+
+    def to_process_flow_frame(self) -> pd.DataFrame:
+        """
+        Return one row per nonzero process flow, SKU and period.
+
+        Columns are ``stockcast.core.PROCESS_FLOW_COLUMNS``: the SKU, the
+        event-ledger ``period``/``date``/``demand_period``/``run_window``,
+        the ``process`` and ``flow`` names, the flow's ``direction``
+        (``inflow``/``outflow``) and ``category`` (``general``/``expiry``),
+        the ``phase`` it acted in, and its nonnegative ``quantity``.
+
+        Per SKU and period, expiry flows add up to the event ledger's
+        ``expired_units``; general inflows and outflows add up to
+        ``process_inflow_units`` and ``process_outflow_units``. The frame is
+        empty for a run without processes.
+        """
+        return self._process_flows.copy(deep=True)
 
     def summary(self) -> Dict:
         """
@@ -505,6 +535,14 @@ def _assert_event_flow_balance(event_df: pd.DataFrame) -> None:
         - event_df['expired_units']
         + event_df['inventory_adjustment_units']
     )
+    if 'process_inflow_units' in event_df:
+        # Present only when the run's processes declare general flows.
+        physical_terms += [event_df['process_inflow_units'], event_df['process_outflow_units']]
+        physical_expected = (
+            physical_expected
+            + event_df['process_inflow_units']
+            - event_df['process_outflow_units']
+        )
     backlog_terms = [
         event_df['starting_backorders'],
         event_df['backorder_increment'],
@@ -598,7 +636,7 @@ class _PeriodRun:
 
     def __init__(self, *, engine, demand_fn, period_offset, decision_periods,
                  allow_backorders, max_lead_time, policy_schedule, update_log,
-                 use_arrays):
+                 use_arrays, processes=None):
         self.engine = engine
         self.demand_fn = demand_fn
         self.period_offset = period_offset
@@ -608,6 +646,9 @@ class _PeriodRun:
         self.policy_schedule = policy_schedule
         self.update_log = update_log
         self.use_arrays = use_arrays
+        # ProcessRunner, or None: a run without processes executes no
+        # process code at all.
+        self.processes: Optional[ProcessRunner] = processes
         self.demand: Optional[DemandPath] = None
         self.inventory_callbacks = False
         self.log = RunLog()
@@ -643,6 +684,17 @@ class _PeriodRun:
         else:
             opening_frame = copy.deepcopy(opening)
             state = engine._before_demand_transition(opening, self.demand_fn(period), period)
+        processes = self.processes
+        if processes is not None:
+            processes.begin_period(
+                demand_period=period,
+                date=(
+                    self.demand.dates[period] if self.demand is not None
+                    else self.demand_fn(period)['date'].iloc[0]
+                ),
+                run_window=run_window,
+            )
+            state = processes.before_demand(state)
 
         # Open the demand epoch and receive due stock before the policy
         # sees state. Latest demand fields are reset, preventing look-ahead.
@@ -660,6 +712,12 @@ class _PeriodRun:
                 is_review_period=review,
             )
             sim_period = int(state.data['period'].iloc[0])
+        if processes is not None:
+            processes.receipt(
+                state,
+                state.latest['latest_received'] if isinstance(state, ArrayState)
+                else state.data['latest_received'].to_numpy(dtype=float),
+            )
 
         engine._begin_order_capture()
         if review:
@@ -682,6 +740,8 @@ class _PeriodRun:
             frame._history = []
             state = frame.fulfill_demand(self.demand_fn(period))
             state = engine._after_demand_transition(state, sim_period)
+        if processes is not None:
+            state = processes.after_demand(state)
 
         if isinstance(state, ArrayState) and not self.inventory_callbacks:
             adjustments = {}
@@ -693,6 +753,11 @@ class _PeriodRun:
             state = self.absorb(frame, state) if isinstance(state, ArrayState) else frame
 
         expired = engine._period_expired_units()
+        process_flows = None
+        if processes is not None:
+            expired = processes.merged_expired(expired)
+            if processes.general_flows:
+                process_flows = (processes.inflow, processes.outflow)
         if (
             isinstance(opening, ArrayState)
             and isinstance(state, ArrayState)
@@ -700,7 +765,7 @@ class _PeriodRun:
         ):
             self._record_arrays(
                 opening, state, period, run_window, active_policy, review,
-                expired, adjustments,
+                expired, adjustments, process_flows,
             )
         else:
             if opening_frame is None:
@@ -726,6 +791,14 @@ class _PeriodRun:
             period_event['inventory_adjustment_units'] = (
                 period_event['unique_id'].map(adjustments).fillna(0.0)
             )
+            if process_flows is not None:
+                inflow, outflow = process_flows
+                period_event['process_inflow_units'] = (
+                    period_event['unique_id'].map(inflow).fillna(0.0).astype(float)
+                )
+                period_event['process_outflow_units'] = (
+                    period_event['unique_id'].map(outflow).fillna(0.0).astype(float)
+                )
             _assert_event_flow_balance(period_event)
             # History is a completed-period snapshot, including orders and
             # accepted physical callback adjustments.
@@ -756,6 +829,8 @@ class _PeriodRun:
             )
             if after_state is not None:
                 engine._after_order_receipt_arrays(state, after_state)
+                if self.processes is not None:
+                    self.processes.order_receipt(state, after_state)
                 self.record_placements(after_state.book)
                 return after_state
         if supply is None:
@@ -763,11 +838,13 @@ class _PeriodRun:
         else:
             after = engine._place_with_supply(before, orders, active_policy, period)
         engine._after_order_receipt(before, after)
+        if self.processes is not None:
+            self.processes.order_receipt(before, after)
         self.record_placements(after._open_orders)
         return self.absorb(after, state)
 
     def _record_arrays(self, opening, state, period, run_window, active_policy,
-                       review, expired, adjustments) -> None:
+                       review, expired, adjustments, process_flows=None) -> None:
         engine = self.engine
         uid = opening.schema.sku_event()
         audit = None
@@ -787,6 +864,15 @@ class _PeriodRun:
             audit=audit,
             expired=uid.map(expired).fillna(0.0).to_numpy() if expired else None,
             adjustments=uid.map(adjustments).fillna(0.0).to_numpy() if adjustments else None,
+            process_columns=process_flows is not None,
+            process_in=(
+                uid.map(process_flows[0]).fillna(0.0).to_numpy(dtype=float)
+                if process_flows is not None and process_flows[0] else None
+            ),
+            process_out=(
+                uid.map(process_flows[1]).fillna(0.0).to_numpy(dtype=float)
+                if process_flows is not None and process_flows[1] else None
+            ),
         )
         assert_flow_balance(record)
         self.log.records.append(record)
@@ -874,7 +960,12 @@ class SimulationEngine:
         )
 
     Engine subclass hooks that received live inventory are intentionally absent.
+    Physical processes are added with ``processes=[...]`` (``InventoryProcess``).
     """
+
+    # Processes an engine subclass contributes to every run (ShelfLifeEngine).
+    _engine_processes: tuple = ()
+    _process_runner: Optional[ProcessRunner] = None
 
     def __init__(self, verbose: int = 0):
         """
@@ -908,6 +999,7 @@ class SimulationEngine:
         order_constraints: Optional[OrderingConstraints] = None,
         callbacks: Optional[Sequence[SimulationCallback]] = None,
         supply: Optional[SupplyModel] = None,
+        processes: Optional[Sequence[InventoryProcess]] = None,
     ) -> SimulationResult:
         """
         Run a multi-period inventory simulation.
@@ -941,6 +1033,12 @@ class SimulationEngine:
                 each with its own fixed or random lead time and optional
                 partial deliveries. ``None`` keeps the default: one line per
                 positive SKU order, due ``policy.lead_time`` periods later.
+            processes: Optional ordered list of ``InventoryProcess`` objects
+                that add or remove on-hand stock at defined period phases,
+                for example ``[ShelfLife(3, opening_lots)]``. The engine
+                applies and audits their declared flows
+                (``result.to_process_flow_frame()``) and records them in
+                ``run_settings["processes"]``. ``None`` runs no process code.
 
         Returns:
             SimulationResult with history, final inventory state, and summary statistics.
@@ -985,6 +1083,18 @@ class SimulationEngine:
             raise TypeError("order_constraints must be an OrderingConstraints instance")
         if supply is not None and not isinstance(supply, SupplyModel):
             raise TypeError("supply must be a SupplyModel instance or None")
+        # Engine-owned processes (ShelfLifeEngine) come first; they are
+        # prepared by the subclass and are not listed as user processes.
+        engine_processes = list(self._engine_processes)
+        user_processes = prepare_processes(
+            processes, reserved=[process.name for process in engine_processes],
+        )
+        all_processes = engine_processes + user_processes
+        if all_processes and self._lifecycle_hooks_overridden():
+            raise ValueError(
+                "processes cannot be combined with an engine subclass that "
+                "overrides the private lifecycle hooks"
+            )
         supply_manifest = supply.to_manifest() if supply is not None else None
         constraint_manifest = (
             order_constraints.to_manifest() if order_constraints is not None else None
@@ -1027,6 +1137,15 @@ class SimulationEngine:
                 "inventory max_lead_time must cover the supply model's longest "
                 f"delivery offset ({supply.max_delivery_offset})"
             )
+        for process in user_processes:
+            # Engine-private opening preparation (ShelfLife: validate and
+            # seed opening lots, write off stock expired at the opening).
+            prepare_opening = getattr(process, "_prepare_opening", None)
+            if callable(prepare_opening):
+                prepare_opening(inventory)
+        process_manifests = (
+            process_manifest(all_processes) if user_processes else None
+        )
         # The run tracks stock on order at order level. A pipeline given only
         # as in_transit arrays is attributed to opening orders; values are
         # unchanged.
@@ -1115,6 +1234,11 @@ class SimulationEngine:
             opening_period=opening_period,
             opening_date=opening_date,
         )
+        self._process_runner = None
+        if all_processes:
+            runner = ProcessRunner(all_processes, opening_period=opening_period)
+            runner.reset(inventory, opening_period=opening_period, opening_date=opening_date)
+            self._process_runner = runner
         update_log = []
         n_skus = len(inventory.get_dataframe())
         self._log(
@@ -1155,6 +1279,8 @@ class SimulationEngine:
         }
         if supply_manifest is not None:
             run_settings['supply'] = copy.deepcopy(supply_manifest)
+        if process_manifests is not None:
+            run_settings['processes'] = copy.deepcopy(process_manifests)
         run_manifest = self._build_run_manifest(
             demand_data=demand_data,
             demand_source_name=demand_source_name.strip(),
@@ -1183,6 +1309,10 @@ class SimulationEngine:
                 opening_date=opening_date,
                 period_offset=period_offset,
             ),
+            process_flows=(
+                self._process_runner.flow_frame()
+                if self._process_runner is not None else None
+            ),
         )
 
         if self.verbose >= 1:
@@ -1198,6 +1328,21 @@ class SimulationEngine:
         return result
 
     # ---- Period execution ----
+
+    _LIFECYCLE_HOOKS = (
+        "_before_demand_transition", "_after_order_receipt", "_after_demand_transition",
+        "_before_demand_arrays", "_after_order_receipt_arrays", "_after_demand_arrays",
+        "_period_expired_units", "_apply_lot_adjustment", "_validate_lot_adjustment",
+        "_after_inventory_adjustment_batch",
+    )
+
+    def _lifecycle_hooks_overridden(self) -> bool:
+        """Whether a subclass replaces any private lifecycle hook."""
+        engine = type(self)
+        return any(
+            getattr(engine, hook) is not getattr(SimulationEngine, hook)
+            for hook in self._LIFECYCLE_HOOKS
+        )
 
     def _array_hooks_supported(self) -> bool:
         """Whether every overridden lifecycle hook also has an array form."""
@@ -1249,6 +1394,7 @@ class SimulationEngine:
             policy_schedule=policy_schedule,
             update_log=update_log,
             use_arrays=self._array_hooks_supported(),
+            processes=self._process_runner,
         )
         current = inventory
         if run.use_arrays:
@@ -1456,6 +1602,8 @@ class SimulationEngine:
 
     def _after_inventory_adjustment_batch(self, inventory) -> None:
         """Validate subclass-owned physical-state mirrors after a full batch."""
+        if self._process_runner is not None:
+            self._process_runner.check(inventory, "callback_adjustment")
 
     @staticmethod
     def _validated_reason_source(frame: pd.DataFrame, label: str) -> pd.DataFrame:
@@ -1545,6 +1693,11 @@ class SimulationEngine:
     ) -> list[dict]:
         state = inventory.data
         indexed = state.set_index(inventory.sku_column)
+        runner = self._process_runner
+        process_context = (
+            runner.context(inventory, "callback_adjustment", with_period_flows=True)
+            if runner is not None else None
+        )
         # Validate the complete batch before applying any row.
         for row in frame.itertuples(index=False):
             before = float(indexed.loc[row.unique_id, "on_hand"])
@@ -1562,6 +1715,11 @@ class SimulationEngine:
             self._validate_lot_adjustment(
                 row.unique_id, delta, received_date, context.date
             )
+            if runner is not None:
+                runner.validate_change(
+                    self._callback_stock_change(callback, row.unique_id, delta, received_date),
+                    process_context,
+                )
         audit = []
         for row in frame.itertuples(index=False):
             mask = state[inventory.sku_column] == row.unique_id
@@ -1571,6 +1729,19 @@ class SimulationEngine:
             lot_evidence = self._apply_lot_adjustment(
                 row.unique_id, delta, received_date, context.date
             )
+            if runner is not None:
+                process_evidence = runner.notify_change(
+                    self._callback_stock_change(callback, row.unique_id, delta, received_date),
+                    process_context,
+                )
+                if process_evidence:
+                    lot_evidence = (
+                        process_evidence if not lot_evidence
+                        else json.dumps(
+                            {"engine": lot_evidence, "processes": process_evidence},
+                            sort_keys=True, separators=(",", ":"),
+                        )
+                    )
             after = before + delta
             state.loc[mask, "on_hand"] = after
             audit.append(self._audit_row(
@@ -1582,6 +1753,16 @@ class SimulationEngine:
         inventory._validate_ready_state()
         self._after_inventory_adjustment_batch(inventory)
         return audit
+
+    @staticmethod
+    def _callback_stock_change(callback, unique_id, delta, received_date) -> StockChange:
+        return StockChange(
+            unique_id=unique_id,
+            quantity=float(delta),
+            received_date=pd.Timestamp(received_date) if not pd.isna(received_date) else pd.NaT,
+            origin="callback",
+            source=type(callback).__name__,
+        )
 
     def _execute_order_decision(
         self, inventory, policy, period, *, run_window, initial_decision
@@ -2381,6 +2562,7 @@ class SimulationEngine:
         order_constraints: Optional[OrderingConstraints] = None,
         callbacks: Optional[Sequence[SimulationCallback]] = None,
         supply: Optional[SupplyModel] = None,
+        processes: Optional[Sequence[InventoryProcess]] = None,
     ) -> 'ComparisonResult':
         """
         Run simulation for multiple policies and compare results.
@@ -2410,6 +2592,8 @@ class SimulationEngine:
                 comparison branch. Their final state reflects the last branch.
             supply: Optional ``SupplyModel`` applied identically to each
                 policy; every branch sees the same random lead-time draws.
+            processes: Optional ``InventoryProcess`` objects, reset before
+                each branch. Their final state reflects the last branch.
 
         Returns:
             ComparisonResult with all SimulationResults accessible by label.
@@ -2428,7 +2612,7 @@ class SimulationEngine:
             policy_schedules=policy_schedules,
             order_constraints=order_constraints,
             callbacks=callbacks,
-            branch_run_options={"supply": supply},
+            branch_run_options={"supply": supply, "processes": processes},
         )
 
     def _run_comparison(

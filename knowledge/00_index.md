@@ -20,6 +20,7 @@ the task:
 | Change state or demand processing | [20](20_data_and_time_contracts.md) | [30](30_execution_flow.md), [80](80_tests_and_evidence.md) |
 | Add or change a policy | [40](40_policies_and_targets.md) | [20](20_data_and_time_contracts.md), [30](30_execution_flow.md) |
 | Add an operational constraint | [50](50_constraints_and_shelf_life.md) | [30](30_execution_flow.md), [60](60_events_evaluation_and_outputs.md) |
+| Add or change a physical process (shelf life, discards, returns) | [98](98_inventory_processes.md) | [50](50_constraints_and_shelf_life.md), [30](30_execution_flow.md), [20](20_data_and_time_contracts.md) |
 | Add a metric | [60](60_events_evaluation_and_outputs.md) | [80](80_tests_and_evidence.md) |
 | Prepare the new package | [90](90_stockcast_extraction_guide.md) | [10](10_system_context.md), [80](80_tests_and_evidence.md) |
 | Check the frozen 0.1 public API | [93](93_public_api_contract.md) | [20](20_data_and_time_contracts.md), [30](30_execution_flow.md), [40](40_policies_and_targets.md), [50](50_constraints_and_shelf_life.md), [60](60_events_evaluation_and_outputs.md) |
@@ -69,3 +70,4 @@ inputs with zero, or treat absent provenance as acceptable.
 - [95 — Timing implementation and migration](95_decision_timing_implementation.md): owner-approved pre-release change.
 - [96 — Public engine documentation sources](96_engine_documentation_sources.md): verified paper sections and attribution limits.
 - [97 — Open orders and suppliers](97_open_orders_and_suppliers.md): additive order-level pipeline, `SupplyModel`, and exact mapping to the per-SKU API.
+- [98 — Inventory processes](98_inventory_processes.md): additive `processes=[...]` API, `ShelfLife` as the first built-in process, and the `ShelfLifeEngine` migration evidence.

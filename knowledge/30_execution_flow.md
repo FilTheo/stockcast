@@ -11,7 +11,8 @@
 - optional ordering constraints;
 - an explicit first decision opportunity (pre-run purchases belong in opening pipeline);
 - optional ordered typed callbacks;
-- engine-owned shelf-life behavior.
+- optional ordered inventory processes (`processes=`, [98](98_inventory_processes.md)),
+  including `ShelfLife`; `ShelfLifeEngine` supplies one internally.
 
 It returns a `SimulationResult` containing state history, final inventory,
 canonical event rows, run settings, and a provenance manifest.
@@ -52,15 +53,16 @@ opening pipeline. Settlement suppression also suppresses `decision_flag`.
 
 ```text
 copy opening state
-  -> expire unusable lots and register due receipts in the FIFO ledger
+  -> process before_demand flows (ShelfLife: expire unusable lots)
   -> advance_period (reset flows, advance, receive, clear old backlog)
+  -> process on_receipt (ShelfLife: register due receipts as lots)
   -> if schedule eligible and ordering enabled:
        select fitted snapshot -> predict on defensive pre-demand state
        -> order callbacks -> constraints -> [optional supply stage] -> accept order
-       -> immediate receipt for L=0; register new FIFO lots
+       -> immediate receipt for L=0; process on_receipt for it
   -> fulfill_demand (no second advance or receipt)
-  -> reconcile FIFO fulfillment
-  -> on_after_demand physical callbacks
+  -> process after_demand flows (ShelfLife: FIFO fulfilment), then check
+  -> on_after_demand physical callbacks (mirrored to processes; check per batch)
   -> complete history and canonical event; validate balances
 ```
 
@@ -116,7 +118,8 @@ constraints but the same realized demand path. The result manifest marks the
 comparison context. This supports paired scenario analysis without accidental
 demand resampling or shared mutable stock. Subclasses that need extra run
 inputs (`ShelfLifeEngine`: opening lots) forward them to each branch through
-the private `_run_comparison(..., branch_run_options=...)`.
+the private `_run_comparison(..., branch_run_options=...)`. `processes` are
+forwarded the same way and reset for each branch.
 The exact callback instances are reset after branch preflight and before each
 branch executes; authoritative branch-specific effects remain in each result's
 callback audit.
@@ -176,6 +179,12 @@ error), and engine subclasses that override a lifecycle hook without its
 array form (`_before_demand_arrays`, `_after_order_receipt_arrays`,
 `_after_demand_arrays`); those run every period on the pandas path. Error
 behaviour is therefore unchanged: array checks only decide which path runs.
+
+Since the inventory-process change ([98](98_inventory_processes.md)),
+`ShelfLifeEngine` overrides no lifecycle hook. Its `ShelfLife` process runs
+through `ProcessRunner`, which acts on either state form, so the process keeps
+the array path. The hooks remain for private subclasses, and such subclasses
+cannot be combined with `processes=`.
 
 `ArrayState` also carries the open-order book (`book`) through every
 transition. The default order path records placements on it; supply-mode

@@ -1,5 +1,19 @@
 # 80 — Tests and evidence
 
+Inventory processes (2026-09-24, [98](98_inventory_processes.md)): additive.
+Before the change, golden outputs of `ShelfLifeEngine` were captured at
+checkpoint `0dd52a9` for 40 randomized scenarios plus one comparison, on the
+array and forced-pandas paths (82 captures). They covered event ledger,
+history, final state, callback audit, order frame, run settings and manifest
+(without run id, timestamp and source provenance), and errors. After the
+change all 82 were identical. `SimulationEngine(processes=[ShelfLife(...)])`
+matched the frozen legacy engine on all 40 scenarios, apart from the manifest
+keys each form records. `tests/unit` + `tests/stress`: 459 passed (Python
+3.10.12 / pandas 2.3.3). `tests/unit`: 381 passed before the final duplicate-SKU test (Python 3.12 / pandas
+3.0.6). All 19 existing notebooks and the new 05e executed (Python 3.12,
+pandas 3.0.6, Smooth 1.0.7). Notebook 07's original 24 code cells kept
+identical text outputs.
+
 Order-level pipeline and suppliers (2026-09-24,
 [97](97_open_orders_and_suppliers.md)): additive; the per-SKU contract is
 unchanged. Evidence for "unchanged" came from a local scratch harness (not a
@@ -219,6 +233,7 @@ from local checks. The frozen public API is recorded in knowledge 93.
 | `test_public_api_contract.py` | 2 | frozen namespace exports and version |
 | `test_inventory_reference_model.py` | 1 | 12 independent delivery-calendar cases covering lead time, review period, shortage mode, opening orders, settlement, and costs |
 | `test_release_artifacts.py` | 2 | rejection of foreign distribution metadata and missing artifact types |
+| `test_processes.py` | 24 (63 cases) | `ShelfLifeEngine` and `SimulationEngine(processes=[ShelfLife])` versus the frozen `legacy_shelf_life_engine.py` on array and pandas paths (`shelf_life_scenarios.py`), comparison, flow-frame reconciliation, user outflow/inflow processes, composition with shelf life, hook and list order, reset, fail-closed validation, `validate_event_frame` process columns |
 | `test_open_orders_and_supply.py` | 30 (80 cases) | open-order attribution and declaration, `OrderLines`/`place_order_lines`, exact default-to-`SupplyModel` mapping, suppliers, random lead times, partial deliveries, order frame reconciliation, comparison draws, array/DataFrame equality, shelf life, allocation validation |
 | `test_array_kernel_equivalence.py` | 10 (36 cases) | array kernel versus forced DataFrame period path: randomized schedules, lead times, shortage modes, windows, constraints and callbacks; shelf life; non-canonical opening state; integer orders/targets/SKUs; custom SKU column with zero lead time; history-reading policy; rolling policy schedule; comparisons; identical errors; path usage |
 | `../stress/test_prerelease_stress.py` | 13 (77 cases) | randomized independent oracle, ledger invariants, causality, `L+R` identity and calibration, newsvendor economics, retailer workflow, fail-closed inputs |

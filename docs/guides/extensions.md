@@ -27,6 +27,11 @@ every compared branch starts from those same lots. Notebook 07 uses a small, cle
 scenario—the M5 values there are demand observations, not evidence of real
 inventory state, shelf life, costs, or replenishment behaviour.
 
+Shelf life is also available as an inventory process,
+`processes=[ShelfLife(...)]`, which can be combined with your own physical
+flows such as inspection discards or returns. `ShelfLifeEngine` gives the same
+results. See [physical processes](physical-processes.md) and Notebook 05e.
+
 ## Typed callbacks
 
 `SimulationCallback` has two public phases: `on_after_demand(...)` proposes a

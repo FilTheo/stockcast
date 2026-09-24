@@ -47,6 +47,13 @@ overtake each other), compares planning lead times on shared draws, and ends
 with dual sourcing, partial deliveries and a custom allocation rule. Purchase
 costs per supplier come from the order frame at declared prices.
 
+Notebook `05e_inventory_processes.ipynb` stocks two chilled products. It runs
+shelf life with `ShelfLifeEngine`, repeats the identical run with
+`processes=[ShelfLife(...)]`, then writes a Monday-inspection process and a
+customer-returns process and combines them with shelf life. The event ledger,
+flow table and lot ledger show where every unit went, and an undated return
+is rejected rather than given an invented lot age.
+
 Notebook `06_fair_forecast_and_policy_comparisons.ipynb` compares direct
 cumulative Smooth upper-quantile targets and two built-in inventory policies
 on the same five-SKU demand replay. It separates ETS-model and quantile-level

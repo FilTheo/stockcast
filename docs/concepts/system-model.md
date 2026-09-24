@@ -27,12 +27,14 @@ forecast-derived target -> fitted policy -> requested order
 
 Each demand epoch has the following order:
 
-1. Expire unusable opening lots (with `ShelfLifeEngine`).
+1. Expire unusable lots (with `ShelfLifeEngine` or a `ShelfLife` process) and
+   apply other processes' `before_demand` flows.
 2. Advance the clock, receive due pipeline stock, and clear old backlog first.
 3. If the decision schedule permits, predict an order from pre-demand state.
 4. Apply order callbacks and constraints, then accept the order.
 5. Receive an accepted `lead_time=0` order immediately, clearing old backlog first.
-6. Fulfill current demand, then apply typed `on_after_demand` adjustments.
+6. Fulfill current demand, apply processes' `after_demand` flows, then typed
+   `on_after_demand` adjustments.
 7. Validate and record the completed period's accounting.
 
 An order accepted at epoch `t` arrives before demand at `t+L`.

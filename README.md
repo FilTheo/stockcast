@@ -68,6 +68,9 @@ You can use the built-in components or extend the workflow:
 - update policy targets as new forecasts become available;
 - add declared ordering constraints;
 - add typed callbacks for supported interventions;
+- run FIFO shelf life, and optionally combine it with your own physical
+  processes (for example inspection discards or returns) that stay in the
+  audited stock balance;
 - optionally order from several suppliers with their own fixed or random lead
   times and partial deliveries, and track every open order; and
 - evaluate the same demand path under different forecast, policy, and
@@ -171,7 +174,7 @@ After the quick start, use these three notebook entry points:
 These are the suggested order for a new user. The [full notebook collection](https://github.com/FilTheo/stockcast/tree/main/examples/notebooks)
 contains the complete, runnable examples, including rolling forecast updates,
 custom policies, suppliers and open orders, fair comparisons, FIFO and
-shelf-life scenarios, and typed callbacks.
+shelf-life scenarios, physical inventory processes, and typed callbacks.
 
 ## Documentation and support
 

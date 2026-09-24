@@ -29,7 +29,7 @@ policies --------------------------+
   v                                 v
 SimulationEngine --> callbacks --> constraints --> inventory_operations
   |       |                              |
-  |       +--> ShelfLifeEngine hooks     v
+  |       +--> inventory processes       v
   |                                  InventoryStateDataFrame
   v
 canonical event rows --> event validation --> evaluator / metrics --> plots
@@ -95,8 +95,9 @@ without sharing mutable inventory.
   nonnegative.
 - A SKU cannot simultaneously have positive on-hand and positive backlog.
 - Lost-sales mode cannot carry backlog.
-- Physical stock changes only through receipts, demand fulfillment, expiry, or
-  an explicit audited adjustment.
+- Physical stock changes only through receipts, demand fulfillment, expiry, an
+  explicit audited adjustment, or a declared inventory-process flow
+  ([98](98_inventory_processes.md)).
 - Positive-lead-time orders change pipeline; zero-lead-time orders are received before demand.
 - Forecast target probability, horizon, origin, end date, source, and supported
   aggregation semantics must agree.

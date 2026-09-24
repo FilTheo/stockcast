@@ -34,6 +34,10 @@ _NONNEGATIVE_FLOW_COLUMNS = (
     "callback_adjusted_order_quantity",
 )
 
+# Optional pair: present only in ledgers from runs whose processes declare
+# general (non-expiry) flows. When present they enter the physical balance.
+PROCESS_EVENT_COLUMNS = ("process_inflow_units", "process_outflow_units")
+
 _BOOLEAN_COLUMNS = (
     "allow_backorders", "is_review_period", "decision_flag", "stockout_flag",
     "backorder_flag", "constraint_binding_flag", "capacity_violation_flag",
@@ -55,7 +59,13 @@ def _require_close(frame: pd.DataFrame, expected, actual, name: str) -> None:
 
 
 def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
-    """Return a defensive copy after strict structural and physical validation."""
+    """Return a defensive copy after strict structural and physical validation.
+
+    Ledgers from runs with general process flows also carry
+    ``process_inflow_units`` and ``process_outflow_units``; when present
+    (both are required together) they are validated as nonnegative flows and
+    enter the physical inventory balance.
+    """
     if not isinstance(event_frame, pd.DataFrame) or event_frame.empty:
         raise ValueError("event_frame must be a non-empty pandas DataFrame")
     missing = [column for column in CANONICAL_EVENT_COLUMNS if column not in event_frame]
@@ -99,7 +109,14 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     if frame.loc[~period_rows, "demand_period"].notna().any():
         raise ValueError("initial_decision events must have a missing demand_period")
 
-    for column in _NONNEGATIVE_FLOW_COLUMNS:
+    present = [column for column in PROCESS_EVENT_COLUMNS if column in frame]
+    if present and len(present) != len(PROCESS_EVENT_COLUMNS):
+        raise ValueError(
+            "event_frame must contain both process_inflow_units and "
+            "process_outflow_units, or neither"
+        )
+    process_columns = tuple(present)
+    for column in _NONNEGATIVE_FLOW_COLUMNS + process_columns:
         values = pd.to_numeric(frame[column], errors="coerce")
         if values.isna().any() or not np.isfinite(values).all() or (values < 0).any():
             raise ValueError(f"event_frame.{column} must contain finite values >= 0")
@@ -136,7 +153,18 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     frame["_flow_magnitude"] = frame[
         list(_NONNEGATIVE_FLOW_COLUMNS) + ["inventory_adjustment_units", "callback_adjustment_units",
                                           "constraint_adjustment_units"]
+        + list(process_columns)
     ].abs().sum(axis=1)
+    physical_expected = (
+        frame["starting_on_hand"] + frame["received_units"]
+        - frame["backorders_fulfilled"] - frame["fulfilled_units"]
+        - frame["expired_units"] + frame["inventory_adjustment_units"]
+    )
+    if process_columns:
+        physical_expected = (
+            physical_expected
+            + frame["process_inflow_units"] - frame["process_outflow_units"]
+        )
     _require_close(
         frame,
         frame["fulfilled_units"] + frame["shortage_units"],
@@ -145,9 +173,7 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     )
     _require_close(
         frame,
-        frame["starting_on_hand"] + frame["received_units"]
-        - frame["backorders_fulfilled"] - frame["fulfilled_units"]
-        - frame["expired_units"] + frame["inventory_adjustment_units"],
+        physical_expected,
         frame["ending_on_hand"],
         "physical inventory balance",
     )

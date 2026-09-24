@@ -81,7 +81,11 @@ The engine records a fingerprint of the opening lot configuration.
 
 ## 50.5 Shelf-life engine integration
 
-`ShelfLifeEngine` extends normal simulation through private engine-owned phases:
+Since 2026-09-24 shelf life is the built-in `ShelfLife` inventory process
+([98](98_inventory_processes.md)). `ShelfLifeEngine` runs one `ShelfLife`
+internally with byte-identical outputs, and `SimulationEngine(processes=[
+ShelfLife(...)])` gives the same ledger, recording `run_settings["processes"]`
+instead of the `shelf_life` keys. The phases are unchanged:
 
 1. reset the ledger at run start;
 2. before demand, expire old lots, reduce state on-hand accordingly, and
@@ -99,6 +103,10 @@ supplier identity.
 
 Expiry therefore appears as a distinct event flow and participates in the
 on-hand balance equation. It is not silently folded into demand or shortage.
+
+Other processes' flows are mirrored like callback adjustments: removals consume
+FIFO lots, and additions need an explicit, unexpired `received_date`. Undated
+additions are rejected, never aged by assumption.
 
 ## 50.6 Interaction cautions
 

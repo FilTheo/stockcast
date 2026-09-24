@@ -36,7 +36,15 @@ from .order_constraints import (
     OrderMultiple,
     ShelfSpaceLimit,
 )
-from .shelf_life import FIFOLotLedger, ShelfLifeEngine
+from .processes import (
+    PROCESS_FLOW_COLUMNS,
+    Flow,
+    InventoryProcess,
+    ProcessContext,
+    ProcessFlows,
+    StockChange,
+)
+from .shelf_life import FIFOLotLedger, ShelfLife, ShelfLifeEngine
 from .simulation_engine import (
     CALLBACK_AUDIT_COLUMNS,
     RUN_MANIFEST_REQUIRED_SECTIONS,
@@ -91,4 +99,11 @@ __all__ = [
     "SupplierAllocation",
     "SupplierShares",
     "SupplyModel",
+    "Flow",
+    "InventoryProcess",
+    "PROCESS_FLOW_COLUMNS",
+    "ProcessContext",
+    "ProcessFlows",
+    "ShelfLife",
+    "StockChange",
 ]
