@@ -16,7 +16,7 @@
 > |---|---|
 > | `pytest tests/unit` | 205 passed |
 > | `pytest tests/stress` | 77 passed (new pre-release suite) |
-> | Notebooks against source | 15/15 passed, including the new 05b |
+> | Notebooks against source | 16/16 passed, including the new 05b and 05c |
 > | `mkdocs build --strict` | passed |
 > | README smoke | fill rate 1.0, 35 units |
 > | Ruff (fatal errors), `git diff --check` | clean |
@@ -49,11 +49,13 @@ Blocking gates. Nothing below has been done for the current source.
 
 Recommended before 0.1, not blocking:
 
-- [ ] Advanced-extensions notebook covering the public extension points no
-      notebook exercises yet: a custom `DecisionSchedule`, a custom
-      `OrderingConstraint` (whole case packs within shelf space),
-      `ShelfSpaceLimit`, the `Scheduled*` callbacks, `ColumnPeriodicReviewTargets`,
-      `CoverageMetric`, backorders and a non-daily calendar.
+- [x] Extension-points notebook `05c_extension_points.ipynb`: a custom
+      `DecisionSchedule`, a custom `OrderingConstraint` (whole case packs within
+      shelf space), `OrderMultiple`/`ShelfSpaceLimit` conflict, `ScheduledOrderHold`,
+      `ScheduledInventoryAdjustment`, `CoverageMetric`, and backorders. It passed
+      source execution on 2026-09-24.
+- [ ] Still no notebook for `ColumnPeriodicReviewTargets`, `ScheduledOrderOverride`
+      or `ScheduledOrderMultiplier`; only 04d uses a non-daily calendar.
 
 Known limitations to state as roadmap, not 0.1 promises:
 

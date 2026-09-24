@@ -21,3 +21,9 @@ Notebook `05b_reorder_points_and_review_frequency.ipynb` sizes `(s,Q)` reorder
 points over the schedule's protection window `L+1`. On one shared demand path,
 it shows finer review steps approaching the continuous-review reorder point,
 and the under-protection caused by copying the continuous-review formula.
+
+Notebook `05c_extension_points.ipynb` extends a run without touching the
+engine. It uses a custom Monday/Thursday `DecisionSchedule` with per-order-day
+target snapshots, a custom `OrderingConstraint` for whole cases within chiller
+space, and the built-in `ScheduledOrderHold` and `ScheduledInventoryAdjustment`
+callbacks.
