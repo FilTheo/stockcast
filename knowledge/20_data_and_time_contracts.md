@@ -14,7 +14,7 @@ row per SKU and uses `unique_id` by default as the identifier column.
 | `is_review_period` | whether the current period permits a policy decision |
 | `target_level`, `safety_stock` | policy diagnostics copied into state/events |
 | `latest_order` | order quantity placed at the current decision |
-| `latest_received` | pipeline quantity arriving this period |
+| `latest_received` | due pipeline receipts plus accepted zero-lead receipts this period |
 | `latest_incoming_demand` | demand presented this period |
 | `latest_fulfilled` | current demand served from stock |
 | `latest_shortage` | current demand not served immediately |
@@ -56,13 +56,15 @@ For a run starting from state date `D0`, demand period `0` occurs at
 `D0 + 1 * frequency`, period `1` at `D0 + 2 * frequency`, and so on. Demand
 must cover every SKU for every requested period with the exact expected dates.
 
-State period advances before review timing is evaluated. A period is a review
-period when the new state period is divisible by the policy review period. The
-engine, not a policy, decides whether `predict` is called.
+The engine opens the demand epoch before deciding. Decision schedules use the
+zero-based demand coordinate; event/state/callback periods retain the opening
+period plus one convention. `policy_schedule` keys use demand coordinates and
+snapshot origins use the last observed date (one offset before current demand).
 
-Lead time `L` is at least one. An order placed at decision period `t` has
-expected delivery period `t + L` and is stored at pipeline index `L - 1` after
-the current period's receipt has been removed and the pipeline shifted.
+Lead time `L >= 0`. A positive order at state period `t` arrives before demand
+at `t+L`, stored in pipeline slot `L-1` after today's receipt shift. For `L=0`,
+accepted units immediately count as receipts and clear old backlog before
+current demand. Empty pipeline arrays (`max_lead_time=0`) are valid.
 
 ## 20.5 Demand input
 
@@ -86,24 +88,16 @@ not rely on an older docstring suggesting unconditional clipping.
 
 ## 20.6 One demand transition
 
-`InventoryStateDataFrame.process_demand` performs this ordered transition:
+`advance_period` resets current flow fields, advances period/date, receives
+pipeline slot zero, shifts the pipeline, and clears old backlog before adding
+remaining receipts to stock. The engine can then request and apply an order.
+`fulfill_demand` validates and serves the complete current-date SKU vector
+without advancing time or receiving again. It records fulfillment, shortage,
+and backlog increments (or lost sales).
 
-1. validate IDs, values, date, and frequency;
-2. clone state, reset `latest_order`, and increment `period`;
-3. set the new date and review-period flag;
-4. receive pipeline slot `0` and shift the remaining pipeline left;
-5. in backorder mode, use receipts to clear old backlog first;
-6. add any remaining receipt to on-hand;
-7. align the complete demand vector to state rows;
-8. fulfill `min(demand, on_hand)` and reduce on-hand;
-9. record shortage;
-10. add shortage to backlog, or classify it as lost sales through the event
-    semantics when backorders are disabled;
-11. create and validate the new state snapshot.
-
-This ordering means receipts can satisfy earlier backlog before the current
-period's demand. The event ledger separately records those two fulfillment
-flows.
+`process_demand` remains a convenience composition of those two phases without
+an intervening decision. Manual before-demand loops must use the separate
+phases. No phase guesses missing demand or dates.
 
 ## 20.7 Order decision contract
 
@@ -119,11 +113,12 @@ When an order is applied:
 - every positive order must have order period equal to the current state period;
 - expected delivery must equal order period plus lead time;
 - the state pipeline must be long enough for that lead time;
-- quantity is added to pipeline index `L - 1`;
+- positive-lead quantity is added to pipeline index `L - 1`;
+- zero-lead quantity is received immediately, with backlog clearance recorded;
 - `latest_order` accumulates, allowing multiple supplier/order events in one
   decision period when the low-level inventory operation is invoked more than
   once;
-- on-hand stock does not change.
+- positive-lead placement leaves on-hand unchanged; zero-lead placement adds usable receipts.
 
 In 0.1.0, `SimulationEngine` makes one policy prediction and places one
 composed `OrderDecision` per enabled decision opportunity. Order callbacks may

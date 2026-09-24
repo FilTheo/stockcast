@@ -41,12 +41,11 @@ _BOOLEAN_COLUMNS = (
 
 
 def _require_close(frame: pd.DataFrame, expected, actual, name: str) -> None:
-    valid = np.isclose(
-        np.asarray(expected, dtype=float),
-        np.asarray(actual, dtype=float),
-        rtol=0.0,
-        atol=1e-9,
-    )
+    # Absolute floor plus a rounding allowance scaled by the row's flows, so
+    # valid ledgers in grams or millilitres (1e7+) are not rejected.
+    magnitude = frame["_flow_magnitude"].to_numpy(dtype=float)
+    difference = np.abs(np.asarray(expected, dtype=float) - np.asarray(actual, dtype=float))
+    valid = difference <= 1e-9 + 1e-12 * magnitude
     if not valid.all():
         row = frame.loc[~valid].iloc[0]
         raise ValueError(
@@ -134,6 +133,10 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     if not frame["binding_constraints"].map(lambda value: isinstance(value, str)).all():
         raise ValueError("event_frame.binding_constraints must contain strings")
 
+    frame["_flow_magnitude"] = frame[
+        list(_NONNEGATIVE_FLOW_COLUMNS) + ["inventory_adjustment_units", "callback_adjustment_units",
+                                          "constraint_adjustment_units"]
+    ].abs().sum(axis=1)
     _require_close(
         frame,
         frame["fulfilled_units"] + frame["shortage_units"],
@@ -218,4 +221,4 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("event_frame.stockout_flag is inconsistent with shortage_units")
     if not frame["backorder_flag"].eq(frame["backorders_end"] > 1e-9).all():
         raise ValueError("event_frame.backorder_flag is inconsistent with backorders_end")
-    return frame
+    return frame.drop(columns="_flow_magnitude")

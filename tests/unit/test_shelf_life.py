@@ -350,7 +350,7 @@ def test_expired_opening_lots_reject_by_default_or_write_off_explicitly():
         "inventory": inventory,
         "n_periods": 1,
         "period_frequency": "D",
-        "initial_decision": "before_first_demand",
+        "initial_decision": "none",
         "warmup_periods": 0,
         "scoring_periods": 1,
         "settlement_periods": 0,
@@ -393,3 +393,64 @@ def test_expired_opening_lots_reject_by_default_or_write_off_explicitly():
     )
     assert verified.run_manifest["run_settings"]["opening_expiry_handling"] == "preprocessed"
     assert verified.run_manifest["run_settings"]["opening_expired_units"] == []
+
+
+def _comparison_inputs(scale=1.0):
+    inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
+        start_date=pd.Timestamp("2025-01-01")
+    )
+    inventory.data["on_hand"] = 10.0 * scale
+    policies = [
+        OrderOncePolicy(order_period=period, order_qty=4.0 * scale, lead_time=1,
+                        review_period=1, allow_backorders=False)
+        for period in (1, 2)
+    ]
+    demand = _daily_demand([value * scale for value in (3.1, 0.0, 2.7, 4.3, 1.9)])
+    common = dict(
+        period_frequency="D", warmup_periods=0, scoring_periods=5, settlement_periods=0,
+        order_during_settlement=False, demand_source_name="shelf_comparison",
+        random_seed=None, opening_lots=_opening_lots(10.0 * scale, "2024-12-31"),
+    )
+    return policies, demand, inventory, common
+
+
+def test_run_comparison_forwards_opening_lots_to_every_branch():
+    policies, demand, inventory, common = _comparison_inputs()
+    engine = ShelfLifeEngine(shelf_life_days=3)
+    comparison = engine.run_comparison(
+        policies, demand, inventory, 5, labels=["early", "late"], **common
+    )
+    for label, policy in zip(["early", "late"], policies):
+        expected = ShelfLifeEngine(shelf_life_days=3).run(policy, demand, inventory, 5, **common)
+        pd.testing.assert_frame_equal(
+            comparison[label].to_event_frame(), expected.to_event_frame()
+        )
+        assert comparison[label].run_settings["opening_lots"]["rows"] == 1
+    assert comparison["early"].to_event_frame()["expired_units"].sum() > 0
+
+
+def test_ledger_balances_tolerate_rounding_at_gram_scale():
+    # Gram-scale quantities: one floating-point ulp (~1.9e-9 at 1e7) exceeded
+    # the former fixed 1e-9 balance tolerance and aborted this valid run.
+    from stockcast.evaluation import validate_event_frame
+
+    opening = 24589931.22
+    inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
+        start_date=pd.Timestamp("2025-01-01")
+    )
+    inventory.data["on_hand"] = opening
+    lots = pd.DataFrame({
+        "unique_id": ["A", "A"],
+        "received_date": pd.to_datetime(["2024-12-30", "2025-01-01"]),
+        "quantity": [opening / 3, opening - opening / 3],
+    })
+    policy = OrderOncePolicy(order_period=1, order_qty=11328874.838, lead_time=1,
+                             review_period=1, allow_backorders=False)
+    demand = _daily_demand([9350724.238, 8158535.541, 27385.002, 8574042.766, 335855.753])
+    result = ShelfLifeEngine(shelf_life_days=3).run(
+        policy, demand, inventory, 5, period_frequency="D", warmup_periods=0,
+        scoring_periods=5, settlement_periods=0, order_during_settlement=False,
+        demand_source_name="gram_scale", random_seed=None, opening_lots=lots,
+    )
+    events = validate_event_frame(result.to_event_frame())
+    assert events["expired_units"].sum() > 0

@@ -4,9 +4,14 @@ Inventory policy implementations.
 All policies inherit from BasePolicy and implement fit/predict API.
 """
 
+from stockcast.policies.single_order import (
+    SingleOrderPolicy,
+    newsvendor_critical_fractile,
+)
+
 from .order_up_to import OrderUpToPolicy
-from .continuous_review import ContinuousReviewPolicy
 from .periodic_review import PeriodicReviewPolicy
+from .reorder_point import ReorderPointPolicy
 from .periodic_targets import (
     ColumnPeriodicReviewTargets,
     FixedPeriodicReviewTargets,
@@ -16,10 +21,12 @@ from .periodic_targets import (
 
 __all__ = [
     "OrderUpToPolicy",
-    "ContinuousReviewPolicy",
+    "ReorderPointPolicy",
     "PeriodicReviewPolicy",
     "PeriodicReviewTargetProvider",
     "PeriodicReviewTargets",
     "ColumnPeriodicReviewTargets",
     "FixedPeriodicReviewTargets",
+    "SingleOrderPolicy",
+    "newsvendor_critical_fractile",
 ]

@@ -1,3 +1,79 @@
+> **Timing migration, 2026-09-23:** the owner approved a new default
+> before-demand engine. Audit results below predate this semantic change and
+> must not be used as release approval for it. Current source/notebook checks
+> are recorded in `knowledge/95_decision_timing_implementation.md`; installed
+> wheel/sdist and hosted CI release gates must be repeated before publication.
+>
+> **Source validation, 2026-09-24:** 200 unit tests and all 13 migrated
+> notebooks passed; strict documentation and source-import smoke checks passed.
+> See [the change and rationale report](ENGINE_TIMING_CHANGES.md). This does
+> not replace the installed-artifact release audit below.
+
+> **Pre-release stress audit, 2026-09-24 — current status.** Source-level
+> evidence for the migrated engine:
+>
+> | Check | Result |
+> |---|---|
+> | `pytest tests/unit` | 205 passed |
+> | `pytest tests/stress` | 77 passed (new pre-release suite) |
+> | Notebooks against source | 15/15 passed, including the new 05b |
+> | `mkdocs build --strict` | passed |
+> | README smoke | fill rate 1.0, 35 units |
+> | Ruff (fatal errors), `git diff --check` | clean |
+>
+> Changes from this audit:
+>
+> - fixed `ShelfLifeEngine.run_comparison`, which always raised `TypeError`;
+> - made balance tolerances scale with flow size, so gram-scale runs no longer
+>   abort;
+> - replaced `ContinuousReviewPolicy` with `ReorderPointPolicy` (owner-approved;
+>   see `docs/release-notes.md`).
+>
+> None of this is installed-artifact evidence.
+
+## To do before publication
+
+Blocking gates. Nothing below has been done for the current source.
+
+- [ ] Rebuild the wheel and sdist from the release commit. Inspect both for
+      excluded material: `knowledge/`, `chat_copy.md`, company/SPAR code,
+      M5 data outside the documented subset.
+- [ ] Install each artifact in clean environments: the minimum-dependency
+      Python 3.10 and the latest supported Python. Against the *installed*
+      package, run `tests/unit`, `tests/stress`, `tests/release/artifact_smoke.py`
+      and `tests/release/run_notebooks.py`.
+- [ ] Run the modified release workflows on hosted CI.
+- [ ] Decide the repository and project URLs in `pyproject.toml` (still open).
+- [ ] Owner review of the breaking `ContinuousReviewPolicy` removal and of the
+      release notes, then tag and publish.
+
+Recommended before 0.1, not blocking:
+
+- [ ] Advanced-extensions notebook covering the public extension points no
+      notebook exercises yet: a custom `DecisionSchedule`, a custom
+      `OrderingConstraint` (whole case packs within shelf space),
+      `ShelfSpaceLimit`, the `Scheduled*` callbacks, `ColumnPeriodicReviewTargets`,
+      `CoverageMetric`, backorders and a non-daily calendar.
+
+Known limitations to state as roadmap, not 0.1 promises:
+
+- **No multi-echelon networks.** One stocking point per SKU, with an unlimited,
+  reliable external supplier.
+- **Supply and cost model:**
+  - lead times are fixed; there are no stochastic lead times, supplier fill
+    rates or multi-sourcing;
+  - no shared per-order fixed cost (joint replenishment);
+  - the SKU universe is fixed for a run.
+- **Extension gaps:**
+  - physical processes other than FIFO expiry (returns, supplier shortfalls,
+    transfers) only via after-demand adjustment callbacks; lifecycle phases
+    are private;
+  - `OrderMultiple` and `ShelfSpaceLimit` cannot be composed when space binds;
+    it needs a custom constraint.
+- **Scale:**
+  - about 0.13 s per simulated period regardless of SKU count;
+  - FIFO lot-dust mismatches remain possible near 1e9 units per SKU-period.
+
 # Stockcast 0.1.0 release-readiness audit
 
 Audit date: 2026-09-22. Baseline: `a8252c2`, plus the local audit changes.

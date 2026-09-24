@@ -31,6 +31,8 @@ forecasting code
   connect an external forecast to a dated inventory target.
 - Explore the [notebook collection](tutorials/notebooks.md) for foundations,
   comparisons, shelf life, callbacks, and integration patterns.
+- Read [Engine design and scientific basis](concepts/engine-design.md) for the
+  event sequence, modeling choices, accounting identities, and primary references.
 - Consult the [API reference](reference/index.md) when you know the workflow
   you want to build.
 
@@ -40,6 +42,7 @@ forecasting code
   decisions.
 - Compare forecasts, policies, and explicit inventory assumptions through
   service, stock, shortage, and cost outcomes.
+- Use periodic, one-time, or custom decision schedules, including single-season purchases.
 - Build a complete simulation with auditable state transitions and event rows.
 - Extend a workflow with supported policies, target providers, constraints, and
   typed callbacks.
@@ -47,7 +50,7 @@ forecasting code
 
 ## The 0.1 public contract
 
-Stockcast 0.1 documents a frozen public import surface across `stockcast`,
+Stockcast 0.1 documents a public import surface with an owner-approved pre-release timing migration across `stockcast`,
 `stockcast.core`, `stockcast.policies`, `stockcast.evaluation`, `stockcast.utils`, and
 `stockcast.visualization`. The reference documents every exported object in
 those namespaces. The durable outputs are the event ledger, callback audit

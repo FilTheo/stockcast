@@ -202,38 +202,21 @@ def test_wrong_date_for_declared_frequency_is_rejected():
         )
 
 
-def test_initial_decision_can_place_an_order_before_first_demand():
-    demand = pd.DataFrame({
-        "unique_id": ["A"],
-        "period": [0],
-        "date": [pd.Timestamp("2025-01-02")],
-        "y": [0.0],
-    })
-    no_initial = SimulationEngine().run(
-        _policy(review_period=3, order_quantity=10),
-        demand,
-        _inventory(),
-        n_periods=1,
-        period_frequency="D",
-        initial_decision="none",
-        **_run_contract(1),
-    )
-    with_initial = SimulationEngine().run(
-        _policy(review_period=3, order_quantity=10),
-        demand,
-        _inventory(),
-        n_periods=1,
-        period_frequency="D",
-        initial_decision="before_first_demand",
-        **_run_contract(1),
-    )
-
-    assert no_initial.inventory.data.loc[0, "on_hand"] == 0.0
-    assert with_initial.inventory.data.loc[0, "on_hand"] == 10.0
-    assert with_initial.run_settings["initial_decision"] == "before_first_demand"
-    initial_event = with_initial.to_event_frame().iloc[0]
-    assert initial_event["event_type"] == "initial_decision"
-    assert initial_event["order_quantity"] == 10.0
+def test_first_decision_uses_schedule_and_old_opening_option_fails_explicitly():
+    demand = pd.DataFrame({"unique_id": ["A"], "period": [0],
+                           "date": [pd.Timestamp("2025-01-02")], "y": [4.]})
+    policy = FixedOrderPolicy(lead_time=0, review_period=3, service_level=None,
+                              allow_backorders=False, order_quantity=10)
+    result = SimulationEngine().run(policy, demand, _inventory(), 1,
+                                    period_frequency="D", **_run_contract(1))
+    event = result.to_event_frame().iloc[0]
+    assert event["event_type"] == "period"
+    assert event["received_units"] == 10
+    assert event["fulfilled_units"] == 4
+    assert event["ending_on_hand"] == 6
+    with pytest.raises(ValueError, match="decisions now occur before demand"):
+        SimulationEngine().run(policy, demand, _inventory(), 1, period_frequency="D",
+                               initial_decision="before_first_demand", **_run_contract(1))
 
 
 def test_comparison_materializes_callable_once_and_copies_policies():
@@ -256,7 +239,7 @@ def test_comparison_materializes_callable_once_and_copies_policies():
         _inventory(),
         n_periods=2,
         period_frequency="D",
-        initial_decision="before_first_demand",
+        initial_decision="none",
         labels=["first", "second"],
         **_run_contract(2),
     )
@@ -382,15 +365,15 @@ def test_policy_schedule_updates_targets_only_at_declared_decisions():
         n_periods=2,
         period_frequency="D",
         initial_decision="none",
-        policy_schedule={2: _policy(order_quantity=10.0)},
+        policy_schedule={1: _policy(order_quantity=10.0)},
         **_run_contract(2),
     )
 
     assert result.inventory.data.loc[0, "on_hand"] == 1.0
     assert result.inventory.data.loc[0, "in_transit"].sum() == 10.0
-    assert result.run_settings["policy_update_periods"] == [2]
+    assert result.run_settings["policy_update_periods"] == [1]
     assert result.run_settings["policy_update_log"] == [{
-        "decision_period": 2,
+        "decision_period": 1,
         "policy_name": "FixedOrderPolicy",
         "target_metadata": {},
         "target_data": None,
@@ -432,7 +415,7 @@ def test_policy_schedule_rejects_configuration_changes():
             n_periods=1,
             period_frequency="D",
             initial_decision="none",
-            policy_schedule={1: FixedOrderPolicy(
+            policy_schedule={0: FixedOrderPolicy(
                 order_quantity=2.0,
                 lead_time=2,
                 review_period=1,
@@ -588,7 +571,7 @@ def test_scheduled_policy_origin_must_equal_its_decision_date():
             n_periods=2,
             period_frequency="D",
             initial_decision="none",
-            policy_schedule={2: wrong_snapshot},
+            policy_schedule={1: wrong_snapshot},
             **_run_contract(2),
         )
 

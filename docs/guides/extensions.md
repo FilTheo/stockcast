@@ -10,18 +10,27 @@ ins are `MinimumOrderQuantity`, `OrderMultiple`, `MaximumOrderQuantity`, and
 declared adjustment mode. The event ledger records requested, callback-adjusted,
 and constrained quantities plus binding information.
 
+The final composed order is validated against every rule, not repaired. For
+example, `OrderMultiple` together with `ShelfSpaceLimit` raises whenever shelf
+space binds: clipping to the free space breaks the case multiple, and rounding
+up to a case can exceed the space, in either order. For a rule such as "whole
+cases that still fit", subclass `OrderingConstraint` and return a
+`ConstraintResult` with its audit rows.
+
 ## Shelf life
 
 Use `ShelfLifeEngine` with dated opening lots. It maintains FIFO consumption and
 expiry evidence. Opening lot quantities must balance the opening on-hand state;
-expiry is processed before demand. Notebook 07 uses a small, clearly declared
+expiry is processed before demand. `ShelfLifeEngine.run_comparison(...)` takes
+the same `opening_lots` and `opening_expiry_handling` arguments as `run`, and
+every compared branch starts from those same lots. Notebook 07 uses a small, clearly declared
 scenario—the M5 values there are demand observations, not evidence of real
 inventory state, shelf life, costs, or replenishment behaviour.
 
 ## Typed callbacks
 
 `SimulationCallback` has two public phases: `on_after_demand(...)` proposes a
-signed on-hand adjustment before ordering, and `on_after_prediction(...)`
+signed on-hand adjustment after demand, affecting subsequent decisions, and `on_after_prediction(...)`
 proposes absolute order quantities before constraints. Callbacks receive
 defensive context, not live mutable engine state or finalized events. Their
 accepted effects appear in `to_callback_audit_frame()`. See Notebook 08 and the

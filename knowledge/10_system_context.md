@@ -89,7 +89,7 @@ without sharing mutable inventory.
 ## 10.6 Design invariants
 
 - One row per SKU in live state and one row per SKU-period in events.
-- Lead time and review period are positive integers.
+- Lead time is a nonnegative integer; periodic review intervals are positive integers.
 - Demand dates follow one explicit forward pandas frequency.
 - On-hand, pipeline, demand, orders, shortage, and backlog are finite and
   nonnegative.
@@ -97,7 +97,7 @@ without sharing mutable inventory.
 - Lost-sales mode cannot carry backlog.
 - Physical stock changes only through receipts, demand fulfillment, expiry, or
   an explicit audited adjustment.
-- Order placement changes pipeline, not current on-hand stock.
+- Positive-lead-time orders change pipeline; zero-lead-time orders are received before demand.
 - Forecast target probability, horizon, origin, end date, source, and supported
   aggregation semantics must agree.
 - Evaluation is based on a validated event ledger and explicit aggregation.

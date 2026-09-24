@@ -64,3 +64,7 @@ inputs with zero, or treat absent provenance as acceptable.
 - [Public docs](../docs/index.md): user-facing material generated from the
   frozen public contract, active code, tests, and examples.
 - [Archive guide](../arxiv/README.md): historical documentation and reports.
+
+- [94 — Decision timing research](94_decision_timing_research.md): primary-source assessment.
+- [95 — Timing implementation and migration](95_decision_timing_implementation.md): owner-approved pre-release change.
+- [96 — Public engine documentation sources](96_engine_documentation_sources.md): verified paper sections and attribution limits.

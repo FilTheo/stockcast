@@ -168,15 +168,17 @@ class SimulationResult:
 
         Returns:
             dict with keys:
-                - fill_rate: Fraction of demand satisfied (1 - shortage/demand).
-                    Computed from backorder increases per SKU per period.
-                    For lost-sales model (backorders always 0), falls back to service_level.
+                - fill_rate: Fraction of scoring demand served from stock in
+                    its own period (1 - shortage/demand), in both shortage modes.
                 - demand_period_service_level: Fraction of positive-demand
                     SKU-period rows without shortage. This is not cycle service.
                 - mean_ending_on_hand_per_sku_period: Mean ending on-hand at
                     the SKU-period row grain.
-                - stockout_periods: Number of periods where at least one SKU had on_hand == 0.
+                - stockout_periods: Number of demand periods in which at least
+                    one SKU had a shortage.
                 - total_order_units: Sum of all order quantities placed.
+                - order_event_count / sku_order_line_count: Decisions with a
+                    positive order, and positive SKU order lines.
         """
         e = self.to_event_frame(window="scoring")
         if e.empty:
@@ -426,131 +428,26 @@ def _build_period_event_frame(
     return event_df[ordered_columns]
 
 
-def _build_initial_decision_event(
-    inventory_before: InventoryStateDataFrame,
-    inventory_after: InventoryStateDataFrame,
-    policy: BasePolicy,
-    order_event_count: int,
-    sku_order_line_counts: Mapping[str, int],
-    order_line_quantity_squared_sums: Mapping[str, float],
-) -> pd.DataFrame:
-    """Record a time-zero order as an explicit, demand-free event."""
-    sku_column = inventory_before.sku_column
-    before_df = inventory_before.get_dataframe().copy()
-    after_df = inventory_after.get_dataframe().copy()
-    before_df['starting_on_order'] = before_df['in_transit'].apply(_sum_in_transit)
-    after_df['on_order_end'] = after_df['in_transit'].apply(_sum_in_transit)
+def _flow_balance_tolerance(*terms: pd.Series) -> pd.Series:
+    """Absolute floor plus rounding allowance scaled by the flows being summed.
 
-    event_df = before_df[[
-        sku_column,
-        'period',
-        'date',
-        'on_hand',
-        'backorders',
-        'starting_on_order',
-        'safety_stock',
-    ]].merge(
-        after_df[[
-            sku_column,
-            'on_hand',
-            'backorders',
-            'on_order_end',
-            'latest_order',
-            'target_level',
-        ]],
-        on=sku_column,
-        how='left',
-        suffixes=('_start', '_end'),
-    ).rename(columns={
-        sku_column: 'unique_id',
-        'on_hand_start': 'starting_on_hand',
-        'on_hand_end': 'ending_on_hand',
-        'backorders_start': 'starting_backorders',
-        'backorders_end': 'backorders_end',
-        'latest_order': 'order_quantity',
-    })
-    event_df['event_type'] = 'initial_decision'
-    event_df['demand_period'] = pd.Series(
-        [pd.NA] * len(event_df),
-        index=event_df.index,
-        dtype="Int64",
-    )
-    event_df['date'] = pd.to_datetime(event_df['date']).astype("datetime64[ns]")
-    event_df['policy'] = policy.policy_name
-    event_df['allow_backorders'] = policy.allow_backorders
-    event_df['is_review_period'] = True
-    event_df['decision_flag'] = True
-    for column in [
-        'received_units',
-        'demand',
-        'fulfilled_units',
-        'backorders_fulfilled',
-        'shortage_units',
-        'lost_sales_units',
-        'backorder_increment',
-        'expired_units',
-        'inventory_adjustment_units',
-    ]:
-        event_df[column] = 0.0
-    event_df['inventory_position_end'] = (
-        event_df['ending_on_hand']
-        + event_df['on_order_end']
-        - event_df['backorders_end']
-    )
-    event_df['stockout_flag'] = False
-    event_df['backorder_flag'] = event_df['backorders_end'] > 0
-    event_df['sku_order_line_count'] = (
-        event_df['unique_id'].map(sku_order_line_counts).fillna(0).astype(int)
-    )
-    event_df['order_line_quantity_squared_sum'] = (
-        event_df['unique_id']
-        .map(order_line_quantity_squared_sums)
-        .fillna(0.0)
-        .astype(float)
-    )
-    event_df['order_event_count'] = 0
-    if len(event_df):
-        event_df.loc[event_df.index[0], 'order_event_count'] = order_event_count
-    ordered_columns = [
-        'unique_id',
-        'event_type',
-        'demand_period',
-        'period',
-        'date',
-        'policy',
-        'allow_backorders',
-        'is_review_period',
-        'decision_flag',
-        'starting_on_hand',
-        'starting_backorders',
-        'starting_on_order',
-        'received_units',
-        'demand',
-        'fulfilled_units',
-        'backorders_fulfilled',
-        'shortage_units',
-        'lost_sales_units',
-        'backorder_increment',
-        'ending_on_hand',
-        'backorders_end',
-        'on_order_end',
-        'inventory_position_end',
-        'order_quantity',
-        'order_event_count',
-        'sku_order_line_count',
-        'order_line_quantity_squared_sum',
-        'expired_units',
-        'inventory_adjustment_units',
-        'target_level',
-        'safety_stock',
-        'stockout_flag',
-        'backorder_flag',
-    ]
-    return event_df[ordered_columns]
+    A fixed 1e-9 tolerance is below one floating-point ulp once quantities
+    reach about 1e7 (e.g. grams or millilitres), which made valid runs fail.
+    """
+    magnitude = sum(term.astype(float).abs() for term in terms)
+    return 1e-9 + 1e-12 * magnitude
 
 
 def _assert_event_flow_balance(event_df: pd.DataFrame) -> None:
     """Assert physical-stock, backlog, and pipeline balances per event row."""
+    physical_terms = [
+        event_df['starting_on_hand'],
+        event_df['received_units'],
+        event_df['backorders_fulfilled'],
+        event_df['fulfilled_units'],
+        event_df['expired_units'],
+        event_df['inventory_adjustment_units'],
+    ]
     physical_expected = (
         event_df['starting_on_hand']
         + event_df['received_units']
@@ -559,23 +456,34 @@ def _assert_event_flow_balance(event_df: pd.DataFrame) -> None:
         - event_df['expired_units']
         + event_df['inventory_adjustment_units']
     )
+    backlog_terms = [
+        event_df['starting_backorders'],
+        event_df['backorder_increment'],
+        event_df['backorders_fulfilled'],
+    ]
     backlog_expected = (
         event_df['starting_backorders']
         + event_df['backorder_increment']
         - event_df['backorders_fulfilled']
     )
+    pipeline_terms = [
+        event_df['starting_on_order'],
+        event_df['received_units'],
+        event_df['order_quantity'],
+    ]
     pipeline_expected = (
         event_df['starting_on_order']
         - event_df['received_units']
         + event_df['order_quantity']
     )
     checks = [
-        ('physical inventory', physical_expected, event_df['ending_on_hand']),
-        ('backlog', backlog_expected, event_df['backorders_end']),
-        ('pipeline', pipeline_expected, event_df['on_order_end']),
+        ('physical inventory', physical_expected, event_df['ending_on_hand'], physical_terms),
+        ('backlog', backlog_expected, event_df['backorders_end'], backlog_terms),
+        ('pipeline', pipeline_expected, event_df['on_order_end'], pipeline_terms),
     ]
-    for name, expected, actual in checks:
-        valid = np.isclose(expected.astype(float), actual.astype(float), rtol=0.0, atol=1e-9)
+    for name, expected, actual, terms in checks:
+        tolerance = _flow_balance_tolerance(*terms, actual)
+        valid = (expected.astype(float) - actual.astype(float)).abs() <= tolerance
         if not valid.all():
             row = event_df.loc[~valid].iloc[0]
             raise AssertionError(
@@ -636,9 +544,9 @@ class SimulationEngine:
 
     The engine owns all state transitions. Custom interventions use typed callbacks.
 
-    The engine wraps existing primitives — it calls process_demand(),
-    checks is_review_period, calls policy.predict(), and calls
-    update_inventory_with_orders(). It does NOT reimplement any of these.
+    The engine opens each epoch, receives due stock, consults the decision
+    schedule, applies accepted orders (including immediate receipts), then
+    fulfills demand and validates the completed event ledger.
 
     Usage:
         # Standard simulation
@@ -649,7 +557,7 @@ class SimulationEngine:
             inventory=inventory,        # Initialized InventoryStateDataFrame
             n_periods=365,
             period_frequency="D",      # Explicit calendar frequency
-            initial_decision="none",   # Or "before_first_demand"
+            initial_decision="none",   # Eligibility comes from the decision schedule.
             warmup_periods=0,
             scoring_periods=365,
             settlement_periods=0,
@@ -682,7 +590,7 @@ class SimulationEngine:
         n_periods: int,
         *,
         period_frequency: str,
-        initial_decision: str,
+        initial_decision: str = "none",
         warmup_periods: int,
         scoring_periods: int,
         settlement_periods: int,
@@ -697,13 +605,14 @@ class SimulationEngine:
         Run a multi-period inventory simulation.
 
         Args:
-            policy: Fitted BasePolicy subclass (e.g., OrderUpToPolicy, ContinuousReviewPolicy).
+            policy: Fitted BasePolicy subclass (e.g., OrderUpToPolicy, ReorderPointPolicy).
             demand_source: Either a DataFrame with columns [unique_id, y, period] containing
                 demand for all periods, or a callable(period) -> demand_df.
             inventory: Initialized InventoryStateDataFrame.
             n_periods: Number of periods to simulate.
             period_frequency: Explicit pandas frequency for one period.
-            initial_decision: ``"before_first_demand"`` or ``"none"``.
+            initial_decision: Neutral compatibility argument, only ``"none"``.
+                First-period decisions are controlled by the policy schedule.
             warmup_periods: State-advancing periods excluded from scoring.
             scoring_periods: Periods included in the default result summary.
             settlement_periods: Tail periods excluded from scoring.
@@ -772,16 +681,31 @@ class SimulationEngine:
             period_frequency,
             "period_frequency",
         )
-        if initial_decision not in {"none", "before_first_demand"}:
+        if initial_decision != "none":
             raise ValueError(
-                "initial_decision must be 'none' or 'before_first_demand'"
+                "initial_decision must be 'none': decisions now occur before demand; "
+                "use OneTimeSchedule(0) or PeriodicSchedule(..., start=0), "
+                "and explicit opening pipeline for pre-run orders"
             )
+        schedule_manifest = policy.schedule.to_manifest()
+        if not isinstance(schedule_manifest, dict):
+            raise TypeError("decision schedule manifest must be a dictionary")
+        json.dumps(schedule_manifest, allow_nan=False)
+        decision_periods = set()
+        for period in range(n_periods):
+            enabled = policy.schedule.should_decide(period)
+            if not isinstance(enabled, bool):
+                raise ValueError("schedule.should_decide must return bool")
+            if enabled and (period < warmup_periods + scoring_periods or order_during_settlement):
+                decision_periods.add(period)
         # A run owns its state. Caller state and pre-run history remain
         # untouched, while result.history contains snapshots from this run.
         inventory = copy.deepcopy(inventory)
         inventory.clear_history()
         inventory.allow_backorders = policy.allow_backorders
         inventory._validate_ready_state()
+        if inventory.max_lead_time < policy.lead_time:
+            raise ValueError("inventory max_lead_time must cover policy lead_time")
         opening_inventory_fingerprint = self._inventory_fingerprint(inventory)
         opening_period = int(inventory.get_dataframe()['period'].iloc[0])
         opening_date = pd.Timestamp(inventory.get_dataframe()['date'].iloc[0])
@@ -794,26 +718,28 @@ class SimulationEngine:
         self._callback_audit_rows = []
         self._validate_policy_information_origin(
             policy,
-            latest_allowed_origin=opening_date,
+            latest_allowed_origin=opening_date + min(decision_periods, default=0) * period_offset,
             exact=False,
             expected_frequency=period_offset,
         )
         policy_schedule = self._validate_policy_schedule(
             policy,
             policy_schedule,
-            opening_period=opening_period,
-            n_periods=n_periods,
-            initial_decision=initial_decision,
             opening_date=opening_date,
             period_offset=period_offset,
+            decision_periods=decision_periods,
         )
+        # Validate target coverage at every actual opportunity before callbacks
+        # reset or demand callables are materialized.
+        coverage_policy = policy
+        for period in sorted(decision_periods):
+            coverage_policy = policy_schedule.get(period, coverage_policy)
+            validate_window = getattr(copy.deepcopy(coverage_policy), "validate_decision_window", None)
+            if callable(validate_window):
+                validate_window(period, opening_date + period * period_offset, period_offset)
 
         # Deferred import to avoid circular dependency (core ↔ utils)
-        from stockcast.utils.inventory_operations import (
-            process_demand,
-            update_inventory_with_orders,
-        )
-        self._process_demand = process_demand
+        from stockcast.utils.inventory_operations import update_inventory_with_orders
         self._update_inventory_primitive = update_inventory_with_orders
         self._update_inventory = self._tracked_inventory_update
 
@@ -825,6 +751,10 @@ class SimulationEngine:
             n_periods,
             period_offset,
         )
+        for snapshot in [policy, *policy_schedule.values()]:
+            validate_window = getattr(copy.deepcopy(snapshot), "validate_demand_window", None)
+            if callable(validate_window):
+                validate_window(demand_data.copy(deep=True), n_periods)
         demand_fn = self._resolve_demand_source(demand_data)
         self._active_order_constraints = copy.deepcopy(order_constraints)
         if self._active_order_constraints is not None:
@@ -842,35 +772,6 @@ class SimulationEngine:
         )
         update_log = []
         event_frames = []
-        if initial_decision == "before_first_demand":
-            inventory_before_initial_decision = copy.deepcopy(inventory)
-            self._begin_order_capture()
-            active_policy = self._policy_for_decision(
-                active_policy,
-                policy_schedule,
-                opening_period,
-                update_log,
-            )
-            inventory = self._execute_order_decision(
-                inventory,
-                active_policy,
-                opening_period,
-                run_window='warmup' if warmup_periods else 'scoring',
-                initial_decision=True,
-            )
-            initial_event = _build_initial_decision_event(
-                inventory_before_initial_decision,
-                inventory,
-                active_policy,
-                self._captured_order_event_count,
-                self._captured_sku_order_line_counts,
-                self._captured_order_line_quantity_squared_sums,
-            )
-            initial_event['run_window'] = 'warmup' if warmup_periods else 'scoring'
-            initial_event = self._attach_order_audit(initial_event)
-            _assert_event_flow_balance(initial_event)
-            event_frames.append(initial_event)
-
         n_skus = len(inventory.get_dataframe())
         self._log(
             f"[SimEngine] Starting: {n_periods} periods, "
@@ -889,43 +790,35 @@ class SimulationEngine:
             inventory_period_opening = copy.deepcopy(inventory)
             inventory = self._before_demand_transition(inventory, demand_df, period)
 
-            # Advance time: increments period, processes deliveries, applies demand
-            inventory_after_demand = self._process_demand(
-                inventory,
-                demand_df,
-                review_period=policy.review_period,
+            # Open the demand epoch and receive due stock before the policy
+            # sees state. Latest demand fields are reset, preventing look-ahead.
+            inventory = inventory.advance_period(
                 period_frequency=period_offset.freqstr,
+                is_review_period=period in decision_periods,
             )
-            inventory = inventory_after_demand
+            sim_period = int(inventory.data['period'].iloc[0])
+            self._begin_order_capture()
+            if period in decision_periods:
+                active_policy = self._policy_for_decision(
+                    active_policy, policy_schedule, period, update_log,
+                )
+                before_order = inventory
+                inventory = self._execute_order_decision(
+                    inventory, active_policy, sim_period,
+                    run_window=run_window, initial_decision=False,
+                )
+                self._after_order_receipt(before_order, inventory)
 
-            # Use actual inventory period (process_demand advances it)
-            inv_df = inventory.get_dataframe()
-            sim_period = int(inv_df['period'].iloc[0])
+            inventory = inventory.fulfill_demand(demand_df)
             inventory = self._after_demand_transition(inventory, sim_period)
             inventory_adjustments = self._run_inventory_callbacks(
-                inventory,
-                period=sim_period,
-                run_window=run_window,
+                inventory, period=sim_period, run_window=run_window,
             )
             inventory_after_demand = inventory
-
-            # Order on review periods
-            decision_enabled = run_window != 'settlement' or order_during_settlement
-            self._begin_order_capture()
-            if inv_df['is_review_period'].iloc[0] and decision_enabled:
-                active_policy = self._policy_for_decision(
-                    active_policy,
-                    policy_schedule,
-                    sim_period,
-                    update_log,
-                )
-                inventory = self._execute_order_decision(
-                    inventory,
-                    active_policy,
-                    sim_period,
-                    run_window=run_window,
-                    initial_decision=False,
-                )
+            inv_df = inventory.get_dataframe()
+            # History is a completed-period snapshot, including orders and
+            # accepted physical callback adjustments.
+            inventory._history[-1] = inventory.data.copy(deep=True)
 
             period_event = _build_period_event_frame(
                 inventory_before=inventory_period_opening,
@@ -972,6 +865,9 @@ class SimulationEngine:
         run_settings = {
             'period_frequency': period_offset.freqstr,
             'initial_decision': initial_decision,
+            'timing_convention': 'receive_decide_receive_zero_lead_demand',
+            'decision_schedule': copy.deepcopy(schedule_manifest),
+            'decision_period_convention': 'zero_based_demand_period',
             'input_period_convention': 'zero_based',
             'event_period_convention': 'opening_period_plus_one',
             'warmup_periods': warmup_periods,
@@ -1134,6 +1030,9 @@ class SimulationEngine:
         """Private engine-owned work before the standard demand transition."""
         return inventory
 
+    def _after_order_receipt(self, before, after):
+        """Private receipt integration for engine-owned lot accounting."""
+
     def _after_demand_transition(self, inventory, period):
         """Private engine-owned work after demand and before callbacks."""
         return inventory
@@ -1291,9 +1190,14 @@ class SimulationEngine:
     def _execute_order_decision(
         self, inventory, policy, period, *, run_window, initial_decision
     ):
-        raw = policy.predict(inventory, current_period=period)
+        self._captured_decision_positions = inventory.inventory_position().set_index(
+            inventory.sku_column
+        )["inventory_position"].to_dict()
+        raw = policy.predict(copy.deepcopy(inventory), current_period=period)
         if not isinstance(raw, OrderDecision):
             raise TypeError("policy.predict must return an OrderDecision")
+        if raw.lead_time != policy.lead_time:
+            raise ValueError("order lead_time must match the policy execution contract")
         adjusted = raw
         for position, callback in enumerate(self._active_callbacks):
             context = self._callback_context(
@@ -1430,6 +1334,7 @@ class SimulationEngine:
 
     def _begin_order_capture(self) -> None:
         """Reset direct order counts for one decision opportunity."""
+        self._captured_decision_positions = {}
         self._captured_order_event_count = 0
         self._captured_sku_order_line_counts = {}
         self._captured_order_line_quantity_squared_sums = {}
@@ -1559,6 +1464,7 @@ class SimulationEngine:
                 'name': policy.policy_name,
                 'lead_time': policy.lead_time,
                 'review_period': policy.review_period,
+                'decision_schedule': policy.schedule.to_manifest(),
                 'service_level': policy.service_level,
                 'allow_backorders': policy.allow_backorders,
                 'target_metadata': target_metadata,
@@ -1630,11 +1536,9 @@ class SimulationEngine:
         policy: BasePolicy,
         policy_schedule: Optional[Mapping[int, BasePolicy]],
         *,
-        opening_period: int,
-        n_periods: int,
-        initial_decision: str,
         opening_date: pd.Timestamp,
         period_offset,
+        decision_periods,
     ) -> Dict[int, BasePolicy]:
         """Validate explicit fitted-policy snapshots for decision dates."""
         if policy_schedule is None:
@@ -1642,21 +1546,16 @@ class SimulationEngine:
         if not isinstance(policy_schedule, Mapping):
             raise TypeError("policy_schedule must be a mapping of decision period to policy")
 
-        allowed_periods = {
-            period
-            for period in range(opening_period + 1, opening_period + n_periods + 1)
-            if period % policy.review_period == 0
-        }
-        if initial_decision == "before_first_demand":
-            allowed_periods.add(opening_period)
+        allowed_periods = decision_periods
 
         validated = {}
         configuration = (
             type(policy),
             policy.lead_time,
-            policy.review_period,
+            policy.schedule.to_manifest(),
             policy.service_level,
             policy.allow_backorders,
+            getattr(policy, "selling_horizon", None),
         )
         for period, snapshot in policy_schedule.items():
             if not isinstance(period, int) or isinstance(period, bool):
@@ -1672,16 +1571,17 @@ class SimulationEngine:
             snapshot_configuration = (
                 type(snapshot),
                 snapshot.lead_time,
-                snapshot.review_period,
+                snapshot.schedule.to_manifest(),
                 snapshot.service_level,
                 snapshot.allow_backorders,
+                getattr(snapshot, "selling_horizon", None),
             )
             if snapshot_configuration != configuration:
                 raise ValueError(
                     "policy_schedule snapshots may change fitted targets only; policy class, "
                     "lead_time, review_period, service_level, and backorder mode must match"
                 )
-            decision_date = opening_date + (period - opening_period) * period_offset
+            decision_date = opening_date + period * period_offset
             SimulationEngine._validate_policy_information_origin(
                 snapshot,
                 latest_allowed_origin=decision_date,
@@ -1891,6 +1791,9 @@ class SimulationEngine:
     def _attach_order_audit(self, event_df: pd.DataFrame) -> pd.DataFrame:
         """Attach requested-versus-feasible order quantities to event rows."""
         event_df = event_df.copy()
+        event_df["decision_inventory_position"] = event_df["unique_id"].map(
+            self._captured_decision_positions
+        )
         if self._captured_callback_order_audits:
             callback_audit = pd.concat(
                 self._captured_callback_order_audits, ignore_index=True
@@ -1940,7 +1843,7 @@ class SimulationEngine:
         n_periods: int,
         *,
         period_frequency: str,
-        initial_decision: str,
+        initial_decision: str = "none",
         warmup_periods: int,
         scoring_periods: int,
         settlement_periods: int,
@@ -1963,7 +1866,8 @@ class SimulationEngine:
             inventory: Initialized InventoryStateDataFrame (deep-copied per policy).
             n_periods: Number of periods to simulate.
             period_frequency: Explicit pandas frequency for one period.
-            initial_decision: ``"before_first_demand"`` or ``"none"``.
+            initial_decision: Neutral compatibility argument, only ``"none"``.
+                First-period decisions are controlled by the policy schedule.
             warmup_periods: State-advancing periods excluded from scoring.
             scoring_periods: Periods included in result summaries.
             settlement_periods: Tail periods excluded from scoring.
@@ -1981,6 +1885,31 @@ class SimulationEngine:
         Returns:
             ComparisonResult with all SimulationResults accessible by label.
         """
+        return self._run_comparison(
+            policies, demand_source, inventory, n_periods,
+            period_frequency=period_frequency,
+            initial_decision=initial_decision,
+            warmup_periods=warmup_periods,
+            scoring_periods=scoring_periods,
+            settlement_periods=settlement_periods,
+            order_during_settlement=order_during_settlement,
+            demand_source_name=demand_source_name,
+            random_seed=random_seed,
+            labels=labels,
+            policy_schedules=policy_schedules,
+            order_constraints=order_constraints,
+            callbacks=callbacks,
+            branch_run_options={},
+        )
+
+    def _run_comparison(
+        self, policies, demand_source, inventory, n_periods, *,
+        period_frequency, initial_decision, warmup_periods, scoring_periods,
+        settlement_periods, order_during_settlement, demand_source_name,
+        random_seed, labels, policy_schedules, order_constraints, callbacks,
+        branch_run_options: dict,
+    ) -> 'ComparisonResult':
+        """Run isolated branches; subclasses forward their own run inputs."""
         if not isinstance(policies, list) or not policies:
             raise ValueError("policies must be a non-empty list")
         if labels is None:
@@ -2040,6 +1969,7 @@ class SimulationEngine:
                 policy_schedule=schedule,
                 order_constraints=order_constraints,
                 callbacks=callbacks,
+                **branch_run_options,
             )
             result.run_manifest['demand_source']['type'] = original_demand_source_type
             result.run_manifest['demand_source']['materialized_once_for_comparison'] = True

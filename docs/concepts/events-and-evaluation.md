@@ -1,9 +1,14 @@
 # Events, results, and evaluation
 
 `SimulationResult.to_event_frame()` is the authoritative accounting output of a
-run. It contains one row per SKU and ordinary period, plus a separate typed
-opening-decision row when an initial decision was requested. Use it for metrics,
-plots, and downstream analysis instead of caller-owned state snapshots.
+run. New runs contain one row per SKU and demand epoch, including the first
+scheduled decision. The evaluator can still read historical opening-decision
+rows. Use the ledger for metrics, plots, and downstream analysis.
+
+The additive `decision_inventory_position` field records the actual inventory
+position presented to a policy before demand. It is missing on epochs without
+a decision. Do not recover it by simply subtracting orders from ending position:
+current demand and physical callbacks occur between those two snapshots.
 
 ## Durable outputs
 

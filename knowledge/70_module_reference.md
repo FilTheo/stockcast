@@ -69,14 +69,14 @@ is not part of the staging extension surface. See [30](30_execution_flow.md).
 
 ### `policies/__init__.py`
 
-Exports `OrderUpToPolicy`, `ContinuousReviewPolicy`, `PeriodicReviewPolicy`,
+Exports `OrderUpToPolicy`, `ReorderPointPolicy`, `PeriodicReviewPolicy`,
 and periodic target provider types.
 
 ### `policies/_target_validation.py`
 
 Internal shared validator for probabilities, quantile-like labels, exact SKU
-coverage, direct-target source, horizons, origins, frequencies, target dates,
-and independent-normal per-step forecast frames. It is the central defense
+coverage, direct-target source, horizons, schedule-derived windows, origins,
+frequencies, target dates, and independent-normal per-step forecast frames. It is the central defense
 against scientifically incompatible target inputs.
 
 ### `policies/order_up_to.py`
@@ -85,11 +85,15 @@ Defines `OrderUpToPolicy` for `(R,S)`. Supports direct external cumulative
 targets and the explicitly labeled independent-normal moment aggregation.
 Protects horizon `lead_time + review_period`.
 
-### `policies/continuous_review.py`
+### `policies/reorder_point.py`
 
-Defines `ContinuousReviewPolicy` for discrete-period `(s,Q)` and `(s,S)` rules.
-Validates explicit Q provenance or paired target horizons and emits orders when
-inventory position reaches the reorder point.
+Defines `ReorderPointPolicy` for `(s,Q)` and `(s,S)` rules under any
+`DecisionSchedule`. It validates the reorder-point window against the schedule,
+`L+R` or `(u-t)+L` through `_target_validation.schedule_protection_horizon` and
+`validate_schedule_coverage`. It supports quantile and planner modes, validates
+`Q` provenance and `S >= s`, and emits orders when inventory position reaches
+the reorder point. It replaced `policies/continuous_review.py` on 2026-09-24
+(knowledge 40.5).
 
 ### `policies/periodic_review.py`
 
@@ -178,3 +182,8 @@ and do not own display or scientific validation.
 | shortage mode | state transition, engine event semantics, validator, service/cost metrics |
 | shelf life | lot ledger, private engine phase order, callbacks, event balance, waste metrics |
 | provenance | demand generator, policy metadata, engine manifest, packaging/build metadata |
+
+## Decision timing additions
+
+- `core/decision_schedule.py`: eligibility, next opportunity and schedule provenance.
+- `policies/single_order.py`: one-season external targets and economic probability helper.

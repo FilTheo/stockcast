@@ -97,9 +97,21 @@ on-hand balance equation. It is not silently folded into demand or shortage.
 - Shelf-space constraints use aggregate on-hand and pipeline, not remaining
   shelf life by lot.
 - An order multiple applied after capacity clipping could exceed capacity; the
-  final all-rule validation must catch such ordering conflicts.
+  final all-rule validation must catch such ordering conflicts. Verified
+  2026-09-24: `OrderMultiple` plus `ShelfSpaceLimit` raises in either order
+  whenever space binds. "Whole cases within space" needs a custom
+  `OrderingConstraint`; the stress suite's `PackedShelfSpace` is one example.
+- `ShelfLifeEngine.run_comparison` forwards `opening_lots` and
+  `opening_expiry_handling` to every branch through the private
+  `SimulationEngine._run_comparison(..., branch_run_options=...)`. Before
+  2026-09-24 the inherited method could not pass lots and raised `TypeError`.
+- Engine and event-validation balance identities allow
+  `1e-9 + 1e-12 * sum(|flows in the row|)`. A fixed `1e-9` was below one
+  floating-point ulp near `1e7` and aborted valid gram-scale shelf-life runs.
+  The FIFO insufficient-stock check scales the same way. Rare lot-dust
+  mismatches remain possible near `1e9` units per SKU-period.
 - Backlog fulfillment consumes received lots before current demand, matching
   the base state transition.
-- Physical callbacks run after demand and before ordering. Positive shelf-life
+- Physical callbacks run after demand and affect subsequent decisions. Positive shelf-life
   additions require a nonfuture, unexpired `received_date`; removals consume
   FIFO lots. Every accepted effect enters the event ledger before validation.

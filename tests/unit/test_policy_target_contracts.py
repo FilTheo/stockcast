@@ -4,14 +4,15 @@ from statistics import NormalDist
 import pandas as pd
 import pytest
 
+from stockcast import PeriodicSchedule
 from stockcast.policies import (
     ColumnPeriodicReviewTargets,
-    ContinuousReviewPolicy,
     FixedPeriodicReviewTargets,
     OrderUpToPolicy,
     PeriodicReviewPolicy,
     PeriodicReviewTargetProvider,
     PeriodicReviewTargets,
+    ReorderPointPolicy,
 )
 
 ORIGIN = pd.Timestamp("2025-01-01")
@@ -293,28 +294,27 @@ def test_direct_target_end_date_must_match_protection_horizon():
         )
 
 
-def test_zero_lead_time_is_rejected_until_same_period_receipt_exists():
-    with pytest.raises(ValueError, match="same-period replenishment is not implemented"):
-        OrderUpToPolicy(
-            lead_time=0,
-            review_period=1,
-            service_level=0.95,
-            allow_backorders=False,
-        )
+def test_zero_lead_time_is_supported_and_negative_is_rejected():
+    policy = OrderUpToPolicy(lead_time=0, review_period=1, service_level=.95, allow_backorders=False)
+    assert policy.lead_time == 0
+    with pytest.raises(ValueError, match="lead_time must be an integer >= 0"):
+        OrderUpToPolicy(lead_time=-1, review_period=1, service_level=.95, allow_backorders=False)
 
 
 def test_sq_requires_explicit_quantity_and_provenance():
     with pytest.raises(ValueError, match="order_quantity is required"):
-        ContinuousReviewPolicy(
+        ReorderPointPolicy(
             lead_time=1,
+            review_period=1,
             policy_type="sQ",
             service_level=0.95,
             allow_backorders=False,
         )
 
     with pytest.raises(ValueError, match="order_quantity_source is required"):
-        ContinuousReviewPolicy(
+        ReorderPointPolicy(
             lead_time=1,
+            review_period=1,
             policy_type="sQ",
             service_level=0.95,
             order_quantity=12,
@@ -322,8 +322,8 @@ def test_sq_requires_explicit_quantity_and_provenance():
         )
 
 
-def test_continuous_review_is_evaluated_each_discrete_period():
-    policy = ContinuousReviewPolicy(
+def test_reorder_point_review_timing_is_explicit():
+    arguments = dict(
         lead_time=1,
         policy_type="sQ",
         service_level=0.95,
@@ -331,18 +331,23 @@ def test_continuous_review_is_evaluated_each_discrete_period():
         order_quantity_source="supplier_case_pack",
         allow_backorders=False,
     )
+    with pytest.raises(ValueError, match="supply schedule or review_period"):
+        ReorderPointPolicy(**arguments)
 
-    assert policy.review_period == 1
+    assert ReorderPointPolicy(review_period=1, **arguments).review_period == 1
+    weekly = ReorderPointPolicy(schedule=PeriodicSchedule(7, start=2), **arguments)
+    assert weekly.schedule.to_manifest() == {"type": "periodic", "every": 7, "start": 2}
 
 
 def test_sq_records_direct_reorder_target_and_quantity_provenance():
     targets = pd.DataFrame({
         "unique_id": ["A"],
-        "lead_time_q95": [25.0],
-        "reorder_end": [pd.Timestamp("2025-01-03")],
+        "reorder_q95": [25.0],
+        "reorder_end": [pd.Timestamp("2025-01-04")],
     })
-    policy = ContinuousReviewPolicy(
+    policy = ReorderPointPolicy(
         lead_time=2,
+        review_period=1,
         policy_type="sQ",
         service_level=0.95,
         order_quantity=12,
@@ -350,15 +355,16 @@ def test_sq_records_direct_reorder_target_and_quantity_provenance():
         allow_backorders=False,
     ).fit(
         targets,
-        reorder_point_column="lead_time_q95",
+        reorder_point_column="reorder_q95",
         target_probability=0.95,
-        reorder_horizon=2,
+        reorder_horizon=3,
         target_source="external_direct",
         reorder_end_date_column="reorder_end",
         **_calendar_args(),
     )
 
     assert policy.get_parameters().loc[0, "order_quantity"] == 12.0
+    assert policy.get_target_metadata()["reorder_horizon"] == 3
     assert policy.get_target_metadata()["order_quantity_source"] == "supplier_case_pack"
     assert policy.get_target_metadata()["target_source"] == "external_direct"
     decision = policy.predict(
@@ -369,56 +375,77 @@ def test_sq_records_direct_reorder_target_and_quantity_provenance():
     assert decision.loc[0, "order_quantity"] == 12.0
 
 
-def test_ss_requires_explicit_review_interval_and_both_targets():
+def test_ss_treats_order_up_to_level_as_a_policy_parameter_not_a_quantile():
     targets = pd.DataFrame({
         "unique_id": ["A"],
-        "lead_time_q95": [25.0],
-        "protection_q95": [40.0],
-        "reorder_end": [pd.Timestamp("2025-01-03")],
-        "protection_end": [pd.Timestamp("2025-01-06")],
+        "reorder_q95": [25.0],
+        "restore": [40.0],
+        "reorder_end": [pd.Timestamp("2025-01-04")],
     })
-    policy = ContinuousReviewPolicy(
+    policy = ReorderPointPolicy(
         lead_time=2,
+        review_period=1,
         policy_type="sS",
         service_level=0.95,
         allow_backorders=False,
     )
-
-    with pytest.raises(ValueError, match="review_period_for_S must be explicitly provided"):
-        policy.fit(
-            targets,
-            reorder_point_column="lead_time_q95",
-            target_probability=0.95,
-            reorder_horizon=2,
-            target_source="external_direct",
-            order_up_to_column="protection_q95",
-            order_up_to_horizon=5,
-            reorder_end_date_column="reorder_end",
-            order_up_to_end_date_column="protection_end",
-            **_calendar_args(),
-        )
-
-    policy.fit(
-        targets,
-        reorder_point_column="lead_time_q95",
+    arguments = dict(
+        reorder_point_column="reorder_q95",
         target_probability=0.95,
-        reorder_horizon=2,
+        reorder_horizon=3,
         target_source="external_direct",
-        order_up_to_column="protection_q95",
-        order_up_to_horizon=5,
-        review_period_for_S=3,
         reorder_end_date_column="reorder_end",
-        order_up_to_end_date_column="protection_end",
         **_calendar_args(),
     )
+    with pytest.raises(ValueError, match="order_up_to_column is required"):
+        policy.fit(targets, **arguments)
+    with pytest.raises(ValueError, match="greater than or equal to reorder points"):
+        policy.fit(targets.assign(restore=20.0), order_up_to_column="restore", **arguments)
+
+    policy.fit(targets, order_up_to_column="restore", **arguments)
     assert policy.get_parameters().loc[0, "order_up_to_level"] == 40.0
-    assert policy.get_target_metadata()["order_up_to_horizon"] == 5
+    metadata = policy.get_target_metadata()
+    assert metadata["order_up_to_representation"] == "external_policy_level"
+    assert "order_up_to_horizon" not in metadata
     decision = policy.predict(
         pd.DataFrame({"unique_id": ["A"], "inventory_position": [20.0]}),
         current_period=0,
         return_dataframe=True,
     )
     assert decision.loc[0, "order_quantity"] == 20.0
+
+
+def test_reorder_point_planner_mode_accepts_jointly_chosen_s_and_S():
+    targets = pd.DataFrame({
+        "unique_id": ["A"],
+        "s": [7.0],
+        "S": [30.0],
+        "end": [pd.Timestamp("2025-01-08")],
+    })
+    policy = ReorderPointPolicy(
+        lead_time=0,
+        schedule=PeriodicSchedule(7),
+        policy_type="sS",
+        allow_backorders=True,
+    )
+    arguments = dict(
+        reorder_point_column="s",
+        order_up_to_column="S",
+        reorder_end_date_column="end",
+        reorder_horizon=7,
+        target_source="external_direct",
+        **_calendar_args(),
+    )
+    with pytest.raises(ValueError, match="set service_level"):
+        policy.fit(targets, target_probability=0.9, **arguments)
+    with pytest.raises(ValueError, match="quantile-labelled"):
+        policy.fit(targets.rename(columns={"s": "q90"}), **{**arguments, "reorder_point_column": "q90"})
+
+    policy.fit(targets, **arguments)
+    metadata = policy.get_target_metadata()
+    assert metadata["representation"] == "external_reorder_point"
+    assert metadata["target_probability"] is None
+    assert metadata["reorder_horizon"] == 7
 
 
 def test_periodic_rss_uses_only_explicit_reorder_and_restore_targets():

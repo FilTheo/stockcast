@@ -12,14 +12,16 @@ def test_public_export_sets_are_frozen_for_0_1():
     assert stockcast.__all__ == [
         "BasePolicy", "CallbackContext", "CallbackError",
         "ColumnPeriodicReviewTargets", "ComparisonResult", "ConstraintContext",
-        "ConstraintResult", "ContinuousReviewPolicy", "FixedPeriodicReviewTargets",
+        "ConstraintResult", "FixedPeriodicReviewTargets",
         "InventoryAdjustmentResult", "InventoryStateDataFrame",
         "MaximumOrderQuantity", "MinimumOrderQuantity", "OrderAdjustmentResult",
         "OrderDecision", "OrderMultiple", "OrderUpToPolicy", "OrderingConstraint",
         "OrderingConstraints", "PeriodicReviewPolicy", "PeriodicReviewTargetProvider",
-        "PeriodicReviewTargets", "ScheduledInventoryAdjustment", "ScheduledOrderHold",
+        "PeriodicReviewTargets", "ReorderPointPolicy", "ScheduledInventoryAdjustment", "ScheduledOrderHold",
         "ScheduledOrderMultiplier", "ScheduledOrderOverride", "ShelfSpaceLimit",
         "SimulationCallback", "SimulationEngine", "SimulationResult",
+        "DecisionSchedule", "PeriodicSchedule", "OneTimeSchedule", "ExplicitSchedule",
+        "SingleOrderPolicy", "newsvendor_critical_fractile",
     ]
     assert core.__all__ == [
         "BasePolicy", "CALLBACK_AUDIT_COLUMNS", "CallbackContext", "CallbackError",
@@ -30,11 +32,13 @@ def test_public_export_sets_are_frozen_for_0_1():
         "ScheduledOrderHold", "ScheduledOrderMultiplier", "ScheduledOrderOverride",
         "RUN_MANIFEST_REQUIRED_SECTIONS", "ShelfLifeEngine", "ShelfSpaceLimit",
         "SimulationCallback", "SimulationEngine", "SimulationResult",
+        "DecisionSchedule", "PeriodicSchedule", "OneTimeSchedule", "ExplicitSchedule",
     ]
     assert policies.__all__ == [
-        "OrderUpToPolicy", "ContinuousReviewPolicy", "PeriodicReviewPolicy",
+        "OrderUpToPolicy", "ReorderPointPolicy", "PeriodicReviewPolicy",
         "PeriodicReviewTargetProvider", "PeriodicReviewTargets",
         "ColumnPeriodicReviewTargets", "FixedPeriodicReviewTargets",
+        "SingleOrderPolicy", "newsvendor_critical_fractile",
     ]
     assert evaluation.__all__ == [
         "InventoryEvaluator", "CANONICAL_EVENT_COLUMNS", "validate_event_frame",

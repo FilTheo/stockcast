@@ -28,14 +28,13 @@ class PeriodicReviewPolicy(BasePolicy):
     def __init__(
         self,
         lead_time: int,
-        review_period: int,
+        review_period: int | None = None,
         *,
-        service_level: float,
+        service_level: float | None = None,
         allow_backorders: bool,
+        schedule=None,
     ):
-        if service_level is None:
-            raise ValueError("service_level is required for PeriodicReviewPolicy")
-        super().__init__(lead_time, review_period, service_level, allow_backorders)
+        super().__init__(lead_time, review_period, service_level, allow_backorders, schedule=schedule)
         self.policy_name = "Periodic Review (R,s,S)"
         self.parameters_ = None
 

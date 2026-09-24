@@ -164,8 +164,8 @@ class InventoryStateDataFrame:
                 unset until ``SimulationEngine`` supplies the policy setting.
             _history: Internal parameter for transferring history between instances
         """
-        if not isinstance(max_lead_time, int) or isinstance(max_lead_time, bool) or max_lead_time < 1:
-            raise ValueError("max_lead_time must be an integer >= 1")
+        if not isinstance(max_lead_time, int) or isinstance(max_lead_time, bool) or max_lead_time < 0:
+            raise ValueError("max_lead_time must be an integer >= 0")
         if allow_backorders is not None and not isinstance(allow_backorders, bool):
             raise ValueError("allow_backorders must be True, False, or unset")
         if not isinstance(sku_column, str) or not sku_column.strip():
@@ -531,233 +531,95 @@ class InventoryStateDataFrame:
         self.data['on_hand'] = self.data[self.sku_column].map(stock_by_sku).astype(float)
         return self
 
-    def process_demand(self,
-                      demand_df: pd.DataFrame,
-                      review_period: int,
-                      period_frequency: str,
-                      demand_column: str = 'y',
-                      date_column: Optional[str] = 'date',
-                      sku_column: Optional[str] = None) -> 'InventoryStateDataFrame':
+    def advance_period(self, *, period_frequency: str, is_review_period: bool) -> 'InventoryStateDataFrame':
+        """Advance the clock, reset flows, receive due stock and clear old backlog.
+
+        No demand is observed here. Call ``fulfill_demand`` after the optional
+        decision and order receipt to complete the period.
         """
-        Process incoming demand and advance the simulation by one period.
+        self._validate_ready_state()
+        offset = _require_forward_frequency(period_frequency, "period_frequency")
+        if not isinstance(is_review_period, bool):
+            raise ValueError("is_review_period must be boolean")
+        data = self.data.copy()
+        for column in data.columns:
+            if column.startswith("latest_"):
+                data[column] = 0.0
+        data["period"] = data["period"] + 1
+        data["date"] = pd.Timestamp(data["date"].iloc[0]) + offset
+        data["is_review_period"] = is_review_period
+        received = data["in_transit"].map(lambda pipeline: float(pipeline[0]) if len(pipeline) else 0.0)
+        data["in_transit"] = data["in_transit"].map(
+            lambda pipeline: np.r_[pipeline[1:], 0.0] if len(pipeline) else pipeline.copy()
+        )
+        cleared = np.minimum(data["backorders"], received) if self.allow_backorders else 0.0
+        data["backorders"] -= cleared
+        data["on_hand"] += received - cleared
+        data["latest_received"] = received
+        data["latest_backorders_fulfilled"] = cleared
+        return InventoryStateDataFrame(data, sku_column=self.sku_column,
+                                       max_lead_time=self.max_lead_time,
+                                       allow_backorders=self.allow_backorders,
+                                       _history=self._history)
 
-        TIMING NOTE: Period advancement happens at the START of this method.
-        This ensures that when inventory_position() is called during review periods,
-        the system is already at the new period, making order placement timing correct.
+    def fulfill_demand(self, demand_df: pd.DataFrame, *, demand_column: str = "y",
+                       date_column: str = "date", sku_column: Optional[str] = None
+                       ) -> 'InventoryStateDataFrame':
+        """Fulfill current-period demand without advancing time or receiving again."""
+        self._validate_ready_state()
+        sku_column = sku_column or self.sku_column
+        actual = _require_identifiers(demand_df, sku_column, "demand_df", unique=True)
+        expected = _require_identifiers(self.data, self.sku_column, "inventory_state", unique=True)
+        if actual - expected:
+            raise ValueError(f"demand_df contains unknown SKUs: {_identifier_sample(actual - expected)}")
+        if expected - actual:
+            raise ValueError(f"demand_df is missing inventory SKUs: {_identifier_sample(expected - actual)}")
+        if demand_column not in demand_df:
+            raise ValueError(f"demand_column '{demand_column}' not found in demand_df")
+        _require_finite_nonnegative(demand_df, [demand_column], "demand_df")
+        if not date_column or date_column not in demand_df:
+            raise ValueError("demand_df must contain an explicit date column")
+        dates = pd.to_datetime(demand_df[date_column], errors="coerce")
+        if dates.isna().any() or dates.nunique() != 1:
+            raise ValueError("demand_df must contain one complete date for the period")
+        if dates.iloc[0] != pd.Timestamp(self.data["date"].iloc[0]):
+            raise ValueError("demand date does not match expected next date/current opened period")
+        data = self.data.copy()
+        demand = data[self.sku_column].map(demand_df.set_index(sku_column)[demand_column]).astype(float)
+        fulfilled = np.minimum(demand, data["on_hand"])
+        shortage = demand - fulfilled
+        data["on_hand"] -= fulfilled
+        if self.allow_backorders:
+            data["backorders"] += shortage
+        data["latest_incoming_demand"] = demand
+        data["latest_fulfilled"] = fulfilled
+        data["latest_shortage"] = shortage
+        result = InventoryStateDataFrame(data, sku_column=self.sku_column,
+                                        max_lead_time=self.max_lead_time,
+                                        allow_backorders=self.allow_backorders,
+                                        _history=self._history)
+        result.has_stockout = bool((shortage > 0).any())
+        result.has_backorder = bool((data["backorders"] > 0).any())
+        result._history.append(result.data.copy())
+        return result
 
-        This method:
-        1. Advances period by 1 (FIRST - this is the period we're entering)
-        2. Updates review period flag (is this period a review period?)
-        3. Updates dates
-        4. Processes deliveries from in_transit (orders arriving)
-        5. Processes demand (satisfies from on_hand, tracks stockouts)
-        6. Updates backorders if allowed (uses self.allow_backorders)
-        7. Shifts in_transit arrays (time advancement)
+    def process_demand(self, demand_df: pd.DataFrame, review_period: int,
+                       period_frequency: str, demand_column: str = "y",
+                       date_column: Optional[str] = "date", sku_column: Optional[str] = None
+                       ) -> 'InventoryStateDataFrame':
+        """Convenience transition: advance/receive then fulfill, without an order.
 
-        Args:
-            demand_df: DataFrame with demand and one explicit period date
-            review_period: Review period for determining is_review_period flag
-            period_frequency: Explicit pandas frequency for one simulation period.
-            demand_column: Column name containing demand values (default: 'y')
-            date_column: Required date column name (default: 'date')
-            sku_column: Column name for SKU identifier (uses self.sku_column if None)
-
-        Returns:
-            New InventoryStateDataFrame with updated state for period + 1
-
-        Note:
-            Backorder behavior is controlled by self.allow_backorders, which is set
-            automatically by the policy via update_inventory_with_orders().
-
-        Example:
-            # Process demand for next period
-            demand_df = pd.DataFrame({
-                'unique_id': ['SKU_A', 'SKU_B'],
-                'y': [50, 100],
-                'date': [pd.Timestamp('2025-01-02'), pd.Timestamp('2025-01-02')]
-            })
-
-            new_inventory = inventory.process_demand(
-                demand_df=demand_df,
-                review_period=7,
-                period_frequency="D",
-            )
-            # → period incremented FIRST, then inventory updated, stockouts tracked
-            # → backorder behavior determined by self.allow_backorders
+        For a manual before-demand decision loop use ``advance_period``,
+        ``update_inventory_with_orders``, then ``fulfill_demand`` instead.
         """
-        if sku_column is None:
-            sku_column = self.sku_column
-
         if not isinstance(review_period, int) or isinstance(review_period, bool) or review_period < 1:
             raise ValueError("review_period must be an integer >= 1")
-        period_offset = _require_forward_frequency(
-            period_frequency,
-            "period_frequency",
-        )
-
         self._validate_ready_state()
-
-        # Validate required columns
-        if sku_column not in demand_df.columns:
-            raise ValueError(f"sku_column '{sku_column}' not found in demand_df")
-        if demand_column not in demand_df.columns:
-            raise ValueError(f"demand_column '{demand_column}' not found in demand_df")
-        demand_skus = _require_identifiers(
-            demand_df,
-            sku_column,
-            'demand_df',
-            unique=True,
-        )
-        inventory_skus = _require_identifiers(
-            self.data,
-            sku_column,
-            'inventory_state',
-            unique=True,
-        )
-        unknown_skus = demand_skus - inventory_skus
-        if unknown_skus:
-            sample = _identifier_sample(unknown_skus)
-            raise ValueError(f"demand_df contains unknown SKUs: {sample}")
-        missing_skus = inventory_skus - demand_skus
-        if missing_skus:
-            sample = _identifier_sample(missing_skus)
-            raise ValueError(f"demand_df is missing inventory SKUs: {sample}")
-        _require_finite_nonnegative(demand_df, [demand_column], 'demand_df')
-        if not date_column or date_column not in demand_df.columns:
-            raise ValueError("demand_df must contain an explicit date column")
-        demand_dates = pd.to_datetime(demand_df[date_column], errors='coerce')
-        if demand_dates.isna().any() or demand_dates.nunique() != 1:
-            raise ValueError("demand_df must contain one complete date for the period")
-        state_dates = pd.to_datetime(self.data['date'], errors='coerce')
-        if state_dates.isna().any() or state_dates.nunique() != 1:
-            raise ValueError("inventory state must contain one complete opening date")
-        expected_date = state_dates.iloc[0] + period_offset
-        demand_date = demand_dates.iloc[0]
-        if demand_date != expected_date:
-            raise ValueError(
-                f"demand date {demand_date} does not match expected next date "
-                f"{expected_date} for frequency '{period_frequency}'"
-            )
-
-        # Create a copy of current state
-        new_data = self.data.copy()
-        new_data['latest_order'] = 0.0
-
-        # === STEP 1: Advance period FIRST ===
-        # This is the period we're ENTERING, not the period we're leaving
-        current_period = new_data['period'].iloc[0]
-        new_period = current_period + 1
-        new_data['period'] = new_period
-
-        # === STEP 2: Update review period flag EARLY ===
-        # Check if this new period is a review period
-        new_data['is_review_period'] = (new_period % review_period == 0)
-
-        # === STEP 3: Update date EARLY ===
-        # Demand dates are required and were validated against the explicit frequency.
-        demand_subset = demand_df[[sku_column, demand_column]].copy()
-        demand_subset[date_column] = demand_dates.to_numpy()
-        new_data['date'] = demand_date
-
-        # === STEP 4: Process deliveries from in_transit ===
-        def process_delivery(row):
-            """Process deliveries for a single SKU.
-
-            Arriving stock clears existing backorders first, then remainder
-            goes to on_hand. This prevents backorders from permanently
-            suppressing inventory position.
-            """
-            in_transit = row['in_transit'].copy()
-
-            # Check if any orders are arriving (in_transit[0])
-            arriving_qty = in_transit[0]
-
-            # Clear backorders with arriving stock first
-            backorders = row['backorders']
-            if self.allow_backorders and arriving_qty > 0 and backorders > 0:
-                cleared = min(arriving_qty, backorders)
-                new_backorders = backorders - cleared
-                new_on_hand = row['on_hand'] + (arriving_qty - cleared)
-            else:
-                cleared = 0.0
-                new_backorders = backorders
-                new_on_hand = row['on_hand'] + arriving_qty
-
-            # Shift in_transit array left (advance time)
-            in_transit = np.roll(in_transit, -1)
-            in_transit[-1] = 0.0  # Last position awaits new order
-
-            return pd.Series({
-                'on_hand': new_on_hand,
-                'in_transit': in_transit,
-                'arriving_qty': arriving_qty,
-                'backorders_fulfilled': cleared,
-                'backorders': new_backorders,
-            })
-
-        delivery_updates = new_data.apply(process_delivery, axis=1)
-        new_data['on_hand'] = delivery_updates['on_hand']
-        new_data['in_transit'] = delivery_updates['in_transit']
-        new_data['backorders'] = delivery_updates['backorders']
-        new_data['latest_received'] = delivery_updates['arriving_qty']
-        new_data['latest_backorders_fulfilled'] = delivery_updates['backorders_fulfilled']
-
-        # === STEP 5: Merge demand data ===
-        # demand_subset already created above, just merge the demand column
-        new_data = new_data.merge(
-            demand_subset[[sku_column, demand_column]],
-            on=sku_column,
-            how='left',
-            suffixes=('', '_demand')
-        )
-
-        if new_data[demand_column].isna().any():
-            raise AssertionError("validated demand grid became incomplete during merge")
-
-        # Store incoming demand in latest_incoming_demand column
-        new_data['latest_incoming_demand'] = new_data[demand_column]
-
-        # === STEP 6: Process demand and calculate stockouts ===
-        # Calculate satisfied demand and shortages
-        new_data['satisfied_demand'] = new_data[[demand_column, 'on_hand']].min(axis=1)
-        new_data['shortage'] = new_data[demand_column] - new_data['satisfied_demand']
-        new_data['latest_fulfilled'] = new_data['satisfied_demand']
-
-        # Track if ANY SKU had stockout this period (before updating backorders)
-        had_stockout = (new_data['shortage'] > 0).any()
-
-        # Update on_hand (subtract satisfied demand)
-        new_data['on_hand'] = new_data['on_hand'] - new_data['satisfied_demand']
-
-        # === STEP 7: Update backorders ===
-        if self.allow_backorders:
-            # Add new shortages to existing backorders
-            new_data['backorders'] = new_data['backorders'] + new_data['shortage']
-        else:
-            # Lost sales - don't track backorders
-            new_data['backorders'] = 0.0
-
-        # === STEP 8: Save shortage and clean up temporary columns ===
-        new_data['latest_shortage'] = new_data['shortage']
-        new_data = new_data.drop(columns=[demand_column, 'satisfied_demand', 'shortage'])
-
-        # === STEP 9: Create new inventory state and transfer history ===
-        new_inventory = InventoryStateDataFrame(
-            new_data,
-            sku_column=sku_column,
-            max_lead_time=self.max_lead_time,
-            allow_backorders=self.allow_backorders,  # Preserve backorder setting
-            _history=self._history  # Transfer accumulated history
-        )
-
-        # === STEP 10: Update class-level attributes ===
-        # Set stockout flag (was there a shortage in this period?)
-        new_inventory.has_stockout = had_stockout
-        # Set backorder flag (are there any unfulfilled backorders currently?)
-        new_inventory.has_backorder = (new_data['backorders'] > 0).any()
-        new_inventory._history.append(new_inventory.data.copy())
-
-        return new_inventory
+        new_period = int(self.data["period"].iloc[0]) + 1
+        advanced = self.advance_period(period_frequency=period_frequency,
+                                       is_review_period=new_period % review_period == 0)
+        return advanced.fulfill_demand(demand_df, demand_column=demand_column,
+                                       date_column=date_column, sku_column=sku_column)
 
 
 class OrderDecision:

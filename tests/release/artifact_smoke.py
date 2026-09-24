@@ -51,7 +51,7 @@ result = stockcast.SimulationEngine().run(
     inventory=inventory,
     n_periods=6,
     period_frequency="D",
-    initial_decision="before_first_demand",
+    initial_decision="none",
     warmup_periods=0,
     scoring_periods=6,
     settlement_periods=0,
@@ -61,5 +61,5 @@ result = stockcast.SimulationEngine().run(
 )
 summary = result.summary()
 assert summary["fill_rate"] == 1.0
-assert summary["total_order_units"] == 39.0
+assert summary["total_order_units"] == 35.0
 print({key: summary[key] for key in ("fill_rate", "total_order_units")})

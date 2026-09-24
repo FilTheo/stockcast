@@ -29,16 +29,17 @@ def update_inventory_with_orders(
         - 'target_level': Stores the target level (S) from the policy
         - 'allow_backorders': Transferred from policy (if provided)
 
-    The physical inventory ('on_hand') is not affected until orders arrive
-    (after lead_time periods).
+    Positive-lead-time orders enter the future pipeline. Zero-lead-time orders
+    are received immediately, clear prior backlog first, and can serve demand
+    when this operation is called before fulfillment.
 
     Inventory Management Logic:
         - Lead time is automatically inferred from orders.lead_time (set by policy)
         - Backorder mode is automatically transferred from policy.allow_backorders
-        - When you place an order, it's added to 'in_transit' array at index = lead_time - 1
+        - Positive-lead-time orders enter pipeline index lead_time - 1; zero-lead orders are received.
         - 'latest_order' and 'target_level' are updated for tracking
         - The 'inventory_position' increases immediately: IP = on_hand + sum(in_transit) - backorders
-        - Physical 'on_hand' inventory only increases when the order arrives
+        - Physical on-hand increases at receipt, immediately for zero lead time
 
     Args:
         inventory_state: Current multi-SKU inventory state
@@ -77,11 +78,8 @@ def update_inventory_with_orders(
             "OrderDecision must have lead_time set. "
             "This should be automatically set by the policy's predict() method."
         )
-    if not isinstance(lead_time, int) or isinstance(lead_time, bool) or lead_time < 1:
-        raise ValueError(
-            "orders.lead_time must be an integer >= 1; same-period "
-            "replenishment is not implemented"
-        )
+    if not isinstance(lead_time, int) or isinstance(lead_time, bool) or lead_time < 0:
+        raise ValueError("orders.lead_time must be an integer >= 0")
 
     # Preserve the state's explicit setting unless an explicit policy is supplied.
     allow_backorders = inventory_state.allow_backorders
@@ -148,40 +146,21 @@ def update_inventory_with_orders(
         merged['target_level'] = merged['target_level_y'].fillna(merged['target_level_x'])
         merged = merged.drop(columns=['target_level_x', 'target_level_y'])
 
-    # Update in_transit for each SKU with positive order quantity
-    def update_in_transit_array(row):
-        """Add order to in_transit array at the appropriate index.
-
-        TIMING NOTE: With the new timing model where period advances at the start of process_demand(),
-        we place orders at period t, and they should arrive at period t+L.
-
-        The in_transit array is indexed by "periods from now":
-        - in_transit[0] = arrives next period (at t+1)
-        - in_transit[1] = arrives in 2 periods (at t+2)
-        - in_transit[L-1] = arrives in L periods (at t+L)
-
-        Therefore, offset = lead_time - 1 (since we place order at t, arrives at t+L)
-        """
-        # Copy array if it's numpy array, otherwise create new one
-        if isinstance(row['in_transit'], np.ndarray):
-            in_transit = row['in_transit'].copy()
-        else:
-            in_transit = np.zeros(inventory_state.max_lead_time)
-
-        if row['order_quantity'] > 0:
-            # Calculate period offset
-            # With new timing: orders placed at period t arrive at period t+L
-            # in_transit[0] arrives next period, so offset = L-1 for arrival at t+L
-            offset = lead_time - 1
-
-            # Ensure offset is within array bounds
-            if 0 <= offset < len(in_transit):
-                in_transit[offset] += row['order_quantity']
-
-        return in_transit
-
-    # Apply update to in_transit column
-    merged['in_transit'] = merged.apply(update_in_transit_array, axis=1)
+    if lead_time == 0:
+        # An accepted immediate order is both a purchase and a receipt. It
+        # clears only existing backlog; current demand has not happened yet.
+        received = merged['order_quantity']
+        cleared = np.minimum(merged['backorders'], received) if allow_backorders else 0.0
+        merged['backorders'] -= cleared
+        merged['on_hand'] += received - cleared
+        merged['latest_received'] += received
+        merged['latest_backorders_fulfilled'] += cleared
+    else:
+        def add_to_pipeline(row):
+            pipeline = row['in_transit'].copy()
+            pipeline[lead_time - 1] += row['order_quantity']
+            return pipeline
+        merged['in_transit'] = merged.apply(add_to_pipeline, axis=1)
 
     # Accumulate every order line placed in the current period. This matters
     # when a calendar engine executes multiple supplier events before demand

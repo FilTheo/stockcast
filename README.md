@@ -137,7 +137,7 @@ result = SimulationEngine().run(
     inventory=inventory,
     n_periods=6,
     period_frequency="D",
-    initial_decision="before_first_demand",
+    initial_decision="none",
     warmup_periods=0,
     scoring_periods=6,
     settlement_periods=0,
@@ -148,7 +148,7 @@ result = SimulationEngine().run(
 
 summary = result.summary()
 print({key: summary[key] for key in ("fill_rate", "total_order_units")})
-# {'fill_rate': 1.0, 'total_order_units': 39.0}
+# {'fill_rate': 1.0, 'total_order_units': 35.0}
 ```
 
 The example is checked against the staging source. It must be checked again
@@ -205,3 +205,7 @@ records the inventory decision path that follows.
 ## License
 
 Stockcast is licensed under the [Apache License 2.0](https://github.com/FilTheo/stockcast/blob/main/LICENSE).
+
+The pre-release engine now decides before demand and supports zero lead time,
+separate decision schedules, and single-season targets. See the
+[timing migration guide](docs/concepts/decision-schedules.md).

@@ -65,7 +65,8 @@ class DemandGenerator:
 
     Args:
         skus: List of SKU identifiers.
-        start_date: Explicit date for period 0.
+        start_date: Explicit date for demand period 0. For ``SimulationEngine``
+            this is one period after the inventory opening date.
         period_frequency: Explicit pandas frequency for one period.
         seed: Explicit random seed, or ``None`` for intentionally unseeded data.
         negative_demand_handling: Explicitly reject or clip negative draws.

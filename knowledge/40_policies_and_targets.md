@@ -4,8 +4,8 @@
 
 Every policy derives from `BasePolicy` and declares:
 
-- integer `lead_time >= 1`;
-- integer `review_period >= 1`;
+- integer `lead_time >= 0`;
+- a `DecisionSchedule`, or positive `review_period` as periodic shorthand;
 - optional service level strictly between zero and one;
 - an explicit boolean backorder mode.
 
@@ -22,8 +22,8 @@ inventory_position = on_hand + sum(in_transit) - backorders
 ```
 
 This is different from current physical stock. An order changes inventory
-position through the pipeline immediately but changes on-hand only when it is
-received.
+position through accepted stock immediately; zero-lead orders are received in
+the decision epoch and positive-lead orders remain in the pipeline.
 
 ## 40.3 Target metadata shared across policies
 
@@ -77,39 +77,64 @@ S = sum(step_means) + z(service_level) * sqrt(sum(step_std_deviation^2))
 This is the only built-in distributional aggregation. It must be labeled as an
 independence assumption and is not a general uncertainty model.
 
-## 40.5 Continuous review `(s,Q)` and `(s,S)`
+## 40.5 Reorder-point `(s,Q)` and `(s,S)`: `ReorderPointPolicy`
 
-`ContinuousReviewPolicy` is checked once per discrete period
-(`review_period = 1`); “continuous” is the traditional policy name, not
-continuous physical time. The project owner approved retaining this public
-name for 0.1.0 with that timing stated explicitly in API documentation and
-examples.
-
-For `(s,Q)`:
+Owner-approved on 2026-09-24, replacing `ContinuousReviewPolicy`. Stockcast has no
+continuous physical-time review; a reorder-point rule is combined with a
+`DecisionSchedule`. The rule decides how much, the schedule decides when.
+`review_period=1` is every-period review.
 
 ```text
-if inventory_position <= s: requested_order = Q
+if inventory_position <= s: (s,Q) requests Q; (s,S) requests max(0, S - IP)
 else:                        requested_order = 0
 ```
 
-- reorder point `s` protects lead-time horizon `L`;
-- `Q` is explicit, positive, and has an explicit source;
-- the policy never derives `Q` from demand implicitly.
-
-For `(s,S)`:
+Window of `s` (same derivation as `(R,S)`): if the rule does not order at `t`
+and the next opportunity is `u`, the next order arrives before demand `u+L`, so
+the position at `t` is exposed to `t..u+L-1`:
 
 ```text
-if inventory_position <= s: requested_order = max(0, S - inventory_position)
-else:                        requested_order = 0
+H = (u - t) + L      periodic: L + R      every period: L + 1
 ```
 
-- `s` protects horizon `L`;
-- `S` protects `L + review_period_for_S`;
-- the extra review period for `S` is explicit;
-- `S >= s` is required for every SKU.
+- Fit requires `reorder_horizon == L + R` for periodic schedules. Other schedules
+  declare it explicitly, and it is checked before the run against each decision's
+  next opportunity (shared `validate_schedule_coverage`, also used by
+  `OrderUpToPolicy`). Nonperiodic targets need the exact information origin,
+  so irregular schedules normally use per-decision snapshots.
+- The end date is `forecast_origin + reorder_horizon` periods.
+- Quantile mode (`service_level` set) requires an equal `target_probability`
+  and label-consistent quantile columns. Planner mode (`service_level=None`)
+  forbids a probability and quantile-labelled columns.
+- An `L`-window quantile is a justified basis for `s`, not a realized-service
+  guarantee. Undershoot, `Q`, outstanding orders, the shortage mode, the service
+  measure, and the demand process all matter. The per-review statement
+  (backorders, independent demand, no order at `t`) is only a conditional
+  lower bound.
+- `Q` is explicit, positive, and sourced. `S` is an external policy level
+  (`order_up_to_representation="external_policy_level"`) with only `S >= s`
+  validated. It has no probability or horizon because `s,S` are generally
+  jointly determined (Zheng & Federgruen 1991, used by Stockpyl's periodic
+  `(s,S)` optimizer).
+- Rolling snapshots must match class, lead time, schedule, service level and
+  shortage mode (engine check). Policy type and `Q` are not engine-checked:
+  a generic attribute check would break custom policies that use the same
+  attribute names for rolling fitted values.
 
-Both targets are external direct cumulative targets with the same strict
-probability, origin, frequency, horizon, and date checks described above.
+Evidence and rationale: the old policy sized `s` over `L` only, with `s=0` forced
+at `L=0`. That matched the pre-migration after-demand timing (`L+R-1` with
+`R=1`), but not the current one. In a scratch audit (Poisson(5), backorders,
+`Q=15`, target 0.95), `L`-sized `s` gave cycle service 0.76/0.79/0.88 for
+`L=1/2/4`, versus 0.99/0.99/0.98 with `L+1`. At `L=0`, the forced `s=0` gave
+fill 0.83 and cycle service 0.19. Executable evidence: stress tests
+`test_every_period_reorder_point_needs_lead_plus_one_window` and
+`test_irregular_schedule_window_is_next_opportunity_plus_lead`, unit tests in
+`test_decision_timing.py`, and notebook 05b (daily review with an `L`-sized
+`s` reaches cycle service 0.66). Stockpyl keeps continuous-review lead times
+unchanged only because its simulator orders after demand. External citations
+to Silver–Naseraldin–Bischak and a periodic base-stock chronology paper were
+supplied by the owner's external review. They were not opened in this audit
+(paywalled/PDF), so they are not cited in public docs.
 
 ## 40.6 Periodic review `(R,s,S)`
 
@@ -137,7 +162,7 @@ A run can provide refitted policies keyed to decision dates. This models target
 updates without mutating one fitted policy during the run. Scheduled policies
 must preserve the policy family and operational configuration; only fitted
 target content may change. The schedule must cover valid decision periods and
-each policy forecast origin must equal its decision date.
+each snapshot origin equals the information cutoff before its demand epoch.
 
 ## 40.8 Safe extension checklist
 
@@ -154,3 +179,25 @@ Before adding another policy or uncertainty model, decide and test:
 8. event diagnostics needed for later audit.
 
 Do not treat a convenient table shape as enough to establish those semantics.
+
+## 40.9 Schedule and season extensions
+
+`OrderUpToPolicy` accepts explicit schedules and optional probability for
+externally supplied planner targets. Periodic targets retain `H=L+R`.
+Nonperiodic targets are checked at each enabled opportunity against
+`next_decision-period+L`; the final opportunity uses its explicit fitted
+horizon. Nonperiodic origins/end dates must match the exact decision window.
+No schedule implicitly constructs uncertainty or finite-horizon optimal targets.
+
+`SingleOrderPolicy` uses `OneTimeSchedule`, a declared selling horizon, and an
+external season target. The season starts at receipt; the end date is
+origin plus `(L+selling_horizon)` offsets. Demand outside that season must be
+explicitly zero; the run must observe its end, and pipeline arriving after
+season start is rejected. A scalar critical-fractile helper supports classical
+`p>c>v>=0` economics; demand quantile construction stays external.
+
+Historical: `ContinuousReviewPolicy` with `L=0` required a zero reorder target
+over a zero-duration window.
+
+Resolved 2026-09-24: `ContinuousReviewPolicy` was replaced by
+`ReorderPointPolicy`; see 40.5.

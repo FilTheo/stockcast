@@ -21,6 +21,7 @@ from typing import Optional, Union
 import math
 import pandas as pd
 
+from stockcast.core.decision_schedule import DecisionSchedule, PeriodicSchedule
 from stockcast.core.data_structures import InventoryStateDataFrame, OrderDecision
 
 
@@ -32,8 +33,8 @@ class BasePolicy:
         - fit(): Calculate policy parameters from forecast data
         - predict(): Calculate order quantities from current inventory
 
-    Provides common attributes (lead_time, review_period, service_level,
-    allow_backorders) and the fitted_ flag.
+    Provides lead time, decision schedule, shortage mode, and the fitted_ flag.
+    review_period is periodic shorthand and service_level is optional metadata.
 
     Example (custom policy):
         class SimpleMultiplierPolicy(BasePolicy):
@@ -55,26 +56,39 @@ class BasePolicy:
 
     def __init__(self,
                  lead_time: int,
-                 review_period: int,
-                 service_level: Optional[float],
-                 allow_backorders: bool):
+                 review_period: Optional[int] = None,
+                 service_level: Optional[float] = None,
+                 allow_backorders: bool = None,
+                 *, schedule: Optional[DecisionSchedule] = None):
         """
         Initialize base policy with common parameters.
 
         Args:
             lead_time: Lead time in periods (L)
-            review_period: Review period in periods (R)
-            service_level: Explicit target service level, or ``None`` only for
-                custom policies that do not use a probabilistic target
+            review_period: Positive periodic shorthand; omit with a schedule.
+            service_level: Explicit target probability, or ``None`` for rules
+                that do not use a probabilistic target
             allow_backorders: Whether to allow backorders or treat as lost sales
+            schedule: Explicit decision opportunities in zero-based demand periods.
         """
-        if not isinstance(lead_time, int) or isinstance(lead_time, bool) or lead_time < 1:
-            raise ValueError(
-                "lead_time must be an integer >= 1; same-period replenishment "
-                "is not implemented"
-            )
-        if not isinstance(review_period, int) or isinstance(review_period, bool) or review_period < 1:
+        if not isinstance(lead_time, int) or isinstance(lead_time, bool) or lead_time < 0:
+            raise ValueError("lead_time must be an integer >= 0")
+        if review_period is not None and (
+            not isinstance(review_period, int) or isinstance(review_period, bool) or review_period < 1
+        ):
             raise ValueError("review_period must be an integer >= 1")
+        if schedule is None:
+            if review_period is None:
+                raise ValueError("supply schedule or review_period")
+            schedule = PeriodicSchedule(review_period)
+        if not isinstance(schedule, DecisionSchedule):
+            raise TypeError("schedule must be a DecisionSchedule")
+        if review_period is not None and (
+            not isinstance(schedule, PeriodicSchedule) or schedule.every != review_period
+        ):
+            raise ValueError("review_period must agree with the periodic schedule")
+        self.schedule = schedule
+        review_period = schedule.every if isinstance(schedule, PeriodicSchedule) else None
         normalized_service_level = None
         if service_level is not None:
             if isinstance(service_level, bool):

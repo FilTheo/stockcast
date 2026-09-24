@@ -32,8 +32,9 @@ an implementation authority.
   opening state, costs, timing, or provenance.
 - Do not restore the removed `0.3 * mean` uncertainty heuristic.
 - Do not sum marginal forecast quantiles into a protection-period quantile.
-- Lead time is a positive integer; same-period replenishment is not implemented
-  in the current staging baseline.
+- Decisions occur before demand; lead time is a nonnegative integer. Accepted
+  zero-lead-time orders arrive before current demand. Review intervals remain
+  positive. See knowledge/95_decision_timing_implementation.md for migration.
 - Demand calendars, SKU identifiers, dates, frequency, initial decision,
   experiment windows, costs, constraints, and random seed state are explicit.
 - Treat validated event rows as accounting evidence. Preserve physical-stock,

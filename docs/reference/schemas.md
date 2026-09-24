@@ -42,3 +42,7 @@ period. `run_window` is `warmup`, `scoring`, or `settlement`.
 `dependencies`. Nested descriptive values may grow in a patch release. A source
 commit may be unavailable in an installed artifact; missing provenance should
 be interpreted honestly rather than filled in.
+
+New-engine period events additionally include `decision_inventory_position`, the
+pre-demand inventory position presented to the policy, or missing when no
+decision occurred. Existing canonical accounting fields retain their meanings.

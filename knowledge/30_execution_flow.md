@@ -9,7 +9,7 @@
 - a complete demand frame or one callable source;
 - total, warmup, scoring, and settlement period counts;
 - optional ordering constraints;
-- optional initial order decision;
+- an explicit first decision opportunity (pre-run purchases belong in opening pipeline);
 - optional ordered typed callbacks;
 - engine-owned shelf-life behavior.
 
@@ -36,45 +36,38 @@ Before period execution, the engine checks:
     execution.
 
 Policy schedules are strict. A scheduled policy must be the same class and have
-the same lead time, review period, service level, and shortage mode as the base
+the same lead time, decision schedule, service level, and shortage mode as the base
 policy. Only its fitted target data may differ. Its forecast origin must equal
-the decision date and use the simulation frequency.
+the preceding information cutoff date and use the simulation frequency.
 
-## 30.3 Optional opening decision
+## 30.3 Decision eligibility
 
-An explicit initial decision can be applied before the first demand period. It
-is recorded as its own event. It is never inferred from a normal review cycle.
-If schedules are used, the opening decision is only legal at the explicitly
-supported opening coordinate.
+A `DecisionSchedule` determines opportunities in zero-based demand coordinates.
+`review_period=R` is shorthand for `PeriodicSchedule(R, start=0)`. The former
+separate opening-order switch is rejected with migration guidance; first-period
+decisions are ordinary period events. Existing pre-run purchases are explicit
+opening pipeline. Settlement suppression also suppresses `decision_flag`.
 
 ## 30.4 Exact period sequence
 
-For each demand period the engine performs:
-
 ```text
 copy opening state
-  -> private engine-owned pre-demand phase (including expiry)
-  -> state.process_demand
-       (advance clock, receive, clear backlog, fulfill current demand)
-  -> private engine-owned post-demand phase
-  -> ordered on_after_demand callbacks with typed on-hand results
-  -> if review period: choose scheduled policy
-       -> policy.predict
-       -> ordered on_after_prediction callbacks with typed order results
-       -> apply ordered constraint chain
-       -> schedule accepted quantity in pipeline
-  -> build normalized one-row-per-SKU event
-  -> attach callback and constraint audit
-  -> validate flow balances
-  -> append event
+  -> expire unusable lots and register due receipts in the FIFO ledger
+  -> advance_period (reset flows, advance, receive, clear old backlog)
+  -> if schedule eligible and ordering enabled:
+       select fitted snapshot -> predict on defensive pre-demand state
+       -> order callbacks -> constraints -> accept order
+       -> immediate receipt for L=0; register new FIFO lots
+  -> fulfill_demand (no second advance or receipt)
+  -> reconcile FIFO fulfillment
+  -> on_after_demand physical callbacks
+  -> complete history and canonical event; validate balances
 ```
 
-`on_after_demand` means after demand and before ordering in 0.1.0. It runs once
-per warmup, scoring, and settlement demand period, but not at the separate
-opening-order coordinate. `on_after_prediction` runs only after an actual
-prediction, including an enabled opening decision. Callbacks cannot create a
-new review opportunity. All former subclass hooks receiving live state are
-absent; once an event is validated it is accounting evidence.
+Prediction never sees current demand. `on_after_prediction` precedes demand;
+`on_after_demand` affects subsequent decisions. Shelf-life lots received with
+L=0 have the current demand date and can serve current demand. Expiry remains
+before receipts/decisions; old backlog retains priority over current demand.
 
 ## 30.5 Review and order path
 
@@ -87,7 +80,7 @@ On a decision period:
    declared order;
 5. raw, callback-adjusted, constrained, and final quantities are captured;
 6. event/line/order-size counters are updated;
-7. the accepted order is placed in the lead-time pipeline;
+7. the accepted order enters the positive-lead pipeline or is received immediately for zero lead;
 8. diagnostics such as target and safety stock flow into state and events.
 
 The engine performs this path once per enabled decision opportunity. The
@@ -116,7 +109,9 @@ unless `order_during_settlement=True`.
 source once. Each scenario receives deep-copied inventory, policy, and
 constraints but the same realized demand path. The result manifest marks the
 comparison context. This supports paired scenario analysis without accidental
-demand resampling or shared mutable stock.
+demand resampling or shared mutable stock. Subclasses that need extra run
+inputs (`ShelfLifeEngine`: opening lots) forward them to each branch through
+the private `_run_comparison(..., branch_run_options=...)`.
 The exact callback instances are reset after branch preflight and before each
 branch executes; authoritative branch-specific effects remain in each result's
 callback audit.

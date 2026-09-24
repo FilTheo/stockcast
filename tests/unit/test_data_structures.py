@@ -5,7 +5,7 @@ import stockcast
 from stockcast import InventoryStateDataFrame, OrderUpToPolicy, SimulationEngine
 from stockcast.core.base_policy import BasePolicy
 from stockcast.core.data_structures import OrderDecision
-from stockcast.policies import ContinuousReviewPolicy
+from stockcast.policies import ReorderPointPolicy
 from stockcast.utils import process_demand, update_inventory_with_orders
 from stockcast.visualization import (
     plot_demand_vs_orders,
@@ -187,7 +187,7 @@ def test_invalid_policy_parameters_are_rejected(kwargs):
 
 def test_invalid_max_lead_time_is_rejected():
     with pytest.raises(ValueError, match="max_lead_time"):
-        InventoryStateDataFrame(["A"], max_lead_time=0)
+        InventoryStateDataFrame(["A"], max_lead_time=-1)
     with pytest.raises(ValueError, match="max_lead_time"):
         InventoryStateDataFrame(["A"], max_lead_time=True)
 
@@ -393,14 +393,15 @@ def test_observed_opening_stock_requires_a_complete_sku_grid():
         )
 
 
-def test_continuous_review_validates_reorder_horizon():
+def test_reorder_point_validates_schedule_protection_window():
     targets = pd.DataFrame({
         "unique_id": ["A"],
         "reorder_point": [10.0],
         "reorder_end": [pd.Timestamp("2025-01-04")],
     })
-    policy = ContinuousReviewPolicy(
+    policy = ReorderPointPolicy(
         lead_time=3,
+        review_period=1,
         policy_type="sQ",
         service_level=0.95,
         order_quantity=5,
@@ -408,12 +409,13 @@ def test_continuous_review_validates_reorder_horizon():
         allow_backorders=False,
     )
 
-    with pytest.raises(ValueError, match="policy horizon 3"):
+    # Every-period review: the window is L + R = 3 + 1, not the lead time alone.
+    with pytest.raises(ValueError, match="policy horizon 4"):
         policy.fit(
             targets,
             reorder_point_column="reorder_point",
             target_probability=0.95,
-            reorder_horizon=2,
+            reorder_horizon=3,
             target_source="external_direct",
             forecast_origin=pd.Timestamp("2025-01-01"),
             forecast_frequency="D",

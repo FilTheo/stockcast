@@ -277,3 +277,53 @@ def prepare_independent_normal_forecasts(
             )
         by_sku[sku] = rows[rows["fh"] <= horizon].copy()
     return by_sku
+
+
+def schedule_protection_horizon(schedule, lead_time: int, declared: int, name: str) -> int:
+    """Return the fit-time protection horizon implied by a decision schedule.
+
+    A periodic schedule with interval ``R`` fixes ``H = L + R``. Other
+    schedules require an explicit horizon, which is checked against the next
+    opportunity at every decision before the run starts.
+    """
+    from stockcast.core.decision_schedule import PeriodicSchedule
+
+    expected = lead_time + schedule.every if isinstance(schedule, PeriodicSchedule) else declared
+    return validate_protection_horizon(declared, expected, name)
+
+
+def validate_schedule_coverage(
+    schedule,
+    *,
+    lead_time: int,
+    period: int,
+    horizon: int,
+    forecast_origin,
+    target_end_date,
+    information_date,
+    offset,
+    label: str,
+) -> None:
+    """Check an irregular decision's target window: ``H = (u - t) + L``.
+
+    If the policy does not order at ``t``, the next order is placed at the next
+    opportunity ``u`` and becomes usable before demand ``u + L``. The position
+    at ``t`` is therefore exposed to demand ``t .. u + L - 1``. A terminal
+    decision (no next opportunity) uses its explicitly declared horizon.
+    Periodic schedules are skipped: their fixed targets may be reused.
+    """
+    from stockcast.core.decision_schedule import PeriodicSchedule
+
+    if isinstance(schedule, PeriodicSchedule):
+        return
+    next_period = schedule.next_decision_period(period)
+    if next_period is not None:
+        if not isinstance(next_period, int) or isinstance(next_period, bool) or next_period <= period:
+            raise ValueError("next decision must be an integer strictly after this period")
+        if not schedule.should_decide(next_period):
+            raise ValueError("next decision must be an eligible opportunity")
+        validate_protection_horizon(horizon, next_period - period + lead_time, label)
+    if pd.Timestamp(forecast_origin) != information_date:
+        raise ValueError("nonperiodic targets require the exact decision information origin")
+    if pd.Timestamp(target_end_date) != information_date + horizon * offset:
+        raise ValueError("target end date does not match decision coverage")

@@ -24,8 +24,9 @@ See `RELEASE_READINESS.md` for fresh evidence and remaining decisions.
 - Do not build the package yet.
 - Repository/project URL remains open; do not invent a placeholder URL.
 - The unrestricted legacy `after_step` hook is removed from the staging core.
-- Keep `ContinuousReviewPolicy` as the public name while stating that it is
-  evaluated once per simulated period, not continuously in physical time.
+- `ContinuousReviewPolicy` was removed before release (owner decision
+  2026-09-24). `ReorderPointPolicy` plus a `DecisionSchedule` expresses `(s,Q)`
+  and `(s,S)`; Stockcast does not simulate continuous physical-time review.
 - Do not expose the removed forecast/history opening-state initializer names or
   the ambiguous `backorder_units_end` metric. Use explicit zero/observed state
   initialization and the precise `backlog_unit_periods` or
@@ -35,7 +36,7 @@ See `RELEASE_READINESS.md` for fresh evidence and remaining decisions.
   apply, audit, and record typed callback adjustments; callbacks must not
   directly mutate live inventory or finalized events.
 - The approved callback surface also includes a separate typed on-hand phase
-  after demand and before ordering, the four scheduled built-ins documented in
+  after demand, affecting subsequent decisions, the four scheduled built-ins documented in
   `tutorials/callbacks.md`, and exact callback-instance reset semantics.
 - `SimulationEngine` 0.1.0 makes one composed order decision per enabled
   decision opportunity. Supplier-specific multiple decisions are deferred for

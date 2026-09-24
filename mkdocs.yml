@@ -59,6 +59,8 @@ nav:
       - Notebook collection: tutorials/notebooks.md
   - Concepts:
       - System model and timing: concepts/system-model.md
+      - Engine design and scientific basis: concepts/engine-design.md
+      - Decision schedules and migration: concepts/decision-schedules.md
       - Inputs and time: concepts/input-and-time.md
       - Forecast targets: concepts/forecast-targets.md
       - Events, results, and evaluation: concepts/events-and-evaluation.md

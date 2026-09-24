@@ -1,8 +1,47 @@
 # 80 — Tests and evidence
 
+Notebook 04d's forecasting-focused revision (2026-09-24) passed source-import
+nbclient execution in 4.26 seconds using
+`/tmp/stockcast-timing-validation/bin/python /tmp/run_stockcast_source_notebooks.py '04d_*.ipynb'`.
+It checks inverse-CDF coverage, expected-profit maximization under the empirical
+forecast, a strict history/held-out date split, and one-order receipt/stock/
+lost-sales identities. Seed 42 yields target 44, held-out demand 39, leftovers
+5, and realized profit 224. The two-panel figure was inspected and executed
+outputs were saved only after code-source equality checks. No core code changed.
+
+Notebook 02b (2026-09-24) executes five decision schedules on the same explicit
+inventory scenario and asserts complete event-frame equality between
+`review_period=3` and `PeriodicSchedule(every=3)`. Its rendered timeline was
+inspected; source-matched executed outputs are saved in the notebook. This
+addition changes examples/documentation only, not engine behavior.
+
+Pre-release stress suite (2026-09-24): `tests/stress/test_prerelease_stress.py`
+(77 cases, run separately from `tests/unit`) compares 36 randomized
+multi-SKU configurations against an independent calendar oracle. Configurations
+cover OUT, `ReorderPointPolicy` `(s,Q)`/`(s,S)` in quantile and planner
+modes, `(R,s,S)` and custom policies, periodic/explicit
+schedules, `L=0..4`, both shortage modes, opening pipeline/backlog,
+constraints, FIFO shelf life, and experiment windows. It also checks
+cross-period continuity, delivery tracing, caller-input isolation, causality
+under demand shocks, and the exact `L+R` net-stock identity with normal-quantile
+calibration. Further checks: the lead-time and irregular-window `(u-t)+L`
+identities for any policy, the reorder-point `L+1` window, repeated
+and single-season newsvendor economics, a rolling weekly perishable retailer
+workflow with callbacks, evaluator costs and a shelf-life comparison, and
+fail-closed production inputs. The suite found and fixed two defects:
+`ShelfLifeEngine.run_comparison` and the fixed balance tolerance (knowledge 50.6).
+It also drove the owner-approved replacement of `ContinuousReviewPolicy` with
+`ReorderPointPolicy` (knowledge 40.5).
+
 ## 80.1 Current executable evidence
 
-The unit directory now contains 12 client-independent files. The release audit
+Current timing-migration source validation: 200 unit tests passed; see knowledge
+95 for the exact command and environment. The public engine-design page maps
+its claims to the independent timing/reference oracles and canonical ledger
+checks. Counts and installed-artifact results in the paragraph below are the
+**historical pre-migration release baseline**, not current release evidence.
+
+At that baseline, the unit directory contained 12 client-independent files. The release audit
 added 12 delivery-calendar reference cases and two artifact-check regressions.
 The original 155 cases plus the 12 reference cases passed against source and
 an installed wheel on Python 3.12.13, with NumPy 2.5.3, pandas 3.0.6, and
@@ -22,13 +61,14 @@ from local checks. The frozen public API is recorded in knowledge 93.
 | `test_demand_generator.py` | 4 | demand source shapes, negative handling, reproducibility/provenance |
 | `test_inventory_evaluation.py` | 9 | canonical validation, metric surface, evaluator grouping/window choices, metrics and costs |
 | `test_order_constraints.py` | 10 | built-in rules, adjustment/raise modes, order dependence, audit and reset |
-| `test_policy_target_contracts.py` | 19 | direct targets, horizons, probabilities, dates, continuous-review timing, quantile guardrails, providers |
-| `test_shelf_life.py` | 11 | lot balance, FIFO expiry/consumption, opening-lot modes, event integration |
+| `test_policy_target_contracts.py` | 20 | direct targets, horizons, probabilities, dates, reorder-point review timing and planner mode, quantile guardrails, providers |
+| `test_shelf_life.py` | 13 | lot balance, FIFO expiry/consumption, opening-lot modes, event integration |
 | `test_simulation_contracts.py` | 21 | preflight, demand grid, events, schedules, comparisons, provenance |
 | `test_extension_contracts.py` | 2 | removed `after_step` surface and absence of an active `pystate` package |
 | `test_public_api_contract.py` | 2 | frozen namespace exports and version |
 | `test_inventory_reference_model.py` | 1 | 12 independent delivery-calendar cases covering lead time, review period, shortage mode, opening orders, settlement, and costs |
 | `test_release_artifacts.py` | 2 | rejection of foreign distribution metadata and missing artifact types |
+| `../stress/test_prerelease_stress.py` | 13 (77 cases) | randomized independent oracle, ledger invariants, causality, `L+R` identity and calibration, newsvendor economics, retailer workflow, fail-closed inputs |
 
 The M5 and SPAR adapter-contract files remain in the private source repository
 and are intentionally absent from the staging test tree.
@@ -141,3 +181,10 @@ This knowledge layer is designed to be mechanically scannable:
 
 Coverage means the area is mapped, not that every implementation line has been
 restated. Agents should follow the source links before edits.
+
+## Before-demand timing migration
+
+The earlier counts above are historical. `test_decision_timing.py` adds independent
+calendar oracles for zero and positive lead times, nonperiodic target windows,
+single-season demand, and FIFO/backlog accounting. Existing tests now exercise
+the approved before-demand contract; see knowledge 95.

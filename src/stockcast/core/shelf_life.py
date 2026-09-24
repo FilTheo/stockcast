@@ -185,7 +185,7 @@ class FIFOLotLedger:
             if lot_qty > 1e-9:
                 kept.append({"date": lot["date"], "qty": lot_qty})
         self.lots_by_sku[unique_id] = kept
-        if remaining > 1e-9:
+        if remaining > 1e-9 + 1e-12 * float(qty):
             raise ValueError(f"FIFO lot ledger has insufficient stock for SKU {unique_id}")
         return consumed
 
@@ -236,7 +236,7 @@ class ShelfLifeEngine(SimulationEngine):
         n_periods,
         *,
         period_frequency,
-        initial_decision,
+        initial_decision="none",
         warmup_periods,
         scoring_periods,
         settlement_periods,
@@ -332,6 +332,53 @@ class ShelfLifeEngine(SimulationEngine):
         result.run_manifest["run_settings"].update(shelf_settings)
         return result
 
+    def run_comparison(
+        self,
+        policies,
+        demand_source,
+        inventory,
+        n_periods,
+        *,
+        period_frequency,
+        initial_decision="none",
+        warmup_periods,
+        scoring_periods,
+        settlement_periods,
+        order_during_settlement,
+        demand_source_name,
+        random_seed,
+        opening_lots,
+        opening_expiry_handling="reject",
+        labels=None,
+        policy_schedules=None,
+        order_constraints=None,
+        callbacks=None,
+    ):
+        """Compare policies with identical demand and identical opening lots.
+
+        Each branch reseeds a fresh FIFO ledger from ``opening_lots``; after
+        the call, ``self.ledger`` reflects the last branch.
+        """
+        return self._run_comparison(
+            policies, demand_source, inventory, n_periods,
+            period_frequency=period_frequency,
+            initial_decision=initial_decision,
+            warmup_periods=warmup_periods,
+            scoring_periods=scoring_periods,
+            settlement_periods=settlement_periods,
+            order_during_settlement=order_during_settlement,
+            demand_source_name=demand_source_name,
+            random_seed=random_seed,
+            labels=labels,
+            policy_schedules=policy_schedules,
+            order_constraints=order_constraints,
+            callbacks=callbacks,
+            branch_run_options={
+                "opening_lots": opening_lots,
+                "opening_expiry_handling": opening_expiry_handling,
+            },
+        )
+
     def _arriving_quantities(self, inventory: InventoryStateDataFrame) -> Dict[object, float]:
         state = inventory.get_dataframe()
         arriving: Dict[object, float] = {}
@@ -364,6 +411,15 @@ class ShelfLifeEngine(SimulationEngine):
         for unique_id, qty in self._arriving_quantities(inventory).items():
             self.ledger.receive(unique_id, qty, current_date)
         return inventory
+
+    def _after_order_receipt(self, before, after):
+        prior = before.data.set_index(before.sku_column)["latest_received"]
+        for sku, received, date in after.data[[
+            after.sku_column, "latest_received", "date"
+        ]].itertuples(index=False, name=None):
+            quantity = float(received - prior.loc[sku])
+            if quantity > 0:
+                self.ledger.receive(sku, quantity, pd.Timestamp(date))
 
     def _after_demand_transition(self, inventory, period):
         state = inventory.get_dataframe()

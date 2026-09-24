@@ -14,6 +14,7 @@ from typing import Optional, Union
 
 from stockcast.core.data_structures import InventoryStateDataFrame, OrderDecision
 from stockcast.core.base_policy import BasePolicy
+from stockcast.core.decision_schedule import DecisionSchedule, PeriodicSchedule
 from stockcast.policies._target_validation import (
     prepare_direct_targets,
     prepare_independent_normal_forecasts,
@@ -21,6 +22,7 @@ from stockcast.policies._target_validation import (
     validate_aggregation_method,
     validate_forecast_origin_and_frequency,
     validate_protection_horizon,
+    validate_schedule_coverage,
     validate_target_end_dates,
     validate_target_probability,
     validate_target_source,
@@ -64,24 +66,24 @@ class OrderUpToPolicy(BasePolicy):
 
     def __init__(self,
                  lead_time: int,
-                 review_period: int,
+                 review_period: Optional[int] = None,
                  *,
-                 service_level: float,
-                 allow_backorders: bool):
+                 service_level: Optional[float] = None,
+                 allow_backorders: bool,
+                 schedule: Optional[DecisionSchedule] = None):
         """
         Initialize Order-Up-To policy with configuration parameters.
 
         Args:
             lead_time: Lead time in periods (L)
             review_period: Review period in periods (R)
-            service_level: Explicit target service level
+            service_level: Target probability, or None for external planner targets
             allow_backorders: Explicitly choose backorders or lost sales
+            schedule: Optional DecisionSchedule; replaces periodic shorthand.
         """
-        if service_level is None:
-            raise ValueError("service_level is required for OrderUpToPolicy")
-        super().__init__(lead_time, review_period, service_level, allow_backorders)
+        super().__init__(lead_time, review_period, service_level, allow_backorders, schedule=schedule)
         self.policy_name = "Order-Up-To (R,S)"
-        self.safety_factor = NormalDist().inv_cdf(self.service_level)
+        self.safety_factor = NormalDist().inv_cdf(self.service_level) if self.service_level is not None else None
 
         # Will be set during fit()
         self.target_levels_ = None  # DataFrame with target level S per SKU
@@ -129,7 +131,9 @@ class OrderUpToPolicy(BasePolicy):
             target_probability: Probability represented by the target. It must
                 equal the policy's ``service_level``.
             protection_horizon: Number of periods represented by the target.
-                It must equal ``lead_time + review_period``.
+                For periodic schedules it equals ``lead_time + review_period``.
+                Nonperiodic schedules require an explicit horizon, checked at
+                each decision against its next opportunity or terminal window.
             aggregation_method: Exactly ``"independent_normal"`` for mean/std
                 mode. It is not a label for externally supplied targets.
             target_source: Exactly ``"external_direct"`` for direct-target mode.
@@ -142,7 +146,10 @@ class OrderUpToPolicy(BasePolicy):
         Returns:
             self (for method chaining)
         """
-        protection_period = self.lead_time + self.review_period
+        protection_period = (
+            self.lead_time + self.schedule.every
+            if isinstance(self.schedule, PeriodicSchedule) else protection_horizon
+        )
         validate_protection_horizon(protection_horizon, protection_period)
         origin, forecast_offset = validate_forecast_origin_and_frequency(
             forecast_origin,
@@ -159,11 +166,17 @@ class OrderUpToPolicy(BasePolicy):
 
         target_levels = []
         if direct_mode:
-            probability = validate_target_probability(
-                self.service_level,
-                target_probability,
-                target_column,
-            )
+            if self.service_level is None:
+                if target_probability is not None:
+                    raise ValueError("set service_level when declaring target_probability")
+                from stockcast.policies._target_validation import _QUANTILE_COLUMN
+                if _QUANTILE_COLUMN.match(str(target_column)):
+                    raise ValueError("quantile-labelled targets require explicit probability")
+                probability = None
+            else:
+                probability = validate_target_probability(
+                    self.service_level, target_probability, target_column,
+                )
             source = validate_target_source(target_source)
             if aggregation_method is not None:
                 raise ValueError(
@@ -184,9 +197,14 @@ class OrderUpToPolicy(BasePolicy):
             )
             for row in prepared_targets[[sku_column, target_column]].itertuples(index=False):
                 target_levels.append({sku_column: row[0], 'target_level': row[1]})
-            representation = "direct_protection_period_target"
+            representation = (
+                "direct_protection_period_target" if probability is not None
+                else "external_inventory_target"
+            )
             method = None
         else:
+            if self.service_level is None:
+                raise ValueError("independent-normal targets require service_level")
             if target_source is not None:
                 raise ValueError("target_source applies only to direct-target mode")
             if mean_column is None or std_column is None:
@@ -259,6 +277,20 @@ class OrderUpToPolicy(BasePolicy):
             self.target_metadata_["calculation_method"] = method
 
         return self
+
+    def validate_decision_window(self, period, information_date, offset):
+        """Check irregular coverage against the next opportunity, before a run."""
+        validate_schedule_coverage(
+            self.schedule,
+            lead_time=self.lead_time,
+            period=period,
+            horizon=self.target_metadata_["protection_horizon"],
+            forecast_origin=self.target_metadata_["forecast_origin"],
+            target_end_date=self.target_metadata_["target_end_date"],
+            information_date=information_date,
+            offset=offset,
+            label="protection_horizon",
+        )
 
     def predict(self,
                 inventory_state_df: Union[pd.DataFrame, InventoryStateDataFrame],

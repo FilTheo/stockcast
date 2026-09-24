@@ -12,7 +12,9 @@ scheduled data/forecast job
     -> external approval or order execution
 ```
 
-Notebook 10 shows one daily-close batch pattern. It is illustrative, not a
+Notebook 10 separates pre-demand planning from end-of-period fulfillment. Its
+combined daily-close wrapper is a historical replay convenience, not a live
+order-submission procedure. It is illustrative, not a
 required production architecture. A deployment may use another scheduler,
 database, approval mechanism, forecasting stack, or monitoring approach. The
 durable boundary is Stockcast's documented public API and outputs, not the

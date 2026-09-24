@@ -10,7 +10,7 @@ business information on a caller's behalf.
 | SKU identifiers | One consistent, non-null identifier type across state, demand, targets, and decisions. |
 | Opening state | Observed on-hand state, declared zero state, or a complete validated state frame. |
 | Demand | One row per SKU and period with `unique_id`, `period`, `date`, and `y`. |
-| Time | A forward pandas frequency, positive lead time, and policy review period where applicable. |
+| Time | A forward pandas frequency, nonnegative integer lead time, and an explicit decision schedule (or positive review period). |
 | Run windows | Explicit warm-up, scoring, and settlement lengths that sum to `n_periods`. |
 | Costs | Explicit rates whenever a cost metric is requested. |
 

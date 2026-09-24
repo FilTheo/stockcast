@@ -149,20 +149,20 @@ def test_mutating_defensive_order_decision_then_returning_none_has_no_effect():
     assert event["order_quantity"] == 10.0
 
 
-def test_order_hold_runs_for_opening_prediction_but_not_without_prediction():
-    hold = ScheduledOrderHold(_schedule(period=0))
-    opening = _run(
-        SimulationEngine(), [hold], initial_decision="before_first_demand",
-        policy=_policy(review_period=3),
-    )
-    assert opening.to_event_frame().iloc[0]["event_type"] == "initial_decision"
+def test_order_hold_runs_for_first_decision_but_not_without_prediction():
+    from stockcast import PeriodicSchedule
+    hold = ScheduledOrderHold(_schedule(period=1))
+    opening = _run(SimulationEngine(), [hold], policy=_policy(review_period=3))
+    assert opening.to_event_frame().iloc[0]["event_type"] == "period"
     assert opening.to_event_frame().iloc[0]["order_quantity"] == 0.0
     assert len(opening.to_callback_audit_frame()) == 1
-    no_opening = _run(SimulationEngine(), [hold], policy=_policy(review_period=3))
+    delayed = _policy(review_period=3)
+    delayed.schedule = PeriodicSchedule(3, start=3)
+    no_opening = _run(SimulationEngine(), [hold], policy=delayed)
     assert no_opening.to_callback_audit_frame().empty
 
 
-def test_physical_adjustment_is_after_demand_before_order_and_audited():
+def test_physical_adjustment_is_after_demand_and_audited():
     adjustment = ScheduledInventoryAdjustment(_schedule(quantity_delta=-2.0))
     result = _run(
         SimulationEngine(), [adjustment], inventory=_inventory(5.0), values=(3.0,)
@@ -179,7 +179,7 @@ def test_physical_adjustment_is_after_demand_before_order_and_audited():
     assert result.history.iloc[-1]["on_hand"] == 0.0
 
 
-def test_physical_adjustment_changes_inventory_sensitive_policy_prediction():
+def test_physical_adjustment_affects_only_subsequent_policy_prediction():
     class OrderUpToTen(BasePolicy):
         def __init__(self):
             super().__init__(
@@ -207,11 +207,12 @@ def test_physical_adjustment_changes_inventory_sensitive_policy_prediction():
         SimulationEngine(),
         [adjustment],
         policy=OrderUpToTen(),
-        inventory=_inventory(0.0),
+        inventory=_inventory(0.0), values=(12.0, 0.0),
     )
-    event = result.to_event_frame().iloc[0]
-    assert event["inventory_adjustment_units"] == 4.0
-    assert event["requested_order_quantity"] == 6.0
+    events = result.to_event_frame()
+    assert events.iloc[0]["inventory_adjustment_units"] == 4.0
+    assert events.iloc[0]["requested_order_quantity"] == 10.0
+    assert events.iloc[1]["requested_order_quantity"] == 0.0
 
 
 def test_custom_calendar_callback_uses_defensive_dataframe_copy():
@@ -354,7 +355,7 @@ def test_physical_phase_runs_in_settlement_while_order_phase_respects_disable_fl
     settlement = result.to_event_frame().set_index("period").loc[2]
     assert settlement["run_window"] == "settlement"
     assert settlement["inventory_adjustment_units"] == 1.0
-    assert settlement["decision_flag"]
+    assert not settlement["decision_flag"]
     assert settlement["order_quantity"] == 0.0
     assert result.to_callback_audit_frame()["phase"].tolist() == ["on_after_demand"]
 
@@ -733,7 +734,7 @@ def test_selected_policy_schedule_predicts_before_order_callback():
     callback = PredictionRecorder()
     result = _run(
         SimulationEngine(), [callback], policy=_policy(2.0),
-        policy_schedule={1: _policy(9.0)},
+        policy_schedule={0: _policy(9.0)},
     )
     assert callback.quantities == [9.0]
     assert result.to_event_frame().iloc[0]["requested_order_quantity"] == 9.0

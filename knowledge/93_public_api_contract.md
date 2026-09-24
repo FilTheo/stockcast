@@ -1,7 +1,9 @@
 # 93 — Stockcast 0.1 public API contract
 
-Status: **frozen for the 0.1 release line** on 2026-08-25 by the repository
-owner. This is the agent-facing release contract. Public documentation must
+Status: the 2026-08-25 freeze is amended by the owner-approved 2026-09-23
+pre-release timing migration in knowledge 95, and by the owner-approved
+2026-09-24 replacement of `ContinuousReviewPolicy` with `ReorderPointPolicy`
+(knowledge 40.5; exports in `test_public_api_contract.py`). This is the agent-facing release contract. Public documentation must
 explain this contract from the active source, tests, and examples; it must not
 create a broader promise.
 
@@ -59,7 +61,8 @@ the ambiguous `backorder_units_end` metric are not public APIs.
 
 `SimulationResult.to_event_frame(window=...)` is the authoritative accounting
 output for a run. It returns the canonical event ledger: one row per SKU and
-period, plus a separately typed opening-decision row when requested. Every
+period, including first-period decisions. Historical opening-decision rows
+remain recognizable by the evaluator. Every
 column in `stockcast.evaluation.CANONICAL_EVENT_COLUMNS` is required, with its
 current name and scientific meaning stable throughout `0.1.x`. Additive new
 columns are permitted; existing columns must not be silently renamed,
@@ -87,7 +90,7 @@ summary, not a replacement for the ledger and manifest.
 ## 93.5 Required scientific behavior
 
 The public API preserves the contracts in 20, 30, 40, 50, and 60: explicit
-opening state/demand/timing/provenance; positive lead time; engine-owned timing
+opening state/demand/timing/provenance; nonnegative lead time and before-demand decisions; engine-owned timing
 and mutation; fail-closed target validation; no heuristic uncertainty; no
 summation of marginal forecast quantiles; validated event balances; and
 explicit evaluation windows, grouping, and costs.

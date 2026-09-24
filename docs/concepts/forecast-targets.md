@@ -50,8 +50,15 @@ constraints affect realized service. Measure those outcomes from the event
 ledger on held-out demand.
 
 The built-in `(R,S)` target uses `lead_time + review_period` under the frozen
-0.1 contract. `ContinuousReviewPolicy` is evaluated once per simulated period;
-it is not a continuous-time simulator or an optimal lost-sales policy solver.
+0.1 contract. `ReorderPointPolicy` uses the same schedule window for its
+reorder point `s`: `L+R` for periodic review, `L+1` when reviewed every period.
+A demand quantile over that window is a justified basis for `s`, not a service
+guarantee: undershoot below `s`, the order quantity, the shortage mode, and the
+demand process all affect realized service. `S` in `(s,S)` is a policy
+parameter rather than a quantile, because `s` and `S` are usually chosen
+jointly. Supply such pairs with `service_level=None` (planner mode).
+`ReorderPointPolicy` is not a continuous-time simulator or an optimal
+lost-sales policy solver.
 
 External targets are declarations: a caller could sum marginal quantiles
 before passing a single number, and Stockcast cannot detect that mistake from
@@ -92,5 +99,5 @@ inventory service remain separate quantities.
 Use `policy_schedule` to supply fitted policy snapshots at later eligible
 decision periods. A snapshot can update targets but cannot change the policy
 class, timing configuration, service level, or shortage mode. Its forecast
-origin must match its decision date. See Notebook 04b and the [forecast
+origin must match the information cutoff before its demand epoch. See Notebook 04b and the [forecast
 integration guide](../guides/forecast-integration.md).

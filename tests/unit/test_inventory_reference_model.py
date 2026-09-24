@@ -8,14 +8,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from stockcast import InventoryStateDataFrame, OrderUpToPolicy, SimulationEngine
+from stockcast import InventoryStateDataFrame, OrderUpToPolicy, SimulationEngine, PeriodicSchedule
 from stockcast.evaluation import fill_rate, total_cost
 
 
 @pytest.mark.parametrize("backorders", [False, True])
 @pytest.mark.parametrize("lead,review", [(1, 1), (2, 3), (4, 2)])
-@pytest.mark.parametrize("opening_decision", [False, True])
-def test_inventory_matches_delivery_calendar_oracle(backorders, lead, review, opening_decision):
+@pytest.mark.parametrize("delayed_start", [False, True])
+def test_inventory_matches_delivery_calendar_oracle(backorders, lead, review, delayed_start):
     origin = pd.Timestamp("2026-01-01")
     demand = np.random.default_rng(142).integers(0, 18, size=24).astype(float)
     target, opening = 23.0, 3.0
@@ -26,7 +26,7 @@ def test_inventory_matches_delivery_calendar_oracle(backorders, lead, review, op
         on_hand_column="stock", start_date=origin,
     )
     policy = OrderUpToPolicy(
-        lead_time=lead, review_period=review, service_level=0.95,
+        lead_time=lead, schedule=PeriodicSchedule(review, start=review if delayed_start else 0), service_level=0.95,
         allow_backorders=backorders,
     ).fit(
         pd.DataFrame({"unique_id": ["A"], "target": [target],
@@ -43,29 +43,28 @@ def test_inventory_matches_delivery_calendar_oracle(backorders, lead, review, op
             "date": pd.date_range(origin + pd.Timedelta(days=1), periods=len(demand)),
         }),
         n_periods=len(demand), period_frequency="D",
-        initial_decision="before_first_demand" if opening_decision else "none",
+        initial_decision="none",
         warmup_periods=0, scoring_periods=20, settlement_periods=4,
         order_during_settlement=False, demand_source_name="independent_reference",
         random_seed=142,
     )
     on_hand, backlog, deliveries = opening, 0.0, {}
-    if opening_decision:
-        deliveries[lead] = target - opening
     expected = []
     for day, requested in enumerate(demand, start=1):
         received = deliveries.pop(day, 0.0)
         cleared = min(backlog, received)
         backlog -= cleared
         on_hand += received - cleared
+        quantity = 0.0
+        decision = day - 1
+        if decision < 20 and decision >= (review if delayed_start else 0) and decision % review == 0:
+            quantity = max(0.0, target - (on_hand + sum(deliveries.values()) - backlog))
+            deliveries[day + lead] = deliveries.get(day + lead, 0.0) + quantity
         served = min(on_hand, requested)
         on_hand -= served
         shortage = requested - served
         if backorders:
             backlog += shortage
-        quantity = 0.0
-        if day <= 20 and day % review == 0:
-            quantity = max(0.0, target - (on_hand + sum(deliveries.values()) - backlog))
-            deliveries[day + lead] = deliveries.get(day + lead, 0.0) + quantity
         expected.append([received, served, shortage, cleared, on_hand, backlog,
                          sum(deliveries.values()), quantity])
     columns = ["received_units", "fulfilled_units", "shortage_units",

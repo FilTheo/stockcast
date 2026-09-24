@@ -9,3 +9,39 @@ The 0.1.x public contract freezes the documented import namespaces, public
 outputs, metrics, and scientific behaviour. Future backward-compatible
 additions and corrections will be recorded here. A breaking redesign requires
 a later release line and an explicit migration note.
+
+## Pre-release timing migration (2026-09-23)
+
+Decisions now precede demand, lead time may be zero, and decision schedules are
+separate from policy rules. This is an explicitly approved numerical behavior
+change. See [migration details](concepts/decision-schedules.md). Older release
+audits do not establish readiness of the migrated engine.
+
+## Pre-release fixes (2026-09-24)
+
+- `ShelfLifeEngine.run_comparison(...)` previously failed with a `TypeError`
+  because it could not receive opening lots. It now accepts `opening_lots` and
+  `opening_expiry_handling`, like `run`.
+- Stock, backlog, and pipeline balance checks in the engine and in
+  `validate_event_frame` used a fixed `1e-9` absolute tolerance. Valid runs
+  with quantities around `1e7` (for example grams or millilitres) could fail
+  on floating-point rounding. The tolerance now also allows `1e-12` times the
+  magnitude of the flows in the row. Accounting results are unchanged.
+- **Breaking, approved:** `ContinuousReviewPolicy` is replaced by
+  `ReorderPointPolicy`. The old policy checked every period before demand but
+  sized `s` over the lead time `L` only, and forced `s=0` when `L=0`. Under
+  the current timing that under-protects. `ReorderPointPolicy(lead_time,
+  review_period=... | schedule=..., policy_type="sQ"|"sS", ...)` takes its
+  review timing from any `DecisionSchedule`.
+  - Its `reorder_horizon` must equal `L+R` for periodic schedules (`L+1` for
+    every-period review), or `(next opportunity - t) + L` for irregular
+    schedules.
+  - `service_level=None` selects planner mode for externally chosen `s`/`S`
+    pairs.
+  - `S` is a policy level with no probability or horizon of its own:
+    `order_up_to_horizon`, `order_up_to_end_date_column` and
+    `review_period_for_S` are removed.
+  - Migration: construct with `review_period=1`, and recompute `s` over `L+1`
+    periods and set `reorder_horizon=L+1`.
+
+  Notebook 05b demonstrates the change.
