@@ -113,10 +113,11 @@ Stock changed in `after_demand` affects the following periods.
 - A `received_date` cannot be in the future.
 - Processes run in list order. Each sees the stock left by the ones before it.
 - Processes change **on-hand stock only**. They cannot change the pipeline,
-  backlog or demand. A delivery that arrives short is modelled with
-  `SupplyModel` partial deliveries. Modelling it as an outflow after receipt
-  keeps the balance correct, but `received_units` then includes units that
-  never usefully arrived.
+  backlog or demand. `SupplyModel` partial deliveries schedule an accepted
+  order to arrive in parts; the parts still total the accepted order. They do
+  not represent a permanent supplier shortfall. Modelling a short shipment
+  as an outflow after receipt would put units that never arrived in
+  `received_units`, so it would misstate the physical event.
 - Processes cannot be combined with an engine subclass that overrides the
   engine's private lifecycle hooks.
 

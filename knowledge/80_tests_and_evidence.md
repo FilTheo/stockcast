@@ -14,6 +14,15 @@ keys each form records. `tests/unit` + `tests/stress`: 459 passed (Python
 pandas 3.0.6, Smooth 1.0.7). Notebook 07's original 24 code cells kept
 identical text outputs.
 
+Notebook 05e's tutorial polish keeps the synthetic demand and physical
+scenario, but represents its fixed order-up-to levels as direct targets with
+no claimed service probability. Source-import nbclient execution passed with
+no cell errors or stderr; all three figures were inspected, and saved outputs
+were copied after source-cell equality and notebook validation. The example
+shows the first Monday's balance before comparing total losses and their
+timing. The focused process and policy-target tests are recorded in the
+current task result rather than treated as release-wide evidence.
+
 Order-level pipeline and suppliers (2026-09-24,
 [97](97_open_orders_and_suppliers.md)): additive; the per-SKU contract is
 unchanged. Evidence for "unchanged" came from a local scratch harness (not a
