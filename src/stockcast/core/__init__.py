@@ -24,7 +24,8 @@ from .callbacks import (
     ScheduledOrderOverride,
     SimulationCallback,
 )
-from .data_structures import InventoryStateDataFrame, OrderDecision
+from ._open_orders import ORDER_FRAME_COLUMNS
+from .data_structures import InventoryStateDataFrame, OrderDecision, OrderLines
 from .order_constraints import (
     ConstraintContext,
     ConstraintResult,
@@ -42,6 +43,13 @@ from .simulation_engine import (
     ComparisonResult,
     SimulationEngine,
     SimulationResult,
+)
+from .supply import (
+    AllocationContext,
+    Supplier,
+    SupplierAllocation,
+    SupplierShares,
+    SupplyModel,
 )
 
 __all__ = [
@@ -76,4 +84,11 @@ __all__ = [
     "PeriodicSchedule",
     "OneTimeSchedule",
     "ExplicitSchedule",
+    "AllocationContext",
+    "ORDER_FRAME_COLUMNS",
+    "OrderLines",
+    "Supplier",
+    "SupplierAllocation",
+    "SupplierShares",
+    "SupplyModel",
 ]

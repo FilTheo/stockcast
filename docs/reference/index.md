@@ -7,7 +7,7 @@ submodules are also supported public imports, not implementation details.
 | Namespace | Use it for |
 |---|---|
 | `stockcast` | The normal workflow: state, policies, engine, and supported extensions. |
-| `stockcast.core` | Specialist engine, constraint, callback, and shelf-life objects. |
+| `stockcast.core` | Specialist engine, constraint, callback, shelf-life, and supplier objects. |
 | `stockcast.policies` | Built-in policies and periodic-target provider types. |
 | `stockcast.evaluation` | Event validation, evaluator, and operational metrics. |
 | `stockcast.utils` | Demand generation and manual-loop primitives. |

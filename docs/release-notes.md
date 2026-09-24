@@ -45,3 +45,23 @@ audits do not establish readiness of the migrated engine.
     periods and set `reorder_horizon=L+1`.
 
   Notebook 05b demonstrates the change.
+
+## Order-level pipeline and suppliers (2026-09-24, additive)
+
+Backward-compatible addition. Existing runs, primitives and outputs are
+unchanged.
+
+- `InventoryStateDataFrame.open_orders()` and `scheduled_receipts()` show the
+  pipeline as open orders; `with_open_orders(...)` declares an opening
+  pipeline with supplier, order period and partial deliveries.
+- `OrderLines` and `stockcast.utils.place_order_lines` place order lines with
+  their own supplier and due period in a manual loop.
+- `SimulationEngine.run(..., supply=SupplyModel(...))` (also `run_comparison`
+  and `ShelfLifeEngine`) splits accepted orders across `Supplier` objects with
+  fixed or seeded random lead times and partial deliveries, using
+  `SupplierShares` or a custom `SupplierAllocation`.
+- `SimulationResult.to_order_frame()` lists every scheduled delivery
+  (`ORDER_FRAME_COLUMNS`).
+
+See [open orders and suppliers](guides/suppliers-and-open-orders.md) and
+Notebook 05d.

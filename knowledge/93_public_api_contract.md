@@ -111,3 +111,24 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src \
 The source suite is contract evidence only. Before publication, separately
 repeat the public-import, example, and output checks from a clean installed
 wheel and source distribution.
+
+## 93.7 Additive order-level API (2026-09-24)
+
+Owner-approved backward-compatible addition ([97](97_open_orders_and_suppliers.md)):
+
+- exports appended to `stockcast`: `OrderLines`, `Supplier`,
+  `SupplierAllocation`, `SupplierShares`, `SupplyModel`;
+- exports appended to `stockcast.core`: those five plus `AllocationContext`
+  and `ORDER_FRAME_COLUMNS`;
+- exports appended to `stockcast.utils`: `place_order_lines`;
+- new optional keyword `supply=None` on `SimulationEngine.run`,
+  `run_comparison` and the `ShelfLifeEngine` equivalents;
+- new state methods `with_open_orders`, `open_orders`, `scheduled_receipts`;
+- new result method `SimulationResult.to_order_frame()`, whose columns are
+  fixed by `ORDER_FRAME_COLUMNS`.
+
+No existing name, argument, output column or behavior changed. A run with
+`supply=None` produces the same event ledger, history, final state, callback
+audit, run settings and manifest as before. `supply` adds
+`run_settings["supply"]`. Declared opening orders add
+`opening_inventory["open_orders"]`.

@@ -22,6 +22,8 @@ def test_public_export_sets_are_frozen_for_0_1():
         "SimulationCallback", "SimulationEngine", "SimulationResult",
         "DecisionSchedule", "PeriodicSchedule", "OneTimeSchedule", "ExplicitSchedule",
         "SingleOrderPolicy", "newsvendor_critical_fractile",
+        # Additive order-level API (knowledge 93.7).
+        "OrderLines", "Supplier", "SupplierAllocation", "SupplierShares", "SupplyModel",
     ]
     assert core.__all__ == [
         "BasePolicy", "CALLBACK_AUDIT_COLUMNS", "CallbackContext", "CallbackError",
@@ -33,6 +35,9 @@ def test_public_export_sets_are_frozen_for_0_1():
         "RUN_MANIFEST_REQUIRED_SECTIONS", "ShelfLifeEngine", "ShelfSpaceLimit",
         "SimulationCallback", "SimulationEngine", "SimulationResult",
         "DecisionSchedule", "PeriodicSchedule", "OneTimeSchedule", "ExplicitSchedule",
+        # Additive order-level API (knowledge 93.7).
+        "AllocationContext", "ORDER_FRAME_COLUMNS", "OrderLines", "Supplier",
+        "SupplierAllocation", "SupplierShares", "SupplyModel",
     ]
     assert policies.__all__ == [
         "OrderUpToPolicy", "ReorderPointPolicy", "PeriodicReviewPolicy",
@@ -55,7 +60,10 @@ def test_public_export_sets_are_frozen_for_0_1():
         "stockout_period_rate", "terminal_backlog_cost", "terminal_backlog_units",
         "terminal_pipeline_cost", "terminal_pipeline_units", "total_cost", "waste_cost",
     ]
-    assert utils.__all__ == ["update_inventory_with_orders", "process_demand", "DemandGenerator"]
+    assert utils.__all__ == [
+        "update_inventory_with_orders", "process_demand", "DemandGenerator",
+        "place_order_lines",
+    ]
     assert visualization.__all__ == [
         "plot_inventory", "plot_demand_vs_orders", "plot_comparison",
         "plot_summary_comparison", "plot_simulation_dashboard",
@@ -69,6 +77,11 @@ def test_public_output_schema_constants_are_available_from_public_namespaces():
         "date", "run_window", "initial_decision", "unique_id", "before_value",
         "after_value", "quantity_delta", "order_quantity", "reason", "source",
         "received_date", "lot_evidence",
+    )
+    assert core.ORDER_FRAME_COLUMNS == (
+        "order_id", "unique_id", "supplier_id", "source", "order_period", "order_date",
+        "due_period", "due_date", "lead_time", "ordered_quantity", "delivery_quantity",
+        "status",
     )
     assert core.RUN_MANIFEST_REQUIRED_SECTIONS == (
         "run_id", "created_at_utc", "demand_source", "package", "policy",

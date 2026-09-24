@@ -35,13 +35,25 @@ period. `run_window` is `warmup`, `scoring`, or `settlement`.
 `after_value`, `quantity_delta`, `order_quantity`, `reason`, `source`,
 `received_date`, and `lot_evidence`.
 
+## Order frame
+
+`SimulationResult.to_order_frame()` returns one row per scheduled delivery of
+the opening pipeline and of every order placed in a run. `ORDER_FRAME_COLUMNS`
+lists the columns: `order_id`, `unique_id`, `supplier_id`, `source`,
+`order_period`, `order_date`, `due_period`, `due_date`, `lead_time`,
+`ordered_quantity`, `delivery_quantity`, and `status`. Received deliveries add
+up to `received_units` per SKU and period; open ones add up to the final
+`on_order_end`. See [open orders and suppliers](../guides/suppliers-and-open-orders.md).
+
 ## Run manifest
 
 `run_manifest` has stable top-level sections: `run_id`, `created_at_utc`,
 `demand_source`, `package`, `policy`, `opening_inventory`, `run_settings`, and
 `dependencies`. Nested descriptive values may grow in a patch release. A source
 commit may be unavailable in an installed artifact; missing provenance should
-be interpreted honestly rather than filled in.
+be interpreted honestly rather than filled in. A run with `supply=` adds
+`run_settings["supply"]`; declared opening orders add
+`opening_inventory["open_orders"]`. Runs without them are unchanged.
 
 New-engine period events additionally include `decision_inventory_position`, the
 pre-demand inventory position presented to the policy, or missing when no

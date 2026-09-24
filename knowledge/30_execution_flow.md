@@ -56,7 +56,7 @@ copy opening state
   -> advance_period (reset flows, advance, receive, clear old backlog)
   -> if schedule eligible and ordering enabled:
        select fitted snapshot -> predict on defensive pre-demand state
-       -> order callbacks -> constraints -> accept order
+       -> order callbacks -> constraints -> [optional supply stage] -> accept order
        -> immediate receipt for L=0; register new FIFO lots
   -> fulfill_demand (no second advance or receipt)
   -> reconcile FIFO fulfillment
@@ -82,6 +82,11 @@ On a decision period:
 6. event/line/order-size counters are updated;
 7. the accepted order enters the positive-lead pipeline or is received immediately for zero lead;
 8. diagnostics such as target and safety stock flow into state and events.
+
+With `supply=SupplyModel(...)`, step 7 splits the accepted quantity into
+supplier lines with their own lead times and partial deliveries
+([97.4](97_open_orders_and_suppliers.md#974-engine-supply-stage)); receipts
+due now are immediate. Steps 1–6 and the per-SKU audit columns are unchanged.
 
 The engine performs this path once per enabled decision opportunity. The
 current callback result adjusts one composed decision; it does not add a second
@@ -171,6 +176,12 @@ error), and engine subclasses that override a lifecycle hook without its
 array form (`_before_demand_arrays`, `_after_order_receipt_arrays`,
 `_after_demand_arrays`); those run every period on the pandas path. Error
 behaviour is therefore unchanged: array checks only decide which path runs.
+
+`ArrayState` also carries the open-order book (`book`) through every
+transition. The default order path records placements on it; supply-mode
+placements run through the pandas primitive and are absorbed back. The run
+collects each decision's placements for `to_order_frame()` and checks the
+final book against the final pipeline ([97.2](97_open_orders_and_suppliers.md#972-book-contract)).
 
 Two observable-cost differences are intentional: callbacks that do not
 override `on_after_demand` are no longer called with a context for that phase

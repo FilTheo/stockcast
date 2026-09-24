@@ -35,3 +35,10 @@ proposes absolute order quantities before constraints. Callbacks receive
 defensive context, not live mutable engine state or finalized events. Their
 accepted effects appear in `to_callback_audit_frame()`. See Notebook 08 and the
 [core reference](../reference/core.md).
+
+## Suppliers and open orders
+
+An optional `SupplyModel` passed as `supply=` places each accepted order with
+one or more suppliers, each with a fixed or random lead time and optional
+partial deliveries. It runs after callbacks and constraints. See
+[open orders and suppliers](suppliers-and-open-orders.md) and Notebook 05d.

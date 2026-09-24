@@ -23,5 +23,9 @@ The integration sequence is:
 
 The important boundary is not smooth-specific. Any forecasting package or
 internal model can be used when it produces a target representation that meets
-the policy contract. Notebook 04 shows one forecast-to-decision handoff;
-Notebook 04b shows rolling refits and scheduled policy snapshots.
+the policy contract. [Notebook 04](../tutorials/notebooks.md) begins with a
+one-week target and two policy APIs. Notebook 04c extends that handoff to a
+cumulative protection window; Notebook 04d shows rolling refits and scheduled
+policy snapshots. Notebook 04f combines an explicit irregular decision
+schedule, a forecast for each coverage window, the order-up-to policy, and the
+simulator's event record in one workflow.

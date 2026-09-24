@@ -41,6 +41,10 @@ covariances. Supply a direct cumulative target from a joint forecast model or
 joint sample paths when independence is unsuitable. Do not pass marginal
 standard deviations through the independent-normal route in that case.
 
+Notebook 04f shows how an external cumulative forecast is recalculated for
+each coverage window of an irregular decision schedule. Its forecast dates,
+target horizon, and information cutoff are explicit at every opportunity.
+
 ## Target probability and realized service
 
 `service_level=0.95` declares the target quantile probability. It does not
@@ -59,6 +63,10 @@ parameter rather than a quantile, because `s` and `S` are usually chosen
 jointly. Supply such pairs with `service_level=None` (planner mode).
 `ReorderPointPolicy` is not a continuous-time simulator or an optimal
 lost-sales policy solver.
+Notebook 05b walks from a one-SKU `(s,Q)` decision to a shared-demand,
+multi-SKU review-frequency comparison. It also shows why cost rates measured
+per day must be converted when comparing shorter simulation periods, and
+keeps an illustrative review-check charge outside Stockcast's event costs.
 
 External targets are declarations: a caller could sum marginal quantiles
 before passing a single number, and Stockcast cannot detect that mistake from
@@ -88,7 +96,7 @@ Independent residual resampling is appropriate only when its independence
 assumption is justified. A resampled error path must be combined with its
 forecast location to represent demand, not mistaken for demand itself.
 
-Notebook 04c compares independent-normal aggregation, an external approximate
+Notebook 04e compares independent-normal aggregation, an external approximate
 cumulative target, and an external simulated cumulative target. Each method
 states its assumptions and enters the same inventory replay. The example
 documents external Monte Carlo variability; target probability and realized
@@ -99,5 +107,5 @@ inventory service remain separate quantities.
 Use `policy_schedule` to supply fitted policy snapshots at later eligible
 decision periods. A snapshot can update targets but cannot change the policy
 class, timing configuration, service level, or shortage mode. Its forecast
-origin must match the information cutoff before its demand epoch. See Notebook 04b and the [forecast
+origin must match the information cutoff before its demand epoch. See Notebook 04d and the [forecast
 integration guide](../guides/forecast-integration.md).

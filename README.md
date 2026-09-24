@@ -28,9 +28,12 @@ forecasting code
     -> evaluation results for the calling workflow
 ```
 
-The [forecast to inventory integration example](examples/notebooks/04_forecast_to_inventory_integration.ipynb)
-shows this handoff. The [rolling forecast updates example](examples/notebooks/04b_rolling_forecast_updates.ipynb)
-shows how updated forecast-derived targets can be used at later decision dates.
+The [weekly forecast-to-order tutorial](examples/notebooks/04_forecast_to_inventory_integration.ipynb)
+starts with a one-week target and shows both the periodic and one-purchase
+policy APIs. The [cumulative target tutorial](examples/notebooks/04c_cumulative_protection_target.ipynb)
+then adds lead time and a multi-day protection window. The
+[scheduled simulation capstone](examples/notebooks/04f_scheduled_forecast_simulation.ipynb)
+joins an explicit order calendar, updated forecasts, and engine events.
 
 Forecast accuracy is useful, but a forecast is not a decision. A forecast
 affects an order decision, and that decision affects stock, service, backlog,
@@ -64,7 +67,9 @@ You can use the built-in components or extend the workflow:
 - choose a built-in replenishment policy or write a supported custom policy;
 - update policy targets as new forecasts become available;
 - add declared ordering constraints;
-- add typed callbacks for supported interventions; and
+- add typed callbacks for supported interventions;
+- optionally order from several suppliers with their own fixed or random lead
+  times and partial deliveries, and track every open order; and
 - evaluate the same demand path under different forecast, policy, and
   inventory assumptions.
 
@@ -161,12 +166,12 @@ After the quick start, use these three notebook entry points:
 
 1. [Make a first inventory decision](https://github.com/FilTheo/stockcast/blob/main/examples/notebooks/01_introduction_to_inventory_flow.ipynb) — see the explicit state, target, policy, order, and lead-time flow.
 2. [Run a first simulation](https://github.com/FilTheo/stockcast/blob/main/examples/notebooks/02_first_engine_simulation.ipynb) — let the engine run the complete scenario, then inspect the event records and operational measures.
-3. [Use an external forecast](https://github.com/FilTheo/stockcast/blob/main/examples/notebooks/04_forecast_to_inventory_integration.ipynb) — map a dated forecast-derived target into an inventory decision and evaluate the result.
+3. [Use an external forecast](https://github.com/FilTheo/stockcast/blob/main/examples/notebooks/04_forecast_to_inventory_integration.ipynb) — turn one-week forecasts into weekly orders with two policy APIs and inspect the outcomes.
 
 These are the suggested order for a new user. The [full notebook collection](https://github.com/FilTheo/stockcast/tree/main/examples/notebooks)
 contains the complete, runnable examples, including rolling forecast updates,
-custom policies, fair comparisons, FIFO and shelf-life scenarios, and typed
-callbacks.
+custom policies, suppliers and open orders, fair comparisons, FIFO and
+shelf-life scenarios, and typed callbacks.
 
 ## Documentation and support
 

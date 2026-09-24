@@ -7,8 +7,9 @@ Stockcast separates the decision workflow into components with distinct owners.
 
 ```text
 forecast-derived target -> fitted policy -> requested order
-    -> callbacks -> constraints -> lead-time pipeline
-    -> receipts and demand -> validated event ledger -> evaluation
+    -> callbacks -> constraints -> [optional supply model]
+    -> lead-time pipeline -> receipts and demand
+    -> validated event ledger -> evaluation
 ```
 
 ## Who owns what
@@ -41,6 +42,12 @@ intervals remain positive. Under periodic review, the inventory-position target
 covers demand at `t,...,t+L+R-1`: `H=L+R`. This describes coverage, not guaranteed
 optimality, fill rate, or a universal lost-sales service formula.
 
+The pipeline is kept per SKU (`in_transit`) and, in step with it, per open
+order. By default each accepted order is one line due `L` periods later. An
+optional `SupplyModel` splits it across suppliers with their own fixed or
+random lead times and partial deliveries. See
+[open orders and suppliers](../guides/suppliers-and-open-orders.md).
+
 Decision schedules and fitted-policy updates are separate. See
 [decision schedules and migration](decision-schedules.md) for periodic,
 one-time, and irregular examples, coordinate conventions, and the breaking
@@ -56,6 +63,7 @@ reorder point.
 
 Use `SimulationEngine` for a complete, validated run with a manifest,
 callback/constraint orchestration, and evaluator-ready event rows. The manual
-primitives `advance_period`, `update_inventory_with_orders`, and `fulfill_demand` are also public
+primitives `advance_period`, `update_inventory_with_orders` (or the order-level
+`place_order_lines`), and `fulfill_demand` are also public
 for a caller-owned loop, but the caller then owns loop control, recording,
 provenance, and any noncanonical output. Notebook 03 demonstrates both paths.

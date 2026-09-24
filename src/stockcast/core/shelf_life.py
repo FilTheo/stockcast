@@ -207,6 +207,8 @@ class ShelfLifeEngine(SimulationEngine):
     Each period, before demand is processed:
         1. Expired lots are removed from the ledger and deducted from on_hand.
         2. Stock arriving this period (in_transit[0]) is recorded as a new lot.
+           With several suppliers, all of a SKU's deliveries due in the same
+           period form one lot dated that period.
 
     After demand, fulfilled units are consumed from the oldest lots before
     typed physical callbacks run. The ledger is asserted to match Stockcast
@@ -248,6 +250,7 @@ class ShelfLifeEngine(SimulationEngine):
         policy_schedule=None,
         order_constraints=None,
         callbacks=None,
+        supply=None,
     ):
         if opening_expiry_handling not in {
             "reject",
@@ -313,6 +316,7 @@ class ShelfLifeEngine(SimulationEngine):
             policy_schedule=policy_schedule,
             order_constraints=order_constraints,
             callbacks=callbacks,
+            supply=supply,
         )
         shelf_settings = {
             "shelf_life": self.shelf_life_days,
@@ -353,6 +357,7 @@ class ShelfLifeEngine(SimulationEngine):
         policy_schedules=None,
         order_constraints=None,
         callbacks=None,
+        supply=None,
     ):
         """Compare policies with identical demand and identical opening lots.
 
@@ -376,6 +381,7 @@ class ShelfLifeEngine(SimulationEngine):
             branch_run_options={
                 "opening_lots": opening_lots,
                 "opening_expiry_handling": opening_expiry_handling,
+                "supply": supply,
             },
         )
 

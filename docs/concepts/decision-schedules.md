@@ -70,6 +70,8 @@ information origin and end date at each decision. If there is no next
 opportunity, provide the terminal coverage horizon explicitly at fitting.
 Ending a simulation or disabling settlement decisions does not automatically
 retarget an otherwise recurring policy to a finite-horizon optimum.
+Notebook 04f demonstrates this with an `ExplicitSchedule`, three dated
+forecasts, and a single validated engine replay.
 
 External planner targets can use `service_level=None` and no
 `target_probability`. Quantile-labelled columns require a declared probability;
@@ -99,7 +101,7 @@ quantile of season demand and fits the policy with that probability. This
 helper assumes classical linear lost-sales economics without additional
 penalties or holding costs. Constraints, expiry, opening stock, backlog, or
 within-season replenishment can change the optimization problem. A schedule
-is not an optimizer. See Notebook 04d for executable discrete-demand examples.
+is not an optimizer. See Notebook 04b for an executable discrete-demand example.
 
 ## Migration checklist
 

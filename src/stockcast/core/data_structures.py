@@ -13,6 +13,13 @@ from typing import Dict, Optional, Any, List, Union
 import numpy as np
 import pandas as pd
 
+from stockcast.core._open_orders import (
+    OPENING_SOURCE,
+    _Deliveries,
+    _OpenOrderBook,
+    pipeline_mismatch,
+)
+
 
 # ============================================================================
 # MULTI-SKU DATAFRAME-BASED STRUCTURES
@@ -138,6 +145,54 @@ def _require_identifiers(
     if unique and len(identifiers) != len(items):
         _require_unique(df, [column], frame_name)
     return identifiers
+
+def _is_missing(value) -> bool:
+    """Whether a scalar is None or a pandas/NumPy missing value."""
+    try:
+        return value is None or bool(pd.isna(value))
+    except (TypeError, ValueError):
+        return False
+
+
+def _same_number(left: float, right: float) -> bool:
+    return (np.isnan(left) and np.isnan(right)) or left == right
+
+
+def _finite_numbers(frame: pd.DataFrame, column: str, frame_name: str) -> np.ndarray:
+    """Float values of a complete finite numeric column."""
+    values = pd.to_numeric(frame[column], errors='coerce').to_numpy(dtype=float)
+    if np.isnan(values).any() or not np.isfinite(values).all():
+        raise ValueError(f"{frame_name}.{column} must contain finite numbers")
+    return values
+
+
+def _integer_numbers(frame: pd.DataFrame, column: str, frame_name: str, *,
+                     allow_missing: bool) -> np.ndarray:
+    """Integer-valued numbers of a column (float array; NaN only if allowed)."""
+    raw = frame[column]
+    values = pd.to_numeric(raw, errors='coerce').to_numpy(dtype=float)
+    missing = np.isnan(values)
+    if (missing & raw.notna().to_numpy()).any() or (missing.any() and not allow_missing):
+        raise ValueError(f"{frame_name}.{column} must contain integer periods")
+    known = values[~missing]
+    if not np.isfinite(known).all() or not np.equal(known, np.floor(known)).all():
+        raise ValueError(f"{frame_name}.{column} must contain integer periods")
+    return values if allow_missing else values.astype(np.int64)
+
+
+def _require_supplier_ids(values: list, frame_name: str) -> None:
+    """Supplier identifiers: hashable, nonblank, one Python type."""
+    for value in values:
+        if isinstance(value, str) and not value.strip():
+            raise ValueError(f"{frame_name}.supplier_id must not contain blank strings")
+        try:
+            hash(value)
+        except TypeError as exc:
+            raise ValueError(f"{frame_name}.supplier_id values must be hashable") from exc
+    if len(set(map(type, values))) > 1:
+        names = sorted({type(value).__name__ for value in values})
+        raise ValueError(f"{frame_name}.supplier_id must use one identifier type; got {names}")
+
 
 _FLOAT64 = np.dtype("float64")
 
@@ -271,7 +326,8 @@ class InventoryStateDataFrame:
                  sku_column: str = 'unique_id',
                  start_date: Optional[pd.Timestamp] = None,
                  allow_backorders: Optional[bool] = None,
-                 _history: Optional[List[pd.DataFrame]] = None):
+                 _history: Optional[List[pd.DataFrame]] = None,
+                 _open_orders: Optional[_OpenOrderBook] = None):
         """
         Initialize multi-SKU inventory state from DataFrame or SKU list.
 
@@ -287,6 +343,8 @@ class InventoryStateDataFrame:
             allow_backorders: Explicit backorder convention. It may remain
                 unset until ``SimulationEngine`` supplies the policy setting.
             _history: Internal parameter for transferring history between instances
+            _open_orders: Internal parameter for transferring the open-order
+                book between instances (see ``with_open_orders``)
         """
         if not isinstance(max_lead_time, int) or isinstance(max_lead_time, bool) or max_lead_time < 0:
             raise ValueError("max_lead_time must be an integer >= 0")
@@ -299,6 +357,7 @@ class InventoryStateDataFrame:
         self.max_lead_time = max_lead_time
         self.allow_backorders = allow_backorders
         self._history = _history if _history is not None else []
+        self._open_orders = _open_orders
 
         # === STEP 1: Convert input to DataFrame ===
         if isinstance(data, pd.DataFrame):
@@ -437,6 +496,7 @@ class InventoryStateDataFrame:
         start_date: pd.Timestamp,
         has_stockout: bool = False,
         has_backorder: bool = False,
+        open_orders: Optional[_OpenOrderBook] = None,
     ) -> 'InventoryStateDataFrame':
         """Wrap an engine-built complete state frame without re-validating it.
 
@@ -453,6 +513,7 @@ class InventoryStateDataFrame:
         state.data = data
         state.has_stockout = has_stockout
         state.has_backorder = has_backorder
+        state._open_orders = open_orders
         return state
 
     def inventory_position(self) -> pd.DataFrame:
@@ -575,8 +636,27 @@ class InventoryStateDataFrame:
             one_date = not dates.isna().any() and dates.nunique() == 1
         if not one_date:
             raise ValueError("inventory_state.date must contain one complete opening date")
-        if _uniform_float_pipelines(self.data['in_transit'], self.max_lead_time) is not None:
-            return
+        pipelines = _uniform_float_pipelines(self.data['in_transit'], self.max_lead_time)
+        if pipelines is None:
+            self._validate_pipeline_arrays()
+        if self._open_orders is not None and self._open_orders.checked:
+            if pipelines is None:
+                pipelines = self._stacked_pipelines()
+            mismatch = pipeline_mismatch(
+                self._open_orders,
+                pd.Index(self.data[self.sku_column].tolist(), dtype=object),
+                int(periods[0]),
+                self.max_lead_time,
+                pipelines,
+            )
+            if mismatch:
+                raise ValueError(
+                    f"inventory_state {mismatch}; in_transit and the declared open "
+                    "orders must describe the same pipeline"
+                )
+
+    def _validate_pipeline_arrays(self) -> None:
+        """Per-row ``in_transit`` validation for non-uniform pipeline content."""
         bad_in_transit = []
         for idx, value in self.data['in_transit'].items():
             if not isinstance(value, np.ndarray):
@@ -589,6 +669,13 @@ class InventoryStateDataFrame:
                 bad_in_transit.append(idx)
         if bad_in_transit:
             raise ValueError("inventory_state.in_transit must contain finite, non-negative arrays of length max_lead_time")
+
+    def _stacked_pipelines(self) -> np.ndarray:
+        """Validated ``in_transit`` arrays as one float matrix (SKU rows)."""
+        rows = [np.asarray(value, dtype=float) for value in self.data['in_transit']]
+        if not self.max_lead_time:
+            return np.zeros((len(rows), 0))
+        return np.stack(rows)
 
     def __repr__(self) -> str:
         """String representation showing number of SKUs and key statistics."""
@@ -646,6 +733,7 @@ class InventoryStateDataFrame:
 
         # Re-initialize in_transit arrays for each SKU
         self.data['in_transit'] = [np.zeros(self.max_lead_time) for _ in range(len(self.data))]
+        self._open_orders = None
 
         # Reset class-level attributes
         self.has_stockout = False
@@ -703,6 +791,209 @@ class InventoryStateDataFrame:
         self.data['on_hand'] = self.data[self.sku_column].map(stock_by_sku).astype(float)
         return self
 
+    # ------------------------------------------------------------------
+    # Order-level view of the pipeline
+    # ------------------------------------------------------------------
+
+    def with_open_orders(
+        self,
+        open_orders: pd.DataFrame,
+        *,
+        sku_column: Optional[str] = None,
+    ) -> 'InventoryStateDataFrame':
+        """Declare the opening pipeline as explicit open orders.
+
+        ``in_transit`` stores only the quantity due at each future period.
+        This method records the orders behind it: one row per scheduled
+        delivery, with optional supplier, order period and order grouping.
+        Call it after ``initialize_zero`` or ``initialize_from_observed``.
+
+        Required columns:
+            - SKU column (``sku_column``, default the state's SKU column)
+            - ``due_period``: integer state period at which the delivery is
+              received, before that period's demand. It must satisfy
+              ``period < due_period <= period + max_lead_time``.
+            - ``quantity``: finite quantity > 0 still to be delivered.
+
+        Optional columns:
+            - ``supplier_id``: hashable supplier identifier (missing = unknown)
+            - ``order_period``: integer period the order was placed
+              (``<= period``; missing = unknown, never inferred)
+            - ``order_id``: groups rows that are scheduled deliveries of one
+              order line (partial deliveries). Stockcast assigns its own
+              integer ids in order of first appearance.
+            - ``ordered_quantity``: original ordered quantity of the order
+              line, ``>=`` its remaining deliveries (default: their sum)
+
+        If ``in_transit`` is still empty it is set from these rows. If it
+        already holds quantities, the rows must reproduce it exactly: the
+        orders then only attribute the existing pipeline. A disagreement is
+        rejected rather than silently resolved.
+
+        Returns:
+            self (for method chaining, like the initializers)
+        """
+        sku_column = sku_column or self.sku_column
+        if not isinstance(open_orders, pd.DataFrame):
+            raise TypeError("open_orders must be a pandas DataFrame")
+        required = [sku_column, "due_period", "quantity"]
+        optional = ["supplier_id", "order_period", "order_id", "ordered_quantity"]
+        missing = [column for column in required if column not in open_orders.columns]
+        if missing:
+            raise ValueError(f"open_orders is missing required columns: {missing}")
+        extra = sorted(set(open_orders.columns) - set(required) - set(optional))
+        if extra:
+            raise ValueError(f"open_orders contains unsupported columns: {extra}")
+        periods = pd.to_numeric(self.data['period'], errors='coerce').to_numpy(dtype=float)
+        if (
+            not len(periods)
+            or np.isnan(periods).any()
+            or len(set(periods)) != 1
+            or periods[0] != np.floor(periods[0])
+        ):
+            raise ValueError(
+                "with_open_orders requires an initialized state with one integer period; "
+                "call initialize_zero or initialize_from_observed first"
+            )
+        period = int(periods[0])
+        if not all(
+            isinstance(value, np.ndarray) and len(value) == self.max_lead_time
+            for value in self.data['in_transit']
+        ):
+            raise ValueError(
+                "with_open_orders requires initialized in_transit arrays; "
+                "call initialize_zero or initialize_from_observed first"
+            )
+        self._validate_pipeline_arrays()
+        state_skus = self.data[self.sku_column].tolist()
+        frame = open_orders.reset_index(drop=True)
+        count = len(frame)
+        if count:
+            order_skus = _require_identifiers(frame, sku_column, 'open_orders', unique=False)
+            unknown = order_skus - set(state_skus)
+            if unknown:
+                raise ValueError(f"open_orders contains unknown SKUs: {_identifier_sample(unknown)}")
+        quantity = _finite_numbers(frame, "quantity", "open_orders")
+        if (quantity <= 0).any():
+            raise ValueError("open_orders.quantity must be > 0")
+        due = _integer_numbers(frame, "due_period", "open_orders", allow_missing=False)
+        if ((due <= period) | (due > period + self.max_lead_time)).any():
+            raise ValueError(
+                "open_orders.due_period must satisfy "
+                f"{period} < due_period <= {period + self.max_lead_time} "
+                "(period < due_period <= period + max_lead_time)"
+            )
+        if "order_period" in frame.columns:
+            order_period = _integer_numbers(frame, "order_period", "open_orders", allow_missing=True)
+            known = ~np.isnan(order_period)
+            if (order_period[known] > period).any():
+                raise ValueError("open_orders.order_period cannot be after the state period")
+        else:
+            order_period = np.full(count, np.nan)
+        if "supplier_id" in frame.columns:
+            supplier = [
+                None if _is_missing(value) else value for value in frame["supplier_id"].tolist()
+            ]
+            _require_supplier_ids([value for value in supplier if value is not None], "open_orders")
+        else:
+            supplier = [None] * count
+        if "order_id" in frame.columns:
+            labels = frame["order_id"].tolist()
+            if any(_is_missing(value) for value in labels):
+                raise ValueError("open_orders.order_id must not contain missing values")
+            try:
+                codes, uniques = pd.factorize(pd.Series(labels, dtype=object), sort=False)
+            except TypeError as exc:
+                raise ValueError("open_orders.order_id values must be hashable") from exc
+            line = codes.astype(np.int64)
+        else:
+            line = np.arange(count, dtype=np.int64)
+        skus = frame[sku_column].tolist() if count else []
+        remaining = np.zeros(line.max() + 1 if count else 0)
+        np.add.at(remaining, line, quantity)
+        if "ordered_quantity" in frame.columns:
+            declared = _finite_numbers(frame, "ordered_quantity", "open_orders")
+        else:
+            declared = remaining[line]
+        for code in range(len(remaining)):
+            rows = np.flatnonzero(line == code)
+            first = rows[0]
+            if any(
+                skus[row] != skus[first]
+                or type(skus[row]) is not type(skus[first])
+                or supplier[row] != supplier[first]
+                or not _same_number(order_period[row], order_period[first])
+                or declared[row] != declared[first]
+                for row in rows
+            ):
+                raise ValueError(
+                    "rows sharing an order_id must agree on SKU, supplier_id, "
+                    "order_period and ordered_quantity"
+                )
+            if len(set(due[rows].tolist())) != len(rows):
+                raise ValueError("an order line cannot have two deliveries due in the same period")
+            if declared[first] < remaining[code] - 1e-9 * max(1.0, remaining[code]):
+                raise ValueError(
+                    "open_orders.ordered_quantity must be >= the remaining quantity of its order"
+                )
+        deliveries = _Deliveries.build(
+            order_id=line,
+            sku=skus,
+            supplier=supplier,
+            order_period=order_period,
+            ordered=declared,
+            due=due,
+            quantity=quantity,
+            source=[OPENING_SOURCE] * count,
+        )
+        book = _OpenOrderBook.declared_opening(deliveries)
+        sku_index = pd.Index(state_skus, dtype=object)
+        declared_matrix = book.pipeline_matrix(sku_index, period, self.max_lead_time)
+        current = self._stacked_pipelines()
+        if (current != 0).any():
+            mismatch = pipeline_mismatch(book, sku_index, period, self.max_lead_time, current)
+            if mismatch:
+                raise ValueError(
+                    f"{mismatch}; with_open_orders can attribute an existing pipeline "
+                    "but not change it. Start from an empty pipeline to replace it"
+                )
+        else:
+            self.data['in_transit'] = [row.copy() for row in declared_matrix]
+        self._open_orders = book
+        return self
+
+    def open_orders(self) -> pd.DataFrame:
+        """Return one row per open order line.
+
+        Columns: ``order_id``, SKU column, ``supplier_id``, ``source``,
+        ``order_period``, ``ordered_quantity``, ``remaining_quantity``,
+        ``due_period`` (next scheduled delivery) and ``final_due_period``.
+
+        A state whose pipeline was given only as ``in_transit`` arrays shows
+        one ``source="opening"`` row per positive pipeline slot, with unknown
+        supplier and order period. Summing ``remaining_quantity`` by SKU and
+        due period reproduces ``in_transit``.
+        """
+        return self._order_book().open_orders_frame(self.sku_column)
+
+    def scheduled_receipts(self) -> pd.DataFrame:
+        """Return one row per open scheduled delivery (order line and due period)."""
+        return self._order_book().scheduled_receipts_frame(self.sku_column)
+
+    def _order_book(self) -> _OpenOrderBook:
+        """The declared book, or one attributed from ``in_transit``."""
+        self._validate_pipeline_arrays()
+        periods = pd.to_numeric(self.data['period'], errors='coerce').to_numpy(dtype=float)
+        if not len(periods) or np.isnan(periods).any() or len(set(periods)) != 1:
+            raise ValueError("inventory_state.period must be one complete integer period")
+        if self._open_orders is not None:
+            return self._open_orders
+        return _OpenOrderBook.from_pipelines(
+            self.data[self.sku_column].tolist(),
+            self._stacked_pipelines(),
+            int(periods[0]),
+        )
+
     def advance_period(self, *, period_frequency: str, is_review_period: bool) -> 'InventoryStateDataFrame':
         """Advance the clock, reset flows, receive due stock and clear old backlog.
 
@@ -729,10 +1020,14 @@ class InventoryStateDataFrame:
         data["on_hand"] += received - cleared
         data["latest_received"] = received
         data["latest_backorders_fulfilled"] = cleared
+        book = self._open_orders
+        if book is not None:
+            book = book.advanced(int(data["period"].iloc[0]))
         return InventoryStateDataFrame(data, sku_column=self.sku_column,
                                        max_lead_time=self.max_lead_time,
                                        allow_backorders=self.allow_backorders,
-                                       _history=self._history)
+                                       _history=self._history,
+                                       _open_orders=book)
 
     def fulfill_demand(self, demand_df: pd.DataFrame, *, demand_column: str = "y",
                        date_column: str = "date", sku_column: Optional[str] = None
@@ -769,7 +1064,8 @@ class InventoryStateDataFrame:
         result = InventoryStateDataFrame(data, sku_column=self.sku_column,
                                         max_lead_time=self.max_lead_time,
                                         allow_backorders=self.allow_backorders,
-                                        _history=self._history)
+                                        _history=self._history,
+                                        _open_orders=self._open_orders)
         result.has_stockout = bool((shortage > 0).any())
         result.has_backorder = bool((data["backorders"] > 0).any())
         result._history.append(result.data.copy())
@@ -922,3 +1218,109 @@ class OrderDecision:
                 f"total_quantity={total_qty:.0f}, "
                 f"lead_time={self.lead_time}, "
                 f"review_period={self.review_period})")
+
+
+class OrderLines:
+    """
+    Supplier order lines with explicit delivery periods (order-level API).
+
+    ``OrderDecision`` holds one order quantity per SKU and a single lead time.
+    ``OrderLines`` is the order-level form used by ``place_order_lines`` and by
+    ``SimulationEngine(..., supply=SupplyModel(...))``: one row per scheduled
+    delivery, so one SKU can be ordered from several suppliers, with
+    different lead times, and one order line can be delivered in parts.
+
+    Columns:
+        - unique_id (or ``sku_column``): SKU identifier (may repeat)
+        - order_quantity: finite quantity >= 0 of this delivery
+        - order_period: state period in which the order is placed
+        - due_period: state period in which the delivery is received,
+          before that period's demand (``due_period >= order_period``;
+          equal means an immediate receipt, as with zero lead time)
+        - supplier_id (optional): hashable supplier identifier
+        - order_line (optional): rows with the same value are deliveries of
+          one order line (partial deliveries); default one line per row
+
+    Example:
+        lines = OrderLines(pd.DataFrame({
+            'unique_id':      ['beans', 'beans', 'beans'],
+            'supplier_id':    ['local', 'import', 'import'],
+            'order_quantity': [20.0,     60.0,     40.0],
+            'order_period':   [5,        5,        5],
+            'due_period':     [6,        12,       15],
+            'order_line':     [0,        1,        1],
+        }))
+    """
+
+    def __init__(self, data: pd.DataFrame, sku_column: str = 'unique_id'):
+        if not isinstance(sku_column, str) or not sku_column.strip():
+            raise ValueError("sku_column must be a non-empty string")
+        if not isinstance(data, pd.DataFrame):
+            raise TypeError("OrderLines data must be a pandas DataFrame")
+        required = [sku_column, 'order_quantity', 'order_period', 'due_period']
+        missing = [column for column in required if column not in data.columns]
+        if missing:
+            raise ValueError(f"OrderLines is missing required columns: {missing}")
+        extra = sorted(set(data.columns) - set(required) - {'supplier_id', 'order_line'})
+        if extra:
+            raise ValueError(f"OrderLines contains unsupported columns: {extra}")
+        self.sku_column = sku_column
+        frame = data.reset_index(drop=True).copy()
+        if len(frame):
+            _require_identifiers(frame, sku_column, 'order_lines', unique=False)
+        quantity = _finite_numbers(frame, 'order_quantity', 'order_lines')
+        if (quantity < 0).any():
+            raise ValueError("order_lines.order_quantity must be non-negative")
+        frame['order_quantity'] = quantity
+        frame['order_period'] = _integer_numbers(
+            frame, 'order_period', 'order_lines', allow_missing=False
+        )
+        frame['due_period'] = _integer_numbers(frame, 'due_period', 'order_lines', allow_missing=False)
+        if (frame['due_period'] < frame['order_period']).any():
+            raise ValueError("order_lines.due_period must be >= order_period")
+        if 'supplier_id' not in frame.columns:
+            frame['supplier_id'] = pd.Series([None] * len(frame), dtype=object)
+        supplier = [None if _is_missing(value) else value for value in frame['supplier_id'].tolist()]
+        _require_supplier_ids([value for value in supplier if value is not None], 'order_lines')
+        frame['supplier_id'] = pd.Series(supplier, dtype=object)
+        if 'order_line' in frame.columns:
+            labels = frame['order_line'].tolist()
+            if any(_is_missing(value) for value in labels):
+                raise ValueError("order_lines.order_line must not contain missing values")
+            try:
+                codes, _ = pd.factorize(pd.Series(labels, dtype=object), sort=False)
+            except TypeError as exc:
+                raise ValueError("order_lines.order_line values must be hashable") from exc
+            frame['order_line'] = codes.astype(np.int64)
+            for _, group in frame.groupby('order_line', sort=False):
+                keys = group[[sku_column, 'order_period']].drop_duplicates()
+                if (
+                    len(keys) > 1
+                    or len(set(map(type, group[sku_column]))) > 1
+                    or len({repr(value) for value in group['supplier_id']}) > 1
+                ):
+                    raise ValueError(
+                        "rows sharing an order_line must agree on SKU, supplier_id and order_period"
+                    )
+                if group['due_period'].duplicated().any():
+                    raise ValueError(
+                        "an order line cannot have two deliveries due in the same period"
+                    )
+        else:
+            frame['order_line'] = np.arange(len(frame), dtype=np.int64)
+        self.data = frame[[
+            sku_column, 'supplier_id', 'order_quantity', 'order_period', 'due_period', 'order_line',
+        ]]
+
+    def get_dataframe(self) -> pd.DataFrame:
+        """Return a copy of the validated order lines."""
+        return self.data.copy()
+
+    def total_order_quantity(self) -> float:
+        """Sum of all delivery quantities."""
+        return float(self.data['order_quantity'].sum())
+
+    def __repr__(self) -> str:
+        return (f"OrderLines(n_rows={len(self.data)}, "
+                f"n_order_lines={self.data['order_line'].nunique()}, "
+                f"total_quantity={self.total_order_quantity():.0f})")

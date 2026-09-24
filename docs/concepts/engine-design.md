@@ -183,7 +183,7 @@ capacity constraints, or later purchases.
 The policy checks complete season coverage, zero demand outside it, and
 opening pipeline that arrives by season start. Ending the season does not
 delete stock, cancel pipeline, or automatically post salvage revenue. The
-[04d newsvendor notebook](../tutorials/notebooks.md) illustrates a forecast
+[04b newsvendor notebook](../tutorials/notebooks.md) illustrates a forecast
 distribution fitted to artificial history, one economic quantile, and a
 held-out selling week with explicit profit accounting.
 

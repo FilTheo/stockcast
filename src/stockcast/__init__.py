@@ -18,6 +18,7 @@ from stockcast.core import (
     OneTimeSchedule,
     OrderAdjustmentResult,
     OrderDecision,
+    OrderLines,
     OrderingConstraint,
     OrderingConstraints,
     OrderMultiple,
@@ -30,6 +31,10 @@ from stockcast.core import (
     SimulationCallback,
     SimulationEngine,
     SimulationResult,
+    Supplier,
+    SupplierAllocation,
+    SupplierShares,
+    SupplyModel,
 )
 from stockcast.policies import (
     ColumnPeriodicReviewTargets,
@@ -80,4 +85,9 @@ __all__ = [
     "ExplicitSchedule",
     "SingleOrderPolicy",
     "newsvendor_critical_fractile",
+    "OrderLines",
+    "Supplier",
+    "SupplierAllocation",
+    "SupplierShares",
+    "SupplyModel",
 ]

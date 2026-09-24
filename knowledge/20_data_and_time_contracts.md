@@ -9,7 +9,7 @@ row per SKU and uses `unique_id` by default as the identifier column.
 |---|---|
 | `on_hand` | usable physical units after the latest transition |
 | `backorders` | unmet demand carried forward in backorder mode |
-| `in_transit` | per-SKU array; index `0` is the next receipt slot |
+| `in_transit` | per-SKU array; index `0` is the next receipt slot (accounting view; the order-level view is in 97) |
 | `period`, `date` | current discrete-period coordinate and timestamp |
 | `is_review_period` | whether the current period permits a policy decision |
 | `target_level`, `safety_stock` | policy diagnostics copied into state/events |
@@ -123,9 +123,13 @@ When an order is applied:
 In 0.1.0, `SimulationEngine` makes one policy prediction and places one
 composed `OrderDecision` per enabled decision opportunity. Order callbacks may
 adjust that decision but cannot create additional supplier-specific decisions.
-The low-level accumulation rule is retained as a state primitive; a typed
-multi-supplier engine API is deferred because supplier identity, lead time,
-constraints, cost, delivery, and audit semantics must be designed together.
+The low-level accumulation rule is retained as a state primitive. Since
+2026-09-24 an optional, additive order-level layer
+([97](97_open_orders_and_suppliers.md)) adds supplier identity, per-line due
+periods, seeded random lead times and partial deliveries: `OrderLines` with
+`place_order_lines`, and `SimulationEngine(..., supply=SupplyModel(...))`.
+The supply stage runs after constraints and splits the accepted per-SKU
+quantity; the contract above is unchanged when it is not used.
 
 ## 20.8 Balance equations
 
@@ -149,6 +153,7 @@ ending_backorders
 
 ending_pipeline
   = starting_pipeline - receipts + orders_placed
+  (per SKU; with supply the supplier lines sum to orders_placed within tolerance)
 
 ending_inventory_position
   = ending_on_hand + ending_pipeline - ending_backorders

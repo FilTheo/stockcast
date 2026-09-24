@@ -28,6 +28,10 @@ mode is explicit:
 Sparse decisions are normalized to zero for known omitted SKUs. Unknown SKUs
 are rejected.
 
+Constraints act on each SKU's total. An optional supply stage
+([97](97_open_orders_and_suppliers.md)) splits the accepted total across
+suppliers afterwards; supplier capacity or MOQ is not a constraint yet.
+
 ## 50.2 Built-in constraints
 
 | Constraint | Rule in adjustment mode |
@@ -88,6 +92,10 @@ The engine records a fingerprint of the opening lot configuration.
 5. apply typed physical callback requests, adding explicitly dated lots or
    consuming FIFO lots; and
 6. assert after each accepted batch that lot balances equal ending on-hand.
+
+With `supply=`, all of a SKU's deliveries received in one period (pipeline or
+immediate supplier lines) still form one lot dated that period; lots carry no
+supplier identity.
 
 Expiry therefore appears as a distinct event flow and participates in the
 on-hand balance equation. It is not silently folded into demand or shortage.

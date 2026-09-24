@@ -33,6 +33,21 @@ builds must equal the per-period pandas result exactly; states it cannot
 represent stay DataFrames. Not a public or extension surface. See
 [30.10](30_execution_flow.md#3010-internal-state-representation).
 
+### `core/_open_orders.py`
+
+Private open-order book (`_OpenOrderBook`, `_Deliveries`) kept in lockstep
+with `in_transit`, its pipeline-consistency check, and assembly of the public
+order frame (`ORDER_FRAME_COLUMNS`, `build_order_frame`). See
+[97](97_open_orders_and_suppliers.md).
+
+### `core/supply.py`
+
+Public optional supplier stage: `Supplier` (fixed or discrete random lead
+time, partial deliveries), `SupplierAllocation` and `AllocationContext`,
+`SupplierShares`, and `SupplyModel` (validation, manifest, seeded per-run
+lead-time draws, allocation validation, delivery scheduling). See
+[97.4](97_open_orders_and_suppliers.md#974-engine-supply-stage).
+
 ### `core/callbacks.py`
 
 Defines the public callback base, defensive context, typed inventory/order
@@ -48,7 +63,9 @@ backorder mode; base `fit` and `predict` raise until implemented.
 
 ### `core/data_structures.py`
 
-Defines `InventoryStateDataFrame` and `OrderDecision`. It owns identifier
+Defines `InventoryStateDataFrame`, `OrderDecision` and `OrderLines`, plus the
+state's order-level methods `with_open_orders`, `open_orders` and
+`scheduled_receipts`. It owns identifier
 validation, opening-state initialization, state-readiness validation, inventory
 position, the receipt/backlog/demand transition, pipeline representation, and
 decision-row validation. The private `_from_trusted` constructor and
@@ -128,14 +145,15 @@ how the periodic policy acts on them.
 
 ### `utils/__init__.py`
 
-Exports `update_inventory_with_orders`, `process_demand`, and
-`DemandGenerator`. Its old docstring mentions broad forecasting utilities that
+Exports `update_inventory_with_orders`, `process_demand`,
+`DemandGenerator`, and `place_order_lines`. Its old docstring mentions broad forecasting utilities that
 are not present; use actual exports as authority.
 
 ### `utils/inventory_operations.py`
 
-Contains the only standard order-to-pipeline mutation and a thin wrapper around
-the state demand transition. It validates order timing and lead-time capacity,
+Contains the only standard order-to-pipeline mutation (`_apply_orders`, used by
+`update_inventory_with_orders`, `place_order_lines` and the engine supply stage)
+and a thin wrapper around the state demand transition. It validates order timing and lead-time capacity,
 normalizes sparse decisions, and preserves physical on-hand at order placement.
 
 ### `utils/demand_generator.py`
@@ -193,6 +211,7 @@ and do not own display or scientific validation.
 |---|---|
 | state fields or timing | `data_structures.py`, `simulation_engine.py`, `event_validation.py`, metrics, plots |
 | order timing | policies, callbacks, `inventory_operations.py`, engine event builder, constraints, event validator |
+| pipeline representation | `data_structures.py`, `_open_orders.py`, `_array_state.py`, `inventory_operations.py`, `supply.py`, shelf-life receipts |
 | target semantics | `_target_validation.py`, affected policy, engine policy schedule/manifest |
 | event schema | engine event builder, shelf-life hook, validator, evaluator, all metrics, plots |
 | shortage mode | state transition, engine event semantics, validator, service/cost metrics |

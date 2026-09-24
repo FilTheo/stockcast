@@ -1,5 +1,61 @@
 # 80 — Tests and evidence
 
+Order-level pipeline and suppliers (2026-09-24,
+[97](97_open_orders_and_suppliers.md)): additive; the per-SKU contract is
+unchanged. Evidence for "unchanged" came from a local scratch harness (not a
+repository test). It recorded every outermost engine run's event ledger,
+history, final state, callback audit, run settings, manifest (minus run id,
+timestamp and source commit), summary, and every state and order frame handed
+to policies. It compared them with a frozen copy of the pre-change source:
+
+- all 307 engine runs of `tests/unit` + `tests/stress` identical under pandas
+  2.3.3 and 3.0.6;
+- all 88 engine runs of the 18 existing notebooks identical under pandas 3.0.6,
+  with seeded random draws as for the NumPy-kernel check;
+- the same comparison with every run rerouted through
+  `supply=SupplyModel([Supplier(..., lead_time=policy.lead_time)])` also gave
+  307/307 and 88/88 identical runs (only `run_settings["supply"]` added). This
+  is the exact mapping of the default engine onto the order-level API.
+
+Permanent tests are in `tests/unit/test_open_orders_and_supply.py` (80 cases):
+
+- attribution of `in_transit`; declared open orders and their fail-closed
+  validation; rejection of edits after declaring;
+- manual `place_order_lines` versus `update_inventory_with_orders`
+  equivalence for `L=0,1,3`;
+- engine mapping equivalence across lead time, shortage mode, review period,
+  constraints, callbacks and shelf life;
+- two-supplier ledger identities and order-frame reconciliation; seeded
+  random lead times and overtaking; partial deliveries;
+- shared draws across comparison branches; array versus forced-DataFrame path
+  equality; shelf-life lots;
+- custom allocations and their validation; configuration errors;
+- a policy editing its own state copy behaves as before.
+
+`test_public_api_contract.py` locks the appended exports and
+`ORDER_FRAME_COLUMNS`. Final source:
+
+- `env PYTHONPATH=src python -m pytest -q -o addopts='' tests/unit tests/stress`
+  passed 396 tests under Python 3.12.13 / pandas 3.0.6 and under Python
+  3.10.12 / pandas 2.3.3;
+- the 307-run comparison was repeated on this final source.
+
+The 88-run notebook comparison was made before the last internal edits, which
+touched only the order book (object-array fast path, shared book copies,
+vectorized order-frame dates, and the `checked` flag) and not the accounting.
+Rerun the notebooks before release.
+
+Performance is not fully measured. Profiling a 1000-SKU daily order-up-to run
+showed about 1.4% more Python function calls than before; wall-clock
+benchmarks were inconclusive because the machine was shared with other
+workloads. Rerun `tests/benchmark/engine_benchmark.py` on an idle machine
+before quoting timings. Notebook 05d's explanation pass has 52 cells: it
+separates the cumulative-target, policy-fit and shared-run helpers, and adds
+timing, order-reconciliation, paired-supplier-draw and cost-window guidance.
+It executed from source with no cell errors or stderr; the two figures were
+inspected, and saved outputs were copied after source-cell equality and
+notebook validation. Scenario calculations were not changed.
+
 NumPy period kernel (2026-09-24): `SimulationEngine` now keeps live state as
 arrays and assembles history and the event ledger once
 ([30.10](30_execution_flow.md#3010-internal-state-representation)). Public
@@ -22,14 +78,87 @@ new: weekly `(R,S)` 74 → 2.4 / 179 → 8.0; daily `(R,S)` 113 → 14.6 /
 shelf life with daily review 98 → 17 / 235 → 48. Remaining decision-period
 cost is mostly the policy's own `predict`, which was deliberately not changed.
 
-Notebook 04d's forecasting-focused revision (2026-09-24) passed source-import
-nbclient execution in 4.26 seconds using
-`/tmp/stockcast-timing-validation/bin/python /tmp/run_stockcast_source_notebooks.py '04d_*.ipynb'`.
-It checks inverse-CDF coverage, expected-profit maximization under the empirical
-forecast, a strict history/held-out date split, and one-order receipt/stock/
-lost-sales identities. Seed 42 yields target 44, held-out demand 39, leftovers
-5, and realized profit 224. The two-panel figure was inspected and executed
-outputs were saved only after code-source equality checks. No core code changed.
+Notebook 05b was expanded on 2026-09-24 from a compact review-frequency
+comparison into a one-SKU-to-100-SKU tutorial. It checks a daily `(s,Q)`
+decision and two-period receipt in validated events, then compares daily,
+12-hour, 6-hour, and 3-hour review on the same three-hour demand buckets with
+the same physical lead time, fixed `Q`, and fixed opening stock. It contrasts a
+correct `L+R` threshold with an `L`-only planner threshold, distinguishes
+cycle service from fill rate, and evaluates ordering, holding, and backlog
+costs after converting per-day rates to each step length. An external
+review-check charge is separately labelled; a final `(s,S)` run checks the
+other built-in sizing mode. Source-import nbclient execution of
+`05b_reorder_points_and_review_frequency.ipynb` passed with 55 cells, six
+inspected figures, no cell stderr or error outputs, and source-matched saved
+outputs. The explanation pass split the regime setup and cost evaluation into
+short cells, retaining the same 12-hour choice under the declared rates.
+Focused tests passed with `env PYTHONPATH=src python3 -m pytest -q
+tests/unit/test_decision_timing.py tests/unit/test_policy_target_contracts.py
+tests/unit/test_inventory_evaluation.py` (65 passed). Installed-artifact
+notebook execution remains a separate release check; no core code changed.
+
+Notebook 05c was expanded on 2026-09-24 into a one-SKU-to-three-SKU
+extension tutorial. Its 44 cells separately demonstrate the irregular schedule
+and dated targets, a custom whole-case chiller constraint, a supplier-order
+hold, and a signed stock-count adjustment. Source-import nbclient execution
+passed. The three rendered figures were inspected, the
+event/callback tables and four-run scoring comparison were checked, and 109
+focused timing, constraint, callback, and simulation tests passed with
+`env PYTHONPATH=src python3 -m pytest -q tests/unit/test_decision_timing.py
+tests/unit/test_order_constraints.py tests/unit/test_callbacks.py
+tests/unit/test_simulation_contracts.py`. The saved notebook outputs were
+copied only after source-cell equality and notebook validation.
+
+Notebook 06 was revised on 2026-09-24 to compare direct four-day cumulative
+upper-quantile targets across ETS configuration and probability, then hold the
+ANN-95 target fixed while comparing built-in `(R,S)` and `(s,Q)` policies. The
+final ANN/AAN 95% by-policy matrix uses the same `L+R` target horizon for both
+rules and checks identical `(s,Q)` orders despite different target values. A
+one-origin cumulative-demand/pinball diagnostic is labelled as descriptive.
+The retrospective operating screen requires at least 95% scored fill for each
+SKU and selects ANN-95 `(R,S)` as the lowest-cost eligible branch (163.832
+under declared rates); both `(s,Q)` branches have worst-SKU fill 0.786. The
+source-import notebook run passed with 60 cells, seven inspected figures, no
+cell stderr or errors, and source-matched saved outputs. Focused tests passed
+with `env PYTHONPATH=src python3 -m pytest -q
+tests/unit/test_policy_target_contracts.py tests/unit/test_inventory_evaluation.py
+tests/unit/test_simulation_contracts.py` (54 passed). No core code changed.
+
+Notebook 05 was revised on 2026-09-24 to name its starter rule as the familiar
+`(s,Q)` policy, compare declared `Q` candidates on calibration demand using
+explicit ordering, holding, and shortage costs, and check the selected rule and
+a shortfall-responsive subclass on separate held-out demand. Source-import
+nbclient execution of `05_custom_policies.ipynb` passed with four inspected
+figures, no cell stderr, a changed-order evidence table, and source-matched
+saved outputs. The annotated revision reran successfully and asserts that the
+two held-out event ledgers align by SKU and date before comparing orders.
+Focused policy-target and evaluation tests passed with
+`env PYTHONPATH=src python3 -m pytest -q
+tests/unit/test_policy_target_contracts.py tests/unit/test_inventory_evaluation.py`
+(32 passed). This is notebook and documentation work; no core code changed.
+Installed-artifact notebook execution remains a separate release check.
+
+The 2026-09-24 Notebook 04 tutorial revision now has six lessons: weekly
+one-period forecasts through both order-up-to and single-order APIs, daily
+newsvendor economics, a fixed cumulative target, rolling cumulative targets,
+the cumulative-method comparison, and a scheduled forecast-to-simulation
+capstone. Source-import nbclient execution of all six
+passed with no cell stderr or error outputs using
+`/tmp/stockcast-timing-validation/bin/python /tmp/run_stockcast_source_notebooks.py '04*.ipynb'`.
+All 17 rendered figures were inspected; executed outputs were saved after
+source-cell equality checks. The weekly notebook asserts matching order,
+receipt, sales, stock, and lost-sales flows for its two APIs. The daily
+newsvendor asserts the inverse-CDF and expected-profit choice and validates
+its one-order accounting. Notebook 04f checks irregular decision periods,
+forecast cutoffs and coverage windows, scheduled policy snapshots, one-period
+receipts, and first-period physical and lost-sales accounting. Focused timing
+and target tests passed with `env PYTHONPATH=src python3 -m pytest -q
+tests/unit/test_decision_timing.py tests/unit/test_policy_target_contracts.py`
+(56 passed). The earlier focused timing, target, and evaluation tests passed
+with `env PYTHONPATH=src python3 -m pytest -q
+tests/unit/test_decision_timing.py tests/unit/test_policy_target_contracts.py
+tests/unit/test_inventory_evaluation.py` (65 passed). Installed-artifact
+notebook execution is still a separate release check; no core code changed.
 
 Notebook 02b (2026-09-24) executes five decision schedules on the same explicit
 inventory scenario and asserts complete event-frame equality between
@@ -90,6 +219,7 @@ from local checks. The frozen public API is recorded in knowledge 93.
 | `test_public_api_contract.py` | 2 | frozen namespace exports and version |
 | `test_inventory_reference_model.py` | 1 | 12 independent delivery-calendar cases covering lead time, review period, shortage mode, opening orders, settlement, and costs |
 | `test_release_artifacts.py` | 2 | rejection of foreign distribution metadata and missing artifact types |
+| `test_open_orders_and_supply.py` | 30 (80 cases) | open-order attribution and declaration, `OrderLines`/`place_order_lines`, exact default-to-`SupplyModel` mapping, suppliers, random lead times, partial deliveries, order frame reconciliation, comparison draws, array/DataFrame equality, shelf life, allocation validation |
 | `test_array_kernel_equivalence.py` | 10 (36 cases) | array kernel versus forced DataFrame period path: randomized schedules, lead times, shortage modes, windows, constraints and callbacks; shelf life; non-canonical opening state; integer orders/targets/SKUs; custom SKU column with zero lead time; history-reading policy; rolling policy schedule; comparisons; identical errors; path usage |
 | `../stress/test_prerelease_stress.py` | 13 (77 cases) | randomized independent oracle, ledger invariants, causality, `L+R` identity and calibration, newsvendor economics, retailer workflow, fail-closed inputs |
 
@@ -113,9 +243,9 @@ instead of copying these numbers into release claims.
 - that results match an external benchmark or real operational system;
 - production scale or performance, continuous-time or multi-echelon behavior,
   arbitrary forecasting-model compatibility, or automatic target calibration.
-- supplier-specific order decisions through `SimulationEngine`; 0.1.0 places
-  one composed decision per enabled decision opportunity, while the low-level
-  state primitive retains repeated-order accumulation.
+- supplier behaviour beyond the declared `SupplyModel`: delays after
+  placement, supplier capacity or MOQ, supplier-level costs in metrics, and
+  multi-echelon networks (knowledge 97.5).
 
 ## 80.4 Extraction test strategy
 

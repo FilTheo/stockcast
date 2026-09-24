@@ -70,7 +70,14 @@ from stockcast.core.data_structures import (
     _require_forward_frequency,
     _require_identifiers,
 )
+from stockcast.core._open_orders import (
+    ORDER_FRAME_COLUMNS,
+    _Deliveries,
+    build_order_frame,
+    pipeline_mismatch,
+)
 from stockcast.core.order_constraints import ConstraintContext, OrderingConstraints
+from stockcast.core.supply import AllocationContext, SupplyModel
 
 CALLBACK_AUDIT_COLUMNS = (
     "callback_position",
@@ -135,6 +142,7 @@ class SimulationResult:
         run_settings: Optional[dict] = None,
         run_manifest: Optional[dict] = None,
         callback_audit: Optional[pd.DataFrame] = None,
+        order_frame: Optional[pd.DataFrame] = None,
     ):
         self.history = history
         self.inventory = inventory
@@ -150,6 +158,10 @@ class SimulationResult:
         self._callback_audit = pd.DataFrame(
             callback_audit.copy(deep=True) if callback_audit is not None else None,
             columns=CALLBACK_AUDIT_COLUMNS,
+        )
+        self._order_frame = pd.DataFrame(
+            order_frame.copy(deep=True) if order_frame is not None else None,
+            columns=ORDER_FRAME_COLUMNS,
         )
 
     def to_event_frame(self, window: Optional[str] = None) -> pd.DataFrame:
@@ -171,6 +183,33 @@ class SimulationResult:
     def to_callback_audit_frame(self) -> pd.DataFrame:
         """Return one defensive row per accepted callback effect."""
         return self._callback_audit.copy(deep=True)
+
+    def to_order_frame(self) -> pd.DataFrame:
+        """
+        Return the order-level ledger: one row per scheduled delivery.
+
+        Rows cover the opening pipeline and every order placed during the
+        run. Columns are ``stockcast.core.ORDER_FRAME_COLUMNS``:
+
+            - order_id: order line identifier (deliveries of one line share it)
+            - unique_id, supplier_id: SKU and supplier (``None`` when unknown,
+              for example a pipeline given only as ``in_transit`` or a run
+              without ``supply``)
+            - source: ``"opening"`` for the opening pipeline, ``"placed"``
+              for orders placed in the run
+            - order_period / order_date: when the line was ordered (missing
+              for opening orders without a declared order period)
+            - due_period / due_date: when this delivery is received, before
+              that period's demand
+            - lead_time: ``due_period - order_period`` (realized, per delivery)
+            - ordered_quantity: quantity of the whole order line
+            - delivery_quantity: quantity of this delivery
+            - status: ``"received"`` or ``"open"`` at the end of the run
+
+        Per SKU and period, received deliveries add up to the event ledger's
+        ``received_units`` and open ones to ``on_order_end``.
+        """
+        return self._order_frame.copy(deep=True)
 
     def summary(self) -> Dict:
         """
@@ -572,6 +611,12 @@ class _PeriodRun:
         self.demand: Optional[DemandPath] = None
         self.inventory_callbacks = False
         self.log = RunLog()
+        # Order-level deliveries placed at each decision (for to_order_frame).
+        self.placements: List[_Deliveries] = []
+
+    def record_placements(self, book) -> None:
+        if book is not None and len(book.placed):
+            self.placements.append(book.placed)
 
     def frame(self, state, history) -> InventoryStateDataFrame:
         """DataFrame-backed state for a boundary or the DataFrame path."""
@@ -701,18 +746,24 @@ class _PeriodRun:
             before, active_policy, sim_period,
             run_window=run_window, initial_decision=False,
         )
+        supply = engine._active_supply
         # Constraints receive the live state in their context, so with
         # constraints the primitive always runs on that same object.
-        if arrays and engine._active_order_constraints is None:
+        if arrays and engine._active_order_constraints is None and supply is None:
             after_state = state.with_order(
                 orders,
                 allow_backorders=getattr(active_policy, 'allow_backorders', self.allow_backorders),
             )
             if after_state is not None:
                 engine._after_order_receipt_arrays(state, after_state)
+                self.record_placements(after_state.book)
                 return after_state
-        after = engine._update_inventory_primitive(before, orders, policy=active_policy)
+        if supply is None:
+            after = engine._update_inventory_primitive(before, orders, policy=active_policy)
+        else:
+            after = engine._place_with_supply(before, orders, active_policy, period)
         engine._after_order_receipt(before, after)
+        self.record_placements(after._open_orders)
         return self.absorb(after, state)
 
     def _record_arrays(self, opening, state, period, run_window, active_policy,
@@ -856,6 +907,7 @@ class SimulationEngine:
         policy_schedule: Optional[Mapping[int, BasePolicy]] = None,
         order_constraints: Optional[OrderingConstraints] = None,
         callbacks: Optional[Sequence[SimulationCallback]] = None,
+        supply: Optional[SupplyModel] = None,
     ) -> SimulationResult:
         """
         Run a multi-period inventory simulation.
@@ -884,6 +936,11 @@ class SimulationEngine:
             order_constraints: Optional explicit operational constraints.
             callbacks: Optional ordered callback objects. The exact objects are
                 reset before the run and remain inspectable afterward.
+            supply: Optional ``SupplyModel``. When given, each accepted order
+                (after callbacks and constraints) is split across suppliers,
+                each with its own fixed or random lead time and optional
+                partial deliveries. ``None`` keeps the default: one line per
+                positive SKU order, due ``policy.lead_time`` periods later.
 
         Returns:
             SimulationResult with history, final inventory state, and summary statistics.
@@ -926,6 +983,9 @@ class SimulationEngine:
             raise ValueError("random_seed must be an integer or explicit None")
         if order_constraints is not None and not isinstance(order_constraints, OrderingConstraints):
             raise TypeError("order_constraints must be an OrderingConstraints instance")
+        if supply is not None and not isinstance(supply, SupplyModel):
+            raise TypeError("supply must be a SupplyModel instance or None")
+        supply_manifest = supply.to_manifest() if supply is not None else None
         constraint_manifest = (
             order_constraints.to_manifest() if order_constraints is not None else None
         )
@@ -962,7 +1022,27 @@ class SimulationEngine:
         inventory._validate_ready_state()
         if inventory.max_lead_time < policy.lead_time:
             raise ValueError("inventory max_lead_time must cover policy lead_time")
+        if supply is not None and inventory.max_lead_time < supply.max_delivery_offset:
+            raise ValueError(
+                "inventory max_lead_time must cover the supply model's longest "
+                f"delivery offset ({supply.max_delivery_offset})"
+            )
+        # The run tracks stock on order at order level. A pipeline given only
+        # as in_transit arrays is attributed to opening orders; values are
+        # unchanged.
+        if inventory._open_orders is None:
+            inventory._open_orders = inventory._order_book()
+        opening_book = inventory._open_orders
         opening_inventory_fingerprint = self._inventory_fingerprint(inventory)
+        if opening_book.declared:
+            # Declared opening orders carry supplier and order-period evidence
+            # that in_transit alone does not.
+            declared_orders = inventory.open_orders()
+            declared_orders['supplier_id'] = declared_orders['supplier_id'].map(repr)
+            opening_inventory_fingerprint['open_orders'] = {
+                'sha256': self._dataframe_checksum(declared_orders, sort_columns=['order_id']),
+                'rows': len(declared_orders),
+            }
         opening_period = int(inventory.get_dataframe()['period'].iloc[0])
         opening_date = pd.Timestamp(inventory.get_dataframe()['date'].iloc[0])
         self._active_callbacks, callback_manifest = self._prepare_callbacks(
@@ -1016,6 +1096,11 @@ class SimulationEngine:
             if callable(validate_window):
                 validate_window(demand_data.copy(deep=True), n_periods)
         demand_fn = self._resolve_demand_source(demand_data)
+        self._active_supply = copy.deepcopy(supply)
+        if self._active_supply is not None:
+            self._active_supply._prepare(
+                inventory.data[inventory.sku_column].tolist(), n_periods,
+            )
         self._active_order_constraints = copy.deepcopy(order_constraints)
         if self._active_order_constraints is not None:
             self._active_order_constraints.reset(ConstraintContext(
@@ -1036,7 +1121,7 @@ class SimulationEngine:
             f"[SimEngine] Starting: {n_periods} periods, "
             f"policy={policy.policy_name}, {n_skus} SKUs"
         )
-        inventory, history, event_frame = self._simulate_periods(
+        inventory, history, event_frame, placements = self._simulate_periods(
             inventory=inventory,
             demand_data=demand_data,
             demand_fn=demand_fn,
@@ -1068,6 +1153,8 @@ class SimulationEngine:
             'order_constraints': copy.deepcopy(constraint_manifest),
             'callbacks': copy.deepcopy(callback_manifest),
         }
+        if supply_manifest is not None:
+            run_settings['supply'] = copy.deepcopy(supply_manifest)
         run_manifest = self._build_run_manifest(
             demand_data=demand_data,
             demand_source_name=demand_source_name.strip(),
@@ -1088,6 +1175,14 @@ class SimulationEngine:
             run_settings=run_settings,
             run_manifest=run_manifest,
             callback_audit=pd.DataFrame(self._callback_audit_rows),
+            order_frame=self._order_frame(
+                inventory,
+                opening_book=opening_book,
+                placements=placements,
+                opening_period=opening_period,
+                opening_date=opening_date,
+                period_offset=period_offset,
+            ),
         )
 
         if self.verbose >= 1:
@@ -1134,7 +1229,8 @@ class SimulationEngine:
         policy_schedule: Mapping[int, BasePolicy],
         update_log: list,
     ) -> tuple:
-        """Execute every period; return final state, history and event ledger.
+        """Execute every period; return final state, history, event ledger
+        and the order-level deliveries placed at each decision.
 
         Live state is held as NumPy arrays (``ArrayState``). Policies,
         constraints and callbacks receive DataFrame-backed states built at
@@ -1181,7 +1277,7 @@ class SimulationEngine:
 
         final = run.frame(current, run.log.history_view(n_periods))
         final._history = run.log.history_view(n_periods)
-        return final, run.log.history(), run.log.event_frame()
+        return final, run.log.history(), run.log.event_frame(), run.placements
 
     def _log_period_detail(self, state) -> None:
         if isinstance(state, ArrayState):
@@ -1661,6 +1757,94 @@ class SimulationEngine:
         self._captured_order_audits = []
         self._captured_callback_order_audits = []
 
+    def _place_with_supply(self, inventory, orders, policy, demand_period):
+        """Split one accepted order across suppliers and place the deliveries.
+
+        The order is validated exactly as ``update_inventory_with_orders``
+        validates it. Per SKU, ``latest_order`` receives the accepted quantity;
+        the supplier lines only decide where and when it arrives.
+        """
+        from stockcast.core.data_structures import OrderLines
+        from stockcast.utils.inventory_operations import (
+            _apply_orders,
+            _state_order_lines,
+            _validate_order_decision,
+        )
+
+        supply = self._active_supply
+        allow_backorders, _ = _validate_order_decision(inventory, orders, policy)
+        sku_column = inventory.sku_column
+        order_frame = orders.get_dataframe()
+        positive = order_frame.loc[
+            order_frame['order_quantity'] > 0, [orders.sku_column, 'order_quantity']
+        ].rename(columns={orders.sku_column: sku_column}).reset_index(drop=True)
+        current_period = int(inventory.data['period'].iloc[0])
+        if len(positive):
+            context = AllocationContext(
+                inventory=inventory.get_dataframe(),
+                open_orders=inventory.open_orders(),
+                sku_column=sku_column,
+                period=current_period,
+                date=pd.Timestamp(inventory.data['date'].iloc[0]),
+                suppliers=supply.supplier_ids,
+            )
+            allocated = supply._allocate(positive, context)
+            deliveries = supply._deliveries(
+                allocated,
+                sku_column=sku_column,
+                demand_period=demand_period,
+                order_period=current_period,
+            )
+            for sku, quantity in allocated[[sku_column, 'order_quantity']].itertuples(
+                index=False, name=None
+            ):
+                self._captured_sku_order_line_counts[sku] = (
+                    self._captured_sku_order_line_counts.get(sku, 0) + 1
+                )
+                self._captured_order_line_quantity_squared_sums[sku] = (
+                    self._captured_order_line_quantity_squared_sums.get(sku, 0.0)
+                    + float(quantity) ** 2
+                )
+        else:
+            deliveries = pd.DataFrame({
+                sku_column: pd.Series(dtype=object),
+                'supplier_id': pd.Series(dtype=object),
+                'order_quantity': pd.Series(dtype=float),
+                'order_period': pd.Series(dtype='int64'),
+                'due_period': pd.Series(dtype='int64'),
+                'order_line': pd.Series(dtype='int64'),
+            })
+        lines = _state_order_lines(inventory, OrderLines(deliveries, sku_column=sku_column))
+        return _apply_orders(
+            inventory, orders, allow_backorders,
+            lines=lines[lines['order_quantity'] > 0],
+        )
+
+    @staticmethod
+    def _order_frame(final, *, opening_book, placements, opening_period, opening_date,
+                     period_offset) -> pd.DataFrame:
+        """Order-level ledger of a run; the final book must match the pipeline."""
+        final_period = int(final.data['period'].iloc[0])
+        book = final._open_orders
+        if book is not None:
+            mismatch = pipeline_mismatch(
+                book,
+                pd.Index(final.data[final.sku_column].tolist(), dtype=object),
+                final_period,
+                final.max_lead_time,
+                final._stacked_pipelines(),
+            )
+            if mismatch:
+                raise AssertionError(f"final open-order book is inconsistent: {mismatch}")
+        deliveries = _Deliveries.concat_all([opening_book.open, *placements])
+        return build_order_frame(
+            deliveries,
+            final_period=final_period,
+            opening_period=opening_period,
+            opening_date=opening_date,
+            period_offset=period_offset,
+        )
+
     def _tracked_inventory_update(self, inventory, orders, policy=None):
         """Execute one order decision and retain its direct event counts."""
         orders = self._constrain_and_count(inventory, orders, policy=policy)
@@ -1688,6 +1872,10 @@ class SimulationEngine:
         positive = order_frame['order_quantity'].fillna(0.0) > 0
         if positive.any():
             self._captured_order_event_count += 1
+            if getattr(self, "_active_supply", None) is not None:
+                # Supplier order lines are counted when the supply stage
+                # places them (``_place_with_supply``).
+                return orders
             sku_column = orders.sku_column
             positive_lines = order_frame.loc[
                 positive,
@@ -2192,6 +2380,7 @@ class SimulationEngine:
         policy_schedules: Optional[List[Optional[Mapping[int, BasePolicy]]]] = None,
         order_constraints: Optional[OrderingConstraints] = None,
         callbacks: Optional[Sequence[SimulationCallback]] = None,
+        supply: Optional[SupplyModel] = None,
     ) -> 'ComparisonResult':
         """
         Run simulation for multiple policies and compare results.
@@ -2219,6 +2408,8 @@ class SimulationEngine:
             order_constraints: Optional constraints applied identically to each policy.
             callbacks: Optional ordered callback objects, reset before each
                 comparison branch. Their final state reflects the last branch.
+            supply: Optional ``SupplyModel`` applied identically to each
+                policy; every branch sees the same random lead-time draws.
 
         Returns:
             ComparisonResult with all SimulationResults accessible by label.
@@ -2237,7 +2428,7 @@ class SimulationEngine:
             policy_schedules=policy_schedules,
             order_constraints=order_constraints,
             callbacks=callbacks,
-            branch_run_options={},
+            branch_run_options={"supply": supply},
         )
 
     def _run_comparison(

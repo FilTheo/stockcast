@@ -31,7 +31,12 @@ all flow identities from [20.8](20_data_and_time_contracts.md#208-balance-equati
 - explicit run settings;
 - the run manifest.
 - a normalized callback-audit frame exposed through
-  `to_callback_audit_frame()`.
+  `to_callback_audit_frame()`;
+- an order-level frame, `to_order_frame()` (`ORDER_FRAME_COLUMNS`): one row
+  per scheduled delivery of the opening pipeline and of every placed order,
+  with supplier, dates, realized lead time and status. Received rows sum to
+  `received_units` per SKU-period and open rows to the final `on_order_end`
+  ([97](97_open_orders_and_suppliers.md)). Built-in metrics do not use it.
 
 `to_event_frame(window=...)` filters the ledger. Summary behavior uses scoring
 events and exact event-based metrics. Consumers should persist both events and

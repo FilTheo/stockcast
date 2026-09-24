@@ -68,3 +68,4 @@ inputs with zero, or treat absent provenance as acceptable.
 - [94 — Decision timing research](94_decision_timing_research.md): primary-source assessment.
 - [95 — Timing implementation and migration](95_decision_timing_implementation.md): owner-approved pre-release change.
 - [96 — Public engine documentation sources](96_engine_documentation_sources.md): verified paper sections and attribution limits.
+- [97 — Open orders and suppliers](97_open_orders_and_suppliers.md): additive order-level pipeline, `SupplyModel`, and exact mapping to the per-SKU API.

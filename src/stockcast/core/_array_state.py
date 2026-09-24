@@ -226,12 +226,12 @@ class ArrayState:
     __slots__ = (
         "schema", "on_hand", "backorders", "latest", "target", "pipeline",
         "period", "date", "is_review", "has_stockout", "has_backorder",
-        "source", "_on_order",
+        "source", "_on_order", "book",
     )
 
     def __init__(self, *, schema, on_hand, backorders, latest, target, pipeline,
                  period, date, is_review, has_stockout=False, has_backorder=False,
-                 source=None):
+                 source=None, book=None):
         self.schema = schema
         self.on_hand = on_hand
         self.backorders = backorders
@@ -247,6 +247,8 @@ class ArrayState:
         # original for the reference path and for event rows.
         self.source = source
         self._on_order = None
+        # Open-order book kept in lockstep with ``pipeline`` (or None).
+        self.book = book
 
     # ---- construction from DataFrame state ---------------------------------
 
@@ -345,6 +347,7 @@ class ArrayState:
             has_stockout=inventory.has_stockout,
             has_backorder=inventory.has_backorder,
             source=inventory if opening else None,
+            book=inventory._open_orders,
         )
 
     # ---- transitions ---------------------------------------------------------
@@ -387,6 +390,7 @@ class ArrayState:
         latest["latest_received"] = received
         latest["latest_backorders_fulfilled"] = cleared
         date = self.date + offset
+        period = self.period + self.schema.period_dtype.type(1)
         return ArrayState(
             schema=self.schema.with_date_dtype(_assigned_date_dtype(date)),
             on_hand=on_hand,
@@ -394,9 +398,10 @@ class ArrayState:
             latest=latest,
             target=self.target,
             pipeline=pipeline,
-            period=self.period + self.schema.period_dtype.type(1),
+            period=period,
             date=date,
             is_review=is_review,
+            book=None if self.book is None else self.book.advanced(int(period)),
         )
 
     def fulfilled(self, demand: np.ndarray, *, allow_backorders: bool) -> "ArrayState":
@@ -421,6 +426,7 @@ class ArrayState:
             is_review=self.is_review,
             has_stockout=bool((shortage > 0).any()),
             has_backorder=bool((backorders > 0).any()),
+            book=self.book,
         )
 
     def inventory_positions(self) -> dict:
@@ -506,6 +512,19 @@ class ArrayState:
         else:
             pipeline = pipeline.copy()
             pipeline[:, lead_time - 1] += aligned
+        book = self.book
+        if book is not None and positive.any():
+            placed = quantity[positive]
+            order_period = int(self.period)
+            book = book.placed_lines(
+                sku=ids[positive].tolist(),
+                supplier=[None] * len(placed),
+                order_period=order_period,
+                ordered=placed,
+                due=np.full(len(placed), order_period + lead_time),
+                quantity=placed,
+                line=np.arange(len(placed)),
+            )
         return ArrayState(
             schema=schema.after_order(),
             on_hand=on_hand,
@@ -516,6 +535,7 @@ class ArrayState:
             period=self.period,
             date=self.date,
             is_review=self.is_review,
+            book=book,
         )
 
     def with_on_hand(self, on_hand: np.ndarray) -> "ArrayState":
@@ -532,6 +552,7 @@ class ArrayState:
             has_stockout=self.has_stockout,
             has_backorder=self.has_backorder,
             source=self.source,
+            book=self.book,
         )
 
     def on_order(self) -> np.ndarray:
@@ -586,6 +607,7 @@ class ArrayState:
             state = copy.deepcopy(self.source)
             state.data["on_hand"] = self.on_hand.copy()
             state._history = history
+            state._open_orders = self.book
             return state
         return InventoryStateDataFrame._from_trusted(
             self.frame(),
@@ -596,6 +618,7 @@ class ArrayState:
             start_date=self.date,
             has_stockout=self.has_stockout,
             has_backorder=self.has_backorder,
+            open_orders=self.book,
         )
 
     def map_by_sku(self, mapping: Mapping, fill: float) -> np.ndarray:
