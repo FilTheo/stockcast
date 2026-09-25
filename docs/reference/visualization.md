@@ -1,10 +1,15 @@
-# Visualization API
+# Plots
 
-The plotting functions return Matplotlib axes or axis arrays and do not call
-`show()`. They present event-based results; plots are useful explanations, but
-the validated event frame remains the accounting evidence.
+Ready-made Matplotlib views of runs and comparisons. Guide: [Plots](../user-guide/visualization.md).
 
-::: stockcast.visualization
-    options:
-      show_root_heading: false
-      members: true
+::: stockcast.visualization.plot_inventory
+
+::: stockcast.visualization.plot_demand_vs_orders
+
+::: stockcast.visualization.plot_simulation_dashboard
+
+::: stockcast.visualization.plot_comparison
+
+::: stockcast.visualization.plot_summary_comparison
+
+::: stockcast.visualization.plot_comparison_dashboard

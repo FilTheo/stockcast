@@ -1,12 +1,11 @@
-# Utilities API
+# Utilities
 
-`DemandGenerator` creates declared synthetic demand paths with explicit
-frequency and reproducibility settings. `process_demand` and
-`update_inventory_with_orders` are the public primitives for a caller-owned
-loop; use the engine when you need canonical run outputs and lifecycle
-orchestration.
+Demand generation and the primitives for a caller-owned loop. Guides: [Demand and calendars](../user-guide/demand.md), [Run your own simulation loop](../how-to/manual-loop.md).
 
-::: stockcast.utils
-    options:
-      show_root_heading: false
-      members: true
+::: stockcast.utils.DemandGenerator
+
+::: stockcast.utils.update_inventory_with_orders
+
+::: stockcast.utils.place_order_lines
+
+::: stockcast.utils.process_demand

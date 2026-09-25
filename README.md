@@ -6,10 +6,12 @@
 
 > A modular Python library for inventory decisions based on forecast-derived inputs.
 
-Stockcast is for researchers and practitioners who have forecast-derived inputs
-and need to turn them into clear replenishment decisions. It lets you simulate
-the consequences of those decisions and compare forecasts and policies through
-operational outcomes.
+Stockcast is for **researchers** who want to measure forecasts and policies by
+the decisions they lead to, and for **engineers** who put those decisions into
+production. It turns forecast-derived inputs into clear replenishment
+decisions, lets you simulate and compare their consequences, and then computes
+real orders every day with the same objects, so the daily job behaves exactly
+like its backtest.
 
 Stockcast does not replace a forecasting library. It provides the inventory
 decision and evaluation layer that follows a forecasting workflow.
@@ -21,11 +23,19 @@ or approval step. The calling application remains responsible for producing
 forecasts and applying approved orders.
 
 ```text
-forecasting code
-    -> forecast-derived target
-    -> Stockcast policy and order decision
-    -> inventory simulation and event records
-    -> evaluation results for the calling workflow
+Research pipeline (backtest and compare)
+    forecasting code
+        -> forecast-derived target
+        -> Stockcast policy and order decision
+        -> inventory simulation and event records
+        -> evaluation results for the calling workflow
+
+Production pipeline (every day)
+    incoming sales and deliveries
+        -> updated inventory state
+        -> refreshed forecast and targets
+        -> Stockcast policy, constraints and suppliers
+        -> orders to approve and send
 ```
 
 The [weekly forecast-to-order tutorial](examples/notebooks/04_forecast_to_inventory_integration.ipynb)
@@ -72,7 +82,8 @@ You can use the built-in components or extend the workflow:
   processes (for example inspection discards or returns) that stay in the
   audited stock balance;
 - optionally order from several suppliers with their own fixed or random lead
-  times and partial deliveries, and track every open order; and
+  times and partial deliveries, model deliveries that arrive late or short,
+  and track every open order; and
 - evaluate the same demand path under different forecast, policy, and
   inventory assumptions.
 
@@ -178,7 +189,14 @@ shelf-life scenarios, physical inventory processes, and typed callbacks.
 
 ## Documentation and support
 
-The public documentation is maintained in the
+The documentation website is at
+[filtheo.github.io/stockcast](https://filtheo.github.io/stockcast/): our
+[philosophy](https://filtheo.github.io/stockcast/get-started/philosophy/)
+(why Stockcast is built the way it is, and the literature behind it), a
+Quickstart, a nine-step *Learn the basics* series (ending with a production
+daily job), a Guide with the
+theory behind each building block and task recipes, the notebooks as
+Examples, and the API reference. Its sources are in the
 [documentation directory](https://github.com/FilTheo/stockcast/tree/main/docs).
 Use the [repository](https://github.com/FilTheo/stockcast) for source code and
 [GitHub Issues](https://github.com/FilTheo/stockcast/issues) for bug reports and
@@ -216,4 +234,4 @@ Stockcast is licensed under the [Apache License 2.0](https://github.com/FilTheo/
 
 The pre-release engine now decides before demand and supports zero lead time,
 separate decision schedules, and single-season targets. See the
-[timing migration guide](docs/concepts/decision-schedules.md).
+[timing upgrade guide](docs/how-to/timing-migration.md).

@@ -1,76 +1,157 @@
-# Data and output schemas
+# Output tables
 
-## Input conventions
+The tables a run produces, column by column. For 0.1.x, the listed columns
+keep their names and meanings; new columns may be added.
 
-The standard demand columns are `unique_id`, `period`, `date`, and `y`.
-Policies and state constructors document their specific required columns in the
-[generated API reference](index.md). The same SKU identifier type must be used
-throughout a scenario.
+## Demand input
 
-## Canonical event ledger
+| Column | Type | Meaning |
+|---|---|---|
+| `unique_id` | hashable | SKU identifier (the state's `sku_column`) |
+| `period` | int | demand period, `0 … n_periods − 1` |
+| `date` | timestamp | opening date $+ (\text{period} + 1)\,\Delta$ |
+| `y` | float $\ge 0$ | units demanded |
 
-`CANONICAL_EVENT_COLUMNS` fixes all listed column names and meanings for 0.1.x.
-New columns may be added; these columns are not silently removed, renamed, or
-repurposed.
+## Event ledger
 
-| Group | Columns |
+`SimulationResult.to_event_frame()`. One row per SKU and period. The required
+columns are listed in `stockcast.evaluation.CANONICAL_EVENT_COLUMNS`.
+
+### Identity and timing
+
+| Column | Meaning |
 |---|---|
-| Identity and timing | `unique_id`, `event_type`, `demand_period`, `period`, `date`, `policy`, `run_window` |
-| Run flags | `allow_backorders`, `is_review_period`, `decision_flag`, `stockout_flag`, `backorder_flag` |
-| Starting state | `starting_on_hand`, `starting_backorders`, `starting_on_order` |
-| Demand and stock flow | `received_units`, `demand`, `fulfilled_units`, `backorders_fulfilled`, `shortage_units`, `lost_sales_units`, `backorder_increment`, `expired_units`, `inventory_adjustment_units`, `ending_on_hand`, `backorders_end`, `on_order_end`, `inventory_position_end` |
-| Decision and target | `order_quantity`, `order_event_count`, `sku_order_line_count`, `order_line_quantity_squared_sum`, `target_level`, `safety_stock` |
-| Callback evidence | `requested_order_quantity`, `callback_adjustment_units`, `callback_adjusted_order_quantity` |
-| Constraint evidence | `constrained_order_quantity`, `constraint_adjustment_units`, `constraint_binding_flag`, `capacity_violation_flag`, `binding_constraints` |
+| `unique_id` | SKU |
+| `event_type` | `"period"` for runs of this engine (`"initial_decision"` is recognised in older ledgers) |
+| `demand_period` | zero-based demand period, matching the demand table |
+| `period` | state period (opening period + demand period + 1) |
+| `date` | the period's date |
+| `policy` | the policy's name |
+| `run_window` | `"warmup"`, `"scoring"`, or `"settlement"` |
 
-Runs whose [inventory processes](../guides/physical-processes.md) declare
-general (non-expiry) flows add two optional columns, `process_inflow_units`
-and `process_outflow_units`. They appear together, are nonnegative, and enter
-the physical-inventory balance checked by `validate_event_frame`. Expiry
-processes add into `expired_units`.
+### Flags
 
-`event_type` is either `period` or `initial_decision`. A period event has a
-non-negative `demand_period`; the time-zero initial-decision event has no demand
-period. `run_window` is `warmup`, `scoring`, or `settlement`.
+| Column | Meaning |
+|---|---|
+| `allow_backorders` | shortage rule of the run |
+| `is_review_period` | whether the schedule allowed a decision this period |
+| `decision_flag` | whether a decision was made |
+| `stockout_flag` | `shortage_units > 0` |
+| `backorder_flag` | `backorders_end > 0` |
 
-## Callback audit frame
+### Stock flows
 
-`CALLBACK_AUDIT_COLUMNS` defines the stable callback-audit columns:
-`callback_position`, `callback_module`, `callback_class`, `phase`, `period`,
-`date`, `run_window`, `initial_decision`, `unique_id`, `before_value`,
-`after_value`, `quantity_delta`, `order_quantity`, `reason`, `source`,
-`received_date`, and `lot_evidence`.
+| Column | Meaning |
+|---|---|
+| `starting_on_hand`, `starting_backorders`, `starting_on_order` | state at the start of the period |
+| `received_units` | units received this period (pipeline and zero-lead-time) |
+| `demand` | units demanded |
+| `fulfilled_units` | this period's demand served from stock |
+| `backorders_fulfilled` | older backorders served from this period's receipts |
+| `shortage_units` | demand not served this period |
+| `lost_sales_units` | shortage that left (lost-sales mode) |
+| `backorder_increment` | shortage added to backorders (backorder mode) |
+| `expired_units` | stock removed by expiry |
+| `inventory_adjustment_units` | signed stock change from `on_after_demand` callbacks |
+| `ending_on_hand`, `backorders_end`, `on_order_end` | state at the end of the period |
+| `inventory_position_end` | `ending_on_hand + on_order_end - backorders_end` |
+
+### Decision
+
+| Column | Meaning |
+|---|---|
+| `order_quantity` | accepted order quantity |
+| `order_event_count` | 1 on one row of a period in which any positive order was placed, else 0 (so sums count decisions) |
+| `sku_order_line_count` | positive order lines for this SKU (supplier lines with a supply model) |
+| `order_line_quantity_squared_sum` | sum of squared line quantities (for order-size variance) |
+| `target_level`, `safety_stock` | policy diagnostics, when the policy provides them |
+| `decision_inventory_position` | inventory position the policy saw before demand; missing without a decision |
+
+### Order trail
+
+| Column | Meaning |
+|---|---|
+| `requested_order_quantity` | what the policy proposed |
+| `callback_adjustment_units` | change made by order callbacks |
+| `callback_adjusted_order_quantity` | after callbacks |
+| `constraint_adjustment_units` | change made by ordering constraints |
+| `constrained_order_quantity` | after constraints (equals `order_quantity`) |
+| `constraint_binding_flag` | whether any constraint changed the order |
+| `capacity_violation_flag` | whether a capacity constraint cut the order |
+| `binding_constraints` | names of the constraints that changed the order, joined by `|` |
+
+### Optional columns
+
+| Column(s) | Present when | Enters |
+|---|---|---|
+| `process_inflow_units`, `process_outflow_units` | a process declares general (non-expiry) flows | on-hand balance |
+| `supplier_shortfall_units` | a supplier has a `DeliveryOutcome` | pipeline balance: units due that will never arrive |
+
+`validate_event_frame` checks all balance identities, including these columns
+when present. See [Stock accounting](../user-guide/concepts/accounting.md).
 
 ## Order frame
 
-`SimulationResult.to_order_frame()` returns one row per scheduled delivery of
-the opening pipeline and of every order placed in a run. `ORDER_FRAME_COLUMNS`
-lists the columns: `order_id`, `unique_id`, `supplier_id`, `source`,
-`order_period`, `order_date`, `due_period`, `due_date`, `lead_time`,
-`ordered_quantity`, `delivery_quantity`, and `status`. Received deliveries add
-up to `received_units` per SKU and period; open ones add up to the final
-`on_order_end`. See [open orders and suppliers](../guides/suppliers-and-open-orders.md).
+`SimulationResult.to_order_frame()`. One row per scheduled delivery.
+`stockcast.core.ORDER_FRAME_COLUMNS`:
 
-## Process flow frame
+| Column | Meaning |
+|---|---|
+| `order_id` | order line; deliveries of one line share it |
+| `unique_id`, `supplier_id` | SKU and supplier (`None` when unknown) |
+| `source` | `"opening"` or `"placed"` |
+| `order_period`, `order_date` | when the line was ordered (missing for opening orders without one) |
+| `due_period`, `due_date` | when this delivery is received, before that period's demand |
+| `lead_time` | realised `due_period - order_period` |
+| `ordered_quantity` | quantity of the whole order line |
+| `delivery_quantity` | quantity of this delivery |
+| `status` | `"received"`, `"open"`, or (with delivery outcomes) `"disrupted"` |
 
-`SimulationResult.to_process_flow_frame()` returns one row per nonzero process
-flow, SKU and period. `PROCESS_FLOW_COLUMNS` lists the columns: `unique_id`,
-`period`, `date`, `demand_period`, `run_window`, `process`, `flow`,
-`direction`, `category`, `phase`, and `quantity`. Expiry rows add up to
-`expired_units`; general inflows and outflows add up to `process_inflow_units`
-and `process_outflow_units`. The frame is empty for a run without processes.
+Runs with a `DeliveryOutcome` add `scheduled_due_period`,
+`received_quantity`, `delayed_quantity`, and `undelivered_quantity`. Received
+deliveries add up to `received_units` per SKU and period; open ones to the
+final `on_order_end`.
+
+## Callback audit
+
+`SimulationResult.to_callback_audit_frame()`. One row per accepted callback
+effect. `stockcast.core.CALLBACK_AUDIT_COLUMNS`:
+
+| Column | Meaning |
+|---|---|
+| `callback_position`, `callback_module`, `callback_class` | which callback |
+| `phase` | `"on_after_prediction"` or `"on_after_demand"` |
+| `period`, `date`, `run_window`, `initial_decision` | when |
+| `unique_id` | SKU |
+| `before_value`, `after_value`, `quantity_delta` | the order quantity (prediction phase) or on-hand stock (demand phase) before and after |
+| `order_quantity` | the resulting order quantity (prediction phase) |
+| `reason`, `source` | the explanation supplied by the callback |
+| `received_date`, `lot_evidence` | lot information for stock added under shelf life |
+
+## Process flows
+
+`SimulationResult.to_process_flow_frame()`. One row per non-zero flow, SKU,
+and period. `stockcast.core.PROCESS_FLOW_COLUMNS`: `unique_id`, `period`,
+`date`, `demand_period`, `run_window`, `process`, `flow`, `direction`
+(`inflow`/`outflow`), `category` (`general`/`expiry`), `phase`, `quantity`.
+Expiry rows add up to `expired_units`; general flows to
+`process_inflow_units` and `process_outflow_units`.
 
 ## Run manifest
 
-`run_manifest` has stable top-level sections: `run_id`, `created_at_utc`,
-`demand_source`, `package`, `policy`, `opening_inventory`, `run_settings`, and
-`dependencies`. Nested descriptive values may grow in a patch release. A source
-commit may be unavailable in an installed artifact; missing provenance should
-be interpreted honestly rather than filled in. A run with `supply=` adds
-`run_settings["supply"]`; declared opening orders add
-`opening_inventory["open_orders"]`. A run with `processes=` adds
-`run_settings["processes"]`. Runs without them are unchanged.
+`SimulationResult.run_manifest`. A JSON-friendly dict whose top-level sections
+are listed in `stockcast.core.RUN_MANIFEST_REQUIRED_SECTIONS`:
 
-New-engine period events additionally include `decision_inventory_position`, the
-pre-demand inventory position presented to the policy, or missing when no
-decision occurred. Existing canonical accounting fields retain their meanings.
+| Section | Contents |
+|---|---|
+| `run_id`, `created_at_utc` | unique id and creation time |
+| `demand_source` | name, type, SHA-256 fingerprint, row count, seed, generator settings |
+| `package` | Stockcast version and, when available, the source commit |
+| `policy` | class, configuration, schedule, target metadata, target fingerprint |
+| `opening_inventory` | fingerprint of the opening state; open orders when declared |
+| `run_settings` | frequency, windows, timing convention, schedule, policy updates, constraints, callbacks; `supply` and `processes` when used |
+| `dependencies` | Python, NumPy, pandas, and Matplotlib versions |
+
+Nested fields may grow in later releases. Provenance that is not available
+(for example a source commit in an installed wheel) is left empty rather than
+guessed.

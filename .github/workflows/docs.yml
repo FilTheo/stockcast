@@ -1,10 +1,16 @@
 name: Documentation
 
+# Pull requests: run every docs example and build the site strictly.
+# Pushes to main: the same checks, then publish the site to GitHub Pages
+# straight from main (Pages source: "GitHub Actions"; no gh-pages branch).
+
 on:
   pull_request:
     paths:
       - "docs/**"
+      - "examples/notebooks/**"
       - "src/stockcast/**"
+      - "tests/docs/**"
       - "mkdocs.yml"
       - "pyproject.toml"
       - "requirements-docs.txt"
@@ -12,10 +18,13 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+      - "examples/notebooks/**"
       - "src/stockcast/**"
+      - "tests/docs/**"
       - "mkdocs.yml"
       - "pyproject.toml"
       - "requirements-docs.txt"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,19 +40,22 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e . -r requirements-docs.txt
-      - run: mkdocs build --strict
+      - run: python -m pip install -e . -r requirements-docs.txt pytest
+      - name: Run every code example in the docs
+        run: python -m pytest -p no:cacheprovider -q -o addopts='' tests/docs
+      - name: Build the site (strict)
+        run: mkdocs build --strict
       - uses: actions/configure-pages@v5
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
       - uses: actions/upload-pages-artifact@v4
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         with:
           path: site
 
   deploy:
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:

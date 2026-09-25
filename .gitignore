@@ -27,3 +27,4 @@ knowledge/*
 /tutorials/
 .venv/
 site/
+.cache/

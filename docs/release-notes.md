@@ -14,7 +14,7 @@ a later release line and an explicit migration note.
 
 Decisions now precede demand, lead time may be zero, and decision schedules are
 separate from policy rules. This is an explicitly approved numerical behavior
-change. See [migration details](concepts/decision-schedules.md). Older release
+change. See [migration details](how-to/timing-migration.md). Older release
 audits do not establish readiness of the migrated engine.
 
 ## Pre-release fixes (2026-09-24)
@@ -63,7 +63,7 @@ unchanged.
 - `SimulationResult.to_order_frame()` lists every scheduled delivery
   (`ORDER_FRAME_COLUMNS`).
 
-See [open orders and suppliers](guides/suppliers-and-open-orders.md) and
+See [suppliers and open orders](user-guide/suppliers.md) and
 Notebook 05d.
 
 ## Inventory processes (2026-09-24, additive)
@@ -87,4 +87,41 @@ run settings and manifest as before.
 - `SimulationResult.to_process_flow_frame()` lists every flow
   (`PROCESS_FLOW_COLUMNS`); `run_settings["processes"]` records each process.
 
-See [physical processes](guides/physical-processes.md) and Notebook 05e.
+See [shelf life and inventory processes](user-guide/processes.md) and Notebook 05e.
+
+## Supplier delivery outcomes (2026-09-25, additive)
+
+Backward-compatible addition. Runs without a delivery outcome produce the same
+event ledger, history, final state, callback audit, order frame, run settings
+and manifest as before.
+
+- `Supplier(..., delivery=DeliveryOutcome)` decides, when a supplier's
+  delivery falls due, how much arrives now, how much is delayed and how much
+  never arrives. Subclass `DeliveryOutcome` and implement `resolve(due,
+  context)`; `DeliveryContext` carries a copy of the state, the date and a
+  seeded generator. The base class lets everything arrive, which reproduces
+  the run without an outcome.
+- Ledgers from such runs gain `supplier_shortfall_units`, which leaves the
+  pipeline balance in the engine and in `validate_event_frame`. Their order
+  frames gain `scheduled_due_period`, `received_quantity`,
+  `delayed_quantity` and `undelivered_quantity`, and the status `disrupted`.
+- `AllocationContext.decision` passes the policy's accepted order decision to
+  supplier allocations, so an allocation can follow a supplier the policy
+  chose.
+- A `UserWarning` is issued once per run when deliveries arrive at a time
+  other than the policy's `lead_time` (different, random or partial supplier
+  lead times, or delays). Results are unchanged; the policy's target keeps its
+  fixed-lead-time window.
+
+See [unreliable deliveries](user-guide/unreliable-deliveries.md) and
+Notebook 05f.
+
+## Documentation (2026-09-25)
+
+A new documentation site: Quickstart, a nine-step *Learn the basics*
+series (from the first state to a production daily job), a Guide with the theory behind every building block, recipes, and design
+decision essays, the notebooks rendered as Examples, and a
+per-object API reference generated from expanded docstrings. Every Python
+example in the docs is executed by `tests/docs`, and the site is published from
+`main` with GitHub Actions. Docstring changes are text only; behaviour is
+unchanged.

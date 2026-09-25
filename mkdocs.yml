@@ -1,86 +1,256 @@
 site_name: Stockcast
 site_url: https://filtheo.github.io/stockcast/
-site_description: DataFrame-first inventory decisions, simulation, and evaluation.
+site_description: Turn forecasts into inventory decisions you can simulate, inspect, and evaluate.
+site_author: Filotas Theodosiou
 repo_url: https://github.com/FilTheo/stockcast
 repo_name: FilTheo/stockcast
 edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 Stockcast contributors. Apache-2.0 license.
 
 theme:
   name: material
   language: en
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  icon:
+    repo: fontawesome/brands/github
   features:
+    - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
+    - navigation.indexes
     - navigation.top
+    - navigation.footer
+    - navigation.path
+    - toc.follow
+    - search.suggest
+    - search.highlight
     - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.tooltips
     - content.action.edit
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: indigo
       accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: indigo
       accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/FilTheo/stockcast
+
+extra_css:
+  - stylesheets/extra.css
+  - https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css
+
+extra_javascript:
+  - javascripts/katex.js
+  - https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js
+  - https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js
+
+# The notebooks live in examples/notebooks and are linked into docs/ as
+# docs/notebooks. Their data folder is not part of the site.
+exclude_docs: |
+  notebooks/data/
+  notebooks/README.md
+  includes/
+  scripts/
+
+not_in_nav: |
+  notebooks/*.ipynb
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
 
 markdown_extensions:
+  - abbr
   - admonition
   - attr_list
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.tabbed:
-      alternate_style: true
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
   - toc:
       permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: [docs/includes]
+      auto_append: [abbreviations.md]
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
 
 plugins:
   - search
+  - mkdocs-jupyter:
+      include: ["notebooks/*.ipynb"]
+      # Only the notebooks are notebooks: skip reading every page with jupytext.
+      ignore: ["*.md", "*.py"]
+      execute: false
+      include_source: true
+      ignore_h1_titles: true
+      include_requirejs: true
   - mkdocstrings:
       handlers:
         python:
           paths: [src]
           options:
             docstring_style: google
+            docstring_options:
+              ignore_init_summary: true
+              warn_missing_types: false
+            docstring_section_style: table
             show_source: false
             show_root_heading: true
             show_root_full_path: false
             show_object_full_path: false
+            show_root_members_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
             heading_level: 2
             members_order: source
+            merge_init_into_class: true
             show_signature_annotations: true
             separate_signature: true
-            show_symbol_type_heading: true
+            signature_crossrefs: true
+            filters: ["!^_"]
+            show_if_no_docstring: false
 
 nav:
   - Home: index.md
-  - Getting started:
-      - Installation: installation.md
-      - First simulation: tutorials/first-simulation.md
-      - Notebook collection: tutorials/notebooks.md
-  - Concepts:
-      - System model and timing: concepts/system-model.md
-      - Engine design and scientific basis: concepts/engine-design.md
-      - Decision schedules and migration: concepts/decision-schedules.md
-      - Inputs and time: concepts/input-and-time.md
-      - Forecast targets: concepts/forecast-targets.md
-      - Events, results, and evaluation: concepts/events-and-evaluation.md
-  - Guides:
-      - Forecast integration with smooth: guides/forecast-integration.md
-      - Compare scenarios fairly: guides/compare-scenarios.md
-      - Custom policies and target providers: guides/custom-policies.md
-      - Constraints, shelf life, and callbacks: guides/extensions.md
-      - Physical processes: guides/physical-processes.md
-      - Open orders and suppliers: guides/suppliers-and-open-orders.md
-      - Production integration patterns: guides/production-integration.md
-  - Reference:
-      - API overview: reference/index.md
-      - Core: reference/core.md
+  - Get started:
+      - get-started/index.md
+      - Installation: get-started/installation.md
+      - Quickstart: get-started/quickstart.md
+      - Learn the basics:
+          - learn/index.md
+          - 1. Inventory state: learn/01-inventory-state.md
+          - 2. Demand and time: learn/02-demand-and-time.md
+          - 3. Forecast targets: learn/03-forecast-targets.md
+          - 4. Policies: learn/04-policies.md
+          - 5. The engine: learn/05-engine.md
+          - 6. The event ledger: learn/06-event-ledger.md
+          - 7. Evaluate a run: learn/07-evaluate.md
+          - 8. Compare scenarios: learn/08-compare.md
+          - 9. From backtest to production: learn/09-production.md
+      - Philosophy:
+          - get-started/philosophy.md
+          - Decisions happen before demand: user-guide/design/decide-before-demand.md
+          - Targets cover a whole window: user-guide/design/cumulative-targets.md
+          - Every input is explicit: user-guide/design/explicit-inputs.md
+          - The engine owns the stock: user-guide/design/engine-owns-state.md
+          - The ledger is the record: user-guide/design/ledger.md
+          - Small parts you combine: user-guide/design/composition.md
+  - Guide:
+      - user-guide/index.md
+      - Core ideas:
+          - How Stockcast fits together: user-guide/concepts/architecture.md
+          - Notation and glossary: user-guide/concepts/notation.md
+          - "Timing: receive, decide, demand": user-guide/concepts/timing.md
+          - Stock accounting: user-guide/concepts/accounting.md
+      - Building blocks:
+          - Inventory state: user-guide/inventory-state.md
+          - Demand and calendars: user-guide/demand.md
+          - Decision schedules: user-guide/decision-schedules.md
+          - Forecast targets: user-guide/forecast-targets.md
+          - Policies:
+              - user-guide/policies/index.md
+              - Order-up-to (R, S): user-guide/policies/order-up-to.md
+              - Reorder point (s, Q) and (s, S): user-guide/policies/reorder-point.md
+              - Periodic review (R, s, S): user-guide/policies/periodic-review.md
+              - Single order (newsvendor): user-guide/policies/single-order.md
+              - Write your own policy: user-guide/policies/custom-policies.md
+          - The simulation engine: user-guide/engine.md
+          - Ordering constraints: user-guide/constraints.md
+          - Callbacks: user-guide/callbacks.md
+          - Suppliers and open orders: user-guide/suppliers.md
+          - Unreliable deliveries: user-guide/unreliable-deliveries.md
+          - Shelf life and inventory processes: user-guide/processes.md
+          - Evaluation and metrics: user-guide/metrics.md
+          - Plots: user-guide/visualization.md
+      - Recipes:
+          - how-to/index.md
+          - Connect any forecasting model: how-to/connect-a-forecaster.md
+          - Build a target from sample paths: how-to/targets-from-sample-paths.md
+          - Refresh targets as forecasts roll: how-to/rolling-targets.md
+          - Compare forecasts and policies: how-to/compare-policies.md
+          - Put costs on a run: how-to/costs.md
+          - Run your own simulation loop: how-to/manual-loop.md
+          - Use Stockcast in a daily job: how-to/production.md
+          - Upgrade from demand-first timing: how-to/timing-migration.md
+  - Examples:
+      - tutorials/index.md
+      - Foundations:
+          - 01 · Inventory flow: notebooks/01_introduction_to_inventory_flow.ipynb
+          - 02 · First engine simulation: notebooks/02_first_engine_simulation.ipynb
+          - 02b · Decision schedules: notebooks/02b_decision_schedules.ipynb
+          - 03 · Your own loop: notebooks/03_component_loop.ipynb
+      - Forecasts to orders:
+          - 04 · Weekly forecast to order: notebooks/04_forecast_to_inventory_integration.ipynb
+          - 04b · Daily newsvendor: notebooks/04b_daily_newsvendor.ipynb
+          - 04c · Cumulative protection target: notebooks/04c_cumulative_protection_target.ipynb
+          - 04d · Rolling cumulative targets: notebooks/04d_rolling_cumulative_targets.ipynb
+          - 04e · Cumulative target methods: notebooks/04e_cumulative_target_methods.ipynb
+          - 04f · Scheduled forecast simulation: notebooks/04f_scheduled_forecast_simulation.ipynb
+      - Extending Stockcast:
+          - 05 · Custom policies: notebooks/05_custom_policies.ipynb
+          - 05b · Reorder points and review frequency: notebooks/05b_reorder_points_and_review_frequency.ipynb
+          - 05c · Extension points: notebooks/05c_extension_points.ipynb
+          - 05d · Open orders and suppliers: notebooks/05d_open_orders_and_suppliers.ipynb
+          - 05e · Inventory processes: notebooks/05e_inventory_processes.ipynb
+          - 05f · Unreliable supplier: notebooks/05f_unreliable_supplier.ipynb
+      - Experiments and operations:
+          - 06 · Fair comparisons: notebooks/06_fair_forecast_and_policy_comparisons.ipynb
+          - 07 · FIFO shelf life on M5 demand: notebooks/07_m5_fifo_perishable_scenario.ipynb
+          - 08 · Callbacks and audit: notebooks/08_callbacks_and_audit.ipynb
+          - 09 · Full operational experiment: notebooks/09_full_operational_experiment.ipynb
+          - 10 · Production daily close: notebooks/10_production_daily_close.ipynb
+  - API reference:
+      - reference/index.md
+      - Simulation engine: reference/engine.md
+      - State and orders: reference/state.md
       - Policies: reference/policies.md
-      - Evaluation and metrics: reference/evaluation.md
+      - Decision schedules: reference/schedules.md
+      - Ordering constraints: reference/constraints.md
+      - Callbacks: reference/callbacks.md
+      - Suppliers: reference/supply.md
+      - Processes and shelf life: reference/processes.md
+      - Evaluation: reference/evaluation.md
+      - Metrics: reference/metrics.md
       - Utilities: reference/utils.md
-      - Visualization: reference/visualization.md
-      - Data and output schemas: reference/schemas.md
-  - Project:
+      - Plots: reference/visualization.md
+      - Output tables: reference/schemas.md
+  - About:
+      - FAQ: about/faq.md
       - Release notes: release-notes.md
       - Contributing: contributing.md
       - Citation and support: support.md
