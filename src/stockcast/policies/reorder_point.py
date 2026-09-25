@@ -190,7 +190,16 @@ class ReorderPointPolicy(BasePolicy):
         return self
 
     def validate_decision_window(self, period, information_date, offset):
-        """Check irregular coverage against the next opportunity, before a run."""
+        """Check, before a run, that ``s`` covers the decision's window.
+
+        Args:
+            period: Zero-based demand period of the decision.
+            information_date: Date of the last demand known at the decision.
+            offset: The simulation's period frequency.
+
+        Raises:
+            ValueError: If the reorder horizon or dates do not match.
+        """
         validate_schedule_coverage(
             self.schedule,
             lead_time=self.lead_time,
@@ -260,6 +269,14 @@ class ReorderPointPolicy(BasePolicy):
         )
 
     def get_reorder_points(self) -> pd.DataFrame:
+        """Return the fitted reorder point ``s`` per SKU.
+
+        Returns:
+            A DataFrame with the SKU column and ``reorder_point``.
+
+        Raises:
+            ValueError: If the policy is not fitted.
+        """
         if not self.fitted_:
             raise ValueError("Policy must be fitted first. Call fit() to set reorder points.")
         return self.reorder_points_.copy()

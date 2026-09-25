@@ -10,11 +10,28 @@ from stockcast.policies.order_up_to import OrderUpToPolicy
 
 
 def newsvendor_critical_fractile(*, selling_price, purchase_cost, salvage_value):
-    """Classical lost-sales fractile (p-c)/(p-v), requiring p > c > v >= 0.
+    """The newsvendor critical fractile ``(p - c) / (p - v)``.
 
-    Assumes linear unit economics, no extra shortage/holding costs, and no
-    replenishment during the season. This calculates a probability, not a
-    demand distribution or constrained optimal order quantity.
+    For one purchase with selling price ``p``, purchase cost ``c`` and salvage
+    value ``v``, the profit-maximising quantity is the demand quantile at this
+    probability. It assumes linear costs, lost sales, and no second purchase.
+
+    Args:
+        selling_price: ``p``.
+        purchase_cost: ``c``.
+        salvage_value: ``v`` for each unsold unit.
+
+    Returns:
+        The probability, between 0 and 1.
+
+    Raises:
+        ValueError: Unless ``p > c > v >= 0``.
+
+    Example:
+        ```python
+        newsvendor_critical_fractile(selling_price=10, purchase_cost=4, salvage_value=2)
+        # 0.75
+        ```
     """
     values = (selling_price, purchase_cost, salvage_value)
     if any(isinstance(value, bool) for value in values):
@@ -31,12 +48,23 @@ def newsvendor_critical_fractile(*, selling_price, purchase_cost, salvage_value)
 
 
 class SingleOrderPolicy(OrderUpToPolicy):
-    """Order once to an external season target, net of available inventory.
+    """Buy once for a selling season (newsvendor).
 
-    The season starts when this decision's order arrives and lasts
-    ``selling_horizon`` demand epochs. Supply zero demand before/after the
-    season, and enough simulation periods to observe its end. Quantile targets
-    declare service_level; planner targets need no fictional probability.
+    The policy decides once, at ``decision_period``. The order arrives after
+    ``lead_time`` periods, which is when the season starts; the season lasts
+    ``selling_horizon`` periods. The target is a quantile of total season demand
+    (for example at ``newsvendor_critical_fractile``), and the order is the
+    target minus the stock already available.
+
+    Demand outside the season must be zero, the run must cover the whole season,
+    and any opening pipeline must arrive by the season's start.
+
+    Args:
+        lead_time: Periods from the order to the start of the season, >= 0.
+        selling_horizon: Length of the season in periods, >= 1.
+        decision_period: Demand period of the single decision (default 0).
+        service_level: Probability the target represents, or ``None``.
+        allow_backorders: ``True`` or ``False``.
     """
 
     def __init__(
@@ -75,6 +103,23 @@ class SingleOrderPolicy(OrderUpToPolicy):
         target_probability=None,
         sku_column="unique_id",
     ):
+        """Bind the season target.
+
+        Args:
+            target_df: One row per SKU.
+            forecast_origin: Date of the last information used, normally the date
+                before the decision.
+            forecast_frequency: Period frequency, such as ``"D"``.
+            target_column: Column with the season target.
+            target_end_date_column: Last date of the season:
+                ``forecast_origin + (lead_time + selling_horizon)`` periods.
+            target_source: ``"external_direct"``.
+            target_probability: Must equal ``service_level`` when one is set.
+            sku_column: SKU column name.
+
+        Returns:
+            The fitted policy (``self``).
+        """
         origin, offset = validate_forecast_origin_and_frequency(
             forecast_origin, forecast_frequency
         )
@@ -113,6 +158,8 @@ class SingleOrderPolicy(OrderUpToPolicy):
             raise ValueError("single-order target must cover the selling season")
 
     def validate_demand_window(self, demand, n_periods):
+        """Check the demand table: zero outside the season, and the whole season simulated.
+        """
         first = self.schedule.period + self.lead_time
         end = first + self.selling_horizon
         if end > n_periods:
@@ -126,6 +173,11 @@ class SingleOrderPolicy(OrderUpToPolicy):
     def predict(self, inventory_state_df, **kwargs):
         # Late pipeline must not suppress this season's purchase. Reject rather
         # than silently counting goods that cannot be present at season start.
+        """Order the season target minus available stock.
+
+        Raises:
+            ValueError: If opening pipeline would arrive after the season starts.
+        """
         frame = inventory_state_df.get_dataframe()
         if (
             frame["in_transit"]

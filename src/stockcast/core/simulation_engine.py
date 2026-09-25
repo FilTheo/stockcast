@@ -36,6 +36,7 @@ import hashlib
 import importlib.metadata
 import json
 import platform
+import warnings
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
@@ -71,8 +72,10 @@ from stockcast.core.data_structures import (
     _require_identifiers,
 )
 from stockcast.core._open_orders import (
+    DELIVERY_OUTCOME_COLUMNS,
     ORDER_FRAME_COLUMNS,
     _Deliveries,
+    _objects as _object_series,
     build_order_frame,
     pipeline_mismatch,
 )
@@ -85,7 +88,7 @@ from stockcast.core.processes import (
     prepare_processes,
     process_manifest,
 )
-from stockcast.core.supply import AllocationContext, SupplyModel
+from stockcast.core.supply import AllocationContext, DeliveryContext, SupplyModel
 
 CALLBACK_AUDIT_COLUMNS = (
     "callback_position",
@@ -127,17 +130,26 @@ RUN_MANIFEST_REQUIRED_SECTIONS = (
 # ============================================================================
 
 class SimulationResult:
-    """
-    Container for simulation outputs.
+    """The outcome of one simulation run.
+
+    Returned by ``SimulationEngine.run``. The event ledger is the main record;
+    the other tables and the manifest add detail.
 
     Attributes:
-        history: DataFrame of all inventory states across all periods (from get_history())
-        inventory: Final InventoryStateDataFrame after simulation
-        n_periods: Number of periods simulated
-        policy_name: Name of the policy used
+        inventory: The final ``InventoryStateDataFrame``.
+        history: State snapshots after each period.
+        n_periods: Number of simulated demand periods.
+        policy_name: Name of the policy.
+        run_settings: The run's settings (also in ``run_manifest``).
+        run_manifest: A JSON-friendly record of inputs, settings and versions,
+            with the sections in ``RUN_MANIFEST_REQUIRED_SECTIONS``.
 
-    Methods:
-        summary(): Returns explicitly named demand, stock, and order statistics
+    Example:
+        ```python
+        events = result.to_event_frame(window="scoring")
+        orders = result.to_order_frame()
+        result.summary()["fill_rate"]
+        ```
     """
 
     def __init__(
@@ -168,9 +180,13 @@ class SimulationResult:
             callback_audit.copy(deep=True) if callback_audit is not None else None,
             columns=CALLBACK_AUDIT_COLUMNS,
         )
+        order_columns = ORDER_FRAME_COLUMNS
+        if order_frame is not None and set(DELIVERY_OUTCOME_COLUMNS) <= set(order_frame.columns):
+            # Runs with supplier delivery outcomes add their resolution columns.
+            order_columns = ORDER_FRAME_COLUMNS + DELIVERY_OUTCOME_COLUMNS
         self._order_frame = pd.DataFrame(
             order_frame.copy(deep=True) if order_frame is not None else None,
-            columns=ORDER_FRAME_COLUMNS,
+            columns=order_columns,
         )
         self._process_flows = pd.DataFrame(
             process_flows.copy(deep=True) if process_flows is not None else None,
@@ -178,11 +194,18 @@ class SimulationResult:
         )
 
     def to_event_frame(self, window: Optional[str] = None) -> pd.DataFrame:
-        """
-        Return the normalized simulation event table.
+        """Return the event ledger: one row per SKU and period.
 
-        The event table stores one row per SKU and simulated period with
-        additive operational quantities that can be safely aggregated later.
+        Every row satisfies the stock, pipeline and backorder balance identities.
+        Columns are described in the output-tables reference
+        (``CANONICAL_EVENT_COLUMNS`` plus optional columns).
+
+        Args:
+            window: ``"warmup"``, ``"scoring"``, ``"settlement"``, or ``"all"``
+                / ``None`` for every row.
+
+        Returns:
+            A copy of the ledger rows.
         """
         result = self._event_frame.copy()
         if window is None or window == "all":
@@ -194,7 +217,8 @@ class SimulationResult:
         return result[result["run_window"] == window].copy()
 
     def to_callback_audit_frame(self) -> pd.DataFrame:
-        """Return one defensive row per accepted callback effect."""
+        """Return one row per accepted callback effect (``CALLBACK_AUDIT_COLUMNS``).
+        """
         return self._callback_audit.copy(deep=True)
 
     def to_order_frame(self) -> pd.DataFrame:
@@ -242,22 +266,19 @@ class SimulationResult:
         return self._process_flows.copy(deep=True)
 
     def summary(self) -> Dict:
-        """
-        Compute a small set of explicitly named summary statistics.
+        """A few headline numbers for the scoring window.
 
         Returns:
             dict with keys:
-                - fill_rate: Fraction of scoring demand served from stock in
-                    its own period (1 - shortage/demand), in both shortage modes.
-                - demand_period_service_level: Fraction of positive-demand
-                    SKU-period rows without shortage. This is not cycle service.
-                - mean_ending_on_hand_per_sku_period: Mean ending on-hand at
-                    the SKU-period row grain.
-                - stockout_periods: Number of demand periods in which at least
-                    one SKU had a shortage.
-                - total_order_units: Sum of all order quantities placed.
-                - order_event_count / sku_order_line_count: Decisions with a
-                    positive order, and positive SKU order lines.
+                - fill_rate: share of scoring demand served from stock in its own
+                  period, ``1 - shortage / demand``.
+                - demand_period_service_level: share of SKU-period rows with demand
+                  and no shortage.
+                - mean_ending_on_hand_per_sku_period: mean ending stock per row.
+                - stockout_periods: periods in which at least one SKU was short.
+                - total_order_units: units ordered.
+                - order_event_count: decisions that placed a positive order.
+                - sku_order_line_count: positive order lines.
         """
         e = self.to_event_frame(window="scoring")
         if e.empty:
@@ -563,6 +584,10 @@ def _assert_event_flow_balance(event_df: pd.DataFrame) -> None:
         - event_df['received_units']
         + event_df['order_quantity']
     )
+    if 'supplier_shortfall_units' in event_df:
+        # Present only in runs with supplier delivery outcomes.
+        pipeline_terms.append(event_df['supplier_shortfall_units'])
+        pipeline_expected = pipeline_expected - event_df['supplier_shortfall_units']
     checks = [
         ('physical inventory', physical_expected, event_df['ending_on_hand'], physical_terms),
         ('backlog', backlog_expected, event_df['backorders_end'], backlog_terms),
@@ -584,23 +609,27 @@ def _assert_event_flow_balance(event_df: pd.DataFrame) -> None:
 # ============================================================================
 
 class ComparisonResult:
-    """
-    Container holding multiple SimulationResults for side-by-side comparison.
+    """Results of ``SimulationEngine.run_comparison``, one per policy.
+
+    Behaves like a read-only mapping from label to ``SimulationResult``.
 
     Attributes:
-        results: Dict mapping label -> SimulationResult
+        results: Dict of label to ``SimulationResult``.
 
-    Usage:
-        comp = engine.run_comparison(policies=[p1, p2], ...)
-        print(comp.summary())           # DataFrame with one row per policy
-        result_a = comp["Policy A"]     # Access individual SimulationResult
+    Example:
+        ```python
+        comparison.summary()          # one row per policy
+        comparison["95% target"]      # one SimulationResult
+        list(comparison)              # the labels
+        ```
     """
 
     def __init__(self, results: Dict[str, SimulationResult]):
         self.results = results
 
     def summary(self) -> pd.DataFrame:
-        """Return DataFrame with one row per policy, columns = summary metrics."""
+        """``SimulationResult.summary()`` of every run, one row per label.
+        """
         rows = []
         for name, result in self.results.items():
             s = result.summary()
@@ -654,6 +683,13 @@ class _PeriodRun:
         self.log = RunLog()
         # Order-level deliveries placed at each decision (for to_order_frame).
         self.placements: List[_Deliveries] = []
+        # Suppliers with a DeliveryOutcome (empty set: no outcome code runs),
+        # and the deliveries they resolved with (received, delayed) arrays.
+        supply = engine._active_supply
+        self.outcome_suppliers = frozenset(
+            supplier.supplier_id for supplier in supply.suppliers if supplier.delivery is not None
+        ) if supply is not None else frozenset()
+        self.resolutions: List[tuple] = []
 
     def record_placements(self, book) -> None:
         if book is not None and len(book.placed):
@@ -695,6 +731,11 @@ class _PeriodRun:
                 run_window=run_window,
             )
             state = processes.before_demand(state)
+
+        shortfall = None
+        if self.outcome_suppliers:
+            # Supplier outcomes decide what of the deliveries due now arrives.
+            state, shortfall = self.resolve_deliveries(state)
 
         # Open the demand epoch and receive due stock before the policy
         # sees state. Latest demand fields are reset, preventing look-ahead.
@@ -765,7 +806,7 @@ class _PeriodRun:
         ):
             self._record_arrays(
                 opening, state, period, run_window, active_policy, review,
-                expired, adjustments, process_flows,
+                expired, adjustments, process_flows, shortfall,
             )
         else:
             if opening_frame is None:
@@ -798,6 +839,10 @@ class _PeriodRun:
                 )
                 period_event['process_outflow_units'] = (
                     period_event['unique_id'].map(outflow).fillna(0.0).astype(float)
+                )
+            if self.outcome_suppliers:
+                period_event['supplier_shortfall_units'] = (
+                    period_event['unique_id'].map(shortfall or {}).fillna(0.0).astype(float)
                 )
             _assert_event_flow_balance(period_event)
             # History is a completed-period snapshot, including orders and
@@ -843,8 +888,126 @@ class _PeriodRun:
         self.record_placements(after._open_orders)
         return self.absorb(after, state)
 
+    def resolve_deliveries(self, state):
+        """Apply supplier delivery outcomes to the deliveries due next.
+
+        Runs before the period's receipt. Per due delivery of a supplier with
+        a ``DeliveryOutcome``, the received part stays due now, a delayed
+        part moves to a later pipeline slot and the rest leaves stock on
+        order. Returns the new state and the undelivered units per SKU.
+        """
+        if isinstance(state, ArrayState):
+            book, current = state.book, int(state.period)
+        else:
+            book, current = state._open_orders, int(state.data['period'].iloc[0])
+        due_period = current + 1
+        if book is None or not len(book.open):
+            return state, {}
+        deliveries = book.open
+        candidates = np.flatnonzero(deliveries.due == due_period)
+        positions = candidates[np.fromiter(
+            (supplier in self.outcome_suppliers for supplier in deliveries.supplier[candidates]),
+            dtype=bool, count=len(candidates),
+        )]
+        if not len(positions):
+            return state, {}
+
+        engine = self.engine
+        supply = engine._active_supply
+        frame = self.frame(state, [])
+        sku_column = frame.sku_column
+        inventory = frame.get_dataframe()
+        date = pd.Timestamp(inventory['date'].iloc[0]) + self.period_offset
+        received = np.zeros(len(positions))
+        delayed = np.zeros(len(positions))
+        delay = np.zeros(len(positions), dtype=np.int64)
+        suppliers = deliveries.supplier[positions]
+        for supplier_id in supply.supplier_ids:
+            rows = np.flatnonzero(np.fromiter(
+                (value == supplier_id for value in suppliers), dtype=bool, count=len(suppliers),
+            ))
+            if not len(rows) or supplier_id not in self.outcome_suppliers:
+                continue
+            chosen = positions[rows]
+            due = pd.DataFrame({
+                'order_id': deliveries.order_id[chosen],
+                sku_column: _object_series(deliveries.sku[chosen]),
+                'supplier_id': _object_series(deliveries.supplier[chosen]),
+                'source': _object_series(deliveries.source[chosen]),
+                'order_period': deliveries.order_period[chosen],
+                'scheduled_due_period': deliveries.scheduled[chosen],
+                'due_period': deliveries.due[chosen],
+                'quantity': deliveries.quantity[chosen],
+            })
+            context = DeliveryContext(
+                inventory=inventory.copy(deep=True),
+                sku_column=sku_column,
+                period=due_period,
+                date=date,
+                supplier_id=supplier_id,
+                rng=supply._outcome_rngs[supplier_id],
+            )
+            received[rows], delayed[rows], delay[rows] = supply._resolve(
+                supplier_id, due, context,
+            )
+        later = delayed > 0
+        if later.any():
+            too_late = delay[later] > frame.max_lead_time - 1
+            if too_late.any():
+                raise ValueError(
+                    f"a DeliveryOutcome delayed a delivery by {int(delay[later][too_late].max())} "
+                    f"periods at period {due_period}, beyond the pipeline window; "
+                    f"increase inventory max_lead_time (now {frame.max_lead_time})"
+                )
+            engine._warn_supply_timing()
+
+        quantity = deliveries.quantity[positions]
+        new_book, rescheduled = book.resolved(positions, received, delayed, delay)
+        sku_index = pd.Index(inventory[sku_column].tolist(), dtype=object)
+        rows = sku_index.get_indexer(pd.Index(deliveries.sku[positions], dtype=object))
+        pipelines = frame._stacked_pipelines().copy()
+        removed = np.zeros(len(sku_index))
+        np.add.at(removed, rows, quantity - received)
+        undelivered = np.zeros(len(sku_index))
+        np.add.at(undelivered, rows, quantity - received - delayed)
+        affected = removed > 0
+        still_due = np.zeros(len(sku_index))
+        keep = new_book.open.due == due_period
+        np.add.at(
+            still_due,
+            sku_index.get_indexer(pd.Index(new_book.open.sku[keep], dtype=object)),
+            new_book.open.quantity[keep],
+        )
+        # Rounding never leaves a negative or phantom slot.
+        pipelines[affected, 0] = np.where(
+            still_due[affected] > 0,
+            np.maximum(pipelines[affected, 0] - removed[affected], 0.0),
+            0.0,
+        )
+        np.add.at(pipelines, (rows[later], delay[later]), delayed[later])
+        inventory['in_transit'] = pd.Series(
+            [row.copy() for row in pipelines], index=inventory.index, dtype=object,
+        )
+        resolved_frame = InventoryStateDataFrame(
+            inventory,
+            sku_column=sku_column,
+            max_lead_time=frame.max_lead_time,
+            allow_backorders=frame.allow_backorders,
+            _history=frame._history,
+            _open_orders=new_book,
+        )
+        self.resolutions.append((deliveries.select(positions), received, delayed))
+        if len(rescheduled):
+            self.placements.append(rescheduled)
+        shortfall = {
+            sku: float(value)
+            for sku, value in zip(sku_index, undelivered) if value > 0
+        }
+        return self.absorb(resolved_frame, state), shortfall
+
     def _record_arrays(self, opening, state, period, run_window, active_policy,
-                       review, expired, adjustments, process_flows=None) -> None:
+                       review, expired, adjustments, process_flows=None,
+                       shortfall=None) -> None:
         engine = self.engine
         uid = opening.schema.sku_event()
         audit = None
@@ -872,6 +1035,10 @@ class _PeriodRun:
             process_out=(
                 uid.map(process_flows[1]).fillna(0.0).to_numpy(dtype=float)
                 if process_flows is not None and process_flows[1] else None
+            ),
+            supply_columns=bool(self.outcome_suppliers),
+            shortfall=(
+                uid.map(shortfall).fillna(0.0).to_numpy(dtype=float) if shortfall else None
             ),
         )
         assert_flow_balance(record)
@@ -932,35 +1099,24 @@ def _same_skus(left: pd.Series, right: pd.Series) -> bool:
 # ============================================================================
 
 class SimulationEngine:
-    """
-    Orchestrates multi-period inventory simulation for the DataFrame API.
+    """Run inventory simulations: the clock and the only place stock changes.
 
-    The engine owns all state transitions. Custom interventions use typed callbacks.
+    Each period the engine receives due deliveries, lets the policy decide on
+    scheduled periods (then applies callbacks, ordering constraints and the
+    supply model), serves demand, applies inventory processes and after-demand
+    callbacks, and records one checked ledger row per SKU. Everything that can be
+    validated is checked before the first period.
 
-    The engine opens each epoch, receives due stock, consults the decision
-    schedule, applies accepted orders (including immediate receipts), then
-    fulfills demand and validates the completed event ledger.
-
-    Usage:
-        # Standard simulation
-        engine = SimulationEngine()
-        result = engine.run(
-            policy=policy,              # Fitted BasePolicy subclass
-            demand_source=demand_df,    # DataFrame with period column, or callable
-            inventory=inventory,        # Initialized InventoryStateDataFrame
-            n_periods=365,
-            period_frequency="D",      # Explicit calendar frequency
-            initial_decision="none",   # Eligibility comes from the decision schedule.
-            warmup_periods=0,
-            scoring_periods=365,
-            settlement_periods=0,
+    Example:
+        ```python
+        result = SimulationEngine().run(
+            policy=policy, demand_source=demand, inventory=inventory,
+            n_periods=56, period_frequency="D",
+            warmup_periods=0, scoring_periods=56, settlement_periods=0,
             order_during_settlement=False,
-            demand_source_name="example_demand",
-            random_seed=None,
+            demand_source_name="tea_shop", random_seed=3,
         )
-
-    Engine subclass hooks that received live inventory are intentionally absent.
-    Physical processes are added with ``processes=[...]`` (``InventoryProcess``).
+        ```
     """
 
     # Processes an engine subclass contributes to every run (ShelfLifeEngine).
@@ -968,10 +1124,11 @@ class SimulationEngine:
     _process_runner: Optional[ProcessRunner] = None
 
     def __init__(self, verbose: int = 0):
-        """
+        """Create an engine.
+
         Args:
-            verbose: Logging verbosity level.
-                0 = silent (default), 1 = basic (start/end/milestones), 2 = full (per-period detail)
+            verbose: 0 silent (default), 1 start/end/milestones, 2 one line per
+                period.
         """
         self.verbose = verbose
 
@@ -1001,59 +1158,51 @@ class SimulationEngine:
         supply: Optional[SupplyModel] = None,
         processes: Optional[Sequence[InventoryProcess]] = None,
     ) -> SimulationResult:
-        """
-        Run a multi-period inventory simulation.
+        """Simulate a policy against a demand path.
+
+        The engine copies ``inventory`` and ``policy``, validates the whole
+        experiment, then plays ``n_periods`` demand periods: receive, decide (on
+        scheduled periods), meet demand, record. Your input objects are not changed.
 
         Args:
-            policy: Fitted BasePolicy subclass (e.g., OrderUpToPolicy, ReorderPointPolicy).
-            demand_source: Either a DataFrame with columns [unique_id, y, period] containing
-                demand for all periods, or a callable(period) -> demand_df.
-            inventory: Initialized InventoryStateDataFrame.
-            n_periods: Number of periods to simulate.
-            period_frequency: Explicit pandas frequency for one period.
-            initial_decision: Neutral compatibility argument, only ``"none"``.
-                First-period decisions are controlled by the policy schedule.
-            warmup_periods: State-advancing periods excluded from scoring.
-            scoring_periods: Periods included in the default result summary.
-            settlement_periods: Tail periods excluded from scoring.
-            order_during_settlement: Whether review decisions remain active in
-                the settlement tail.
-            demand_source_name: Non-empty experiment identifier for demand.
-            random_seed: Demand/scenario seed, or explicit ``None`` when no
-                random generator is involved.
-            policy_schedule: Optional mapping from decision period to a fitted
-                policy snapshot. Snapshots must have the same policy class and
-                operating configuration as ``policy``. This supports rolling-
-                origin targets calculated outside the simulator.
-            order_constraints: Optional explicit operational constraints.
-            callbacks: Optional ordered callback objects. The exact objects are
-                reset before the run and remain inspectable afterward.
-            supply: Optional ``SupplyModel``. When given, each accepted order
-                (after callbacks and constraints) is split across suppliers,
-                each with its own fixed or random lead time and optional
-                partial deliveries. ``None`` keeps the default: one line per
-                positive SKU order, due ``policy.lead_time`` periods later.
-            processes: Optional ordered list of ``InventoryProcess`` objects
-                that add or remove on-hand stock at defined period phases,
-                for example ``[ShelfLife(3, opening_lots)]``. The engine
-                applies and audits their declared flows
-                (``result.to_process_flow_frame()``) and records them in
-                ``run_settings["processes"]``. ``None`` runs no process code.
+            policy: A fitted policy.
+            demand_source: A DataFrame with ``unique_id``, ``period``, ``date`` and
+                ``y`` covering every SKU and period, or a callable
+                ``period -> DataFrame`` (called once per period before the run).
+            inventory: The opening ``InventoryStateDataFrame``. Its
+                ``max_lead_time`` must cover the policy's lead time and the supply
+                model's longest delivery.
+            n_periods: Number of demand periods.
+            period_frequency: Length of one period, a pandas frequency such as
+                ``"D"``. Period ``p`` is dated opening date + ``(p + 1)`` periods.
+            initial_decision: Kept for compatibility; only ``"none"``. The first
+                decision comes from the policy's schedule.
+            warmup_periods: Leading periods excluded from scoring.
+            scoring_periods: Periods that metrics describe by default (>= 1).
+            settlement_periods: Trailing periods excluded from scoring. The three
+                windows must add up to ``n_periods``.
+            order_during_settlement: Whether the policy may order in settlement.
+            demand_source_name: A label for the demand, stored in the manifest.
+            random_seed: The seed behind the demand, or ``None`` if there is none.
+            policy_schedule: ``{decision_period: fitted_policy}`` with refitted
+                policies for later decisions. Each must match ``policy``'s class and
+                configuration, with a forecast origin equal to the decision's
+                information date.
+            order_constraints: An ``OrderingConstraints`` sequence.
+            callbacks: ``SimulationCallback`` objects, applied in order.
+            supply: A ``SupplyModel`` for suppliers, random lead times and split or
+                unreliable deliveries. ``None``: one delivery ``lead_time`` periods
+                after each order.
+            processes: ``InventoryProcess`` objects (for example
+                ``ShelfLife``), applied in order.
 
         Returns:
-            SimulationResult with history, final inventory state, and summary statistics.
+            A ``SimulationResult``.
 
-        Example:
-            engine = SimulationEngine()
-            result = engine.run(policy=policy, demand_source=demand_df,
-                                inventory=inventory, n_periods=30,
-                                period_frequency="D", initial_decision="none",
-                                warmup_periods=0, scoring_periods=30,
-                                settlement_periods=0,
-                                order_during_settlement=False,
-                                demand_source_name="example_demand",
-                                random_seed=None)
-            print(result.summary())
+        Raises:
+            ValueError: If an input is incomplete or inconsistent, for example an
+                unfitted policy, a demand calendar with gaps, a target for the wrong
+                window, or windows that do not add up.
         """
         if not isinstance(n_periods, int) or isinstance(n_periods, bool) or n_periods < 0:
             raise ValueError("n_periods must be a non-negative integer")
@@ -1137,6 +1286,8 @@ class SimulationEngine:
                 "inventory max_lead_time must cover the supply model's longest "
                 f"delivery offset ({supply.max_delivery_offset})"
             )
+        if supply is not None:
+            supply._check_outcome_timing()
         for process in user_processes:
             # Engine-private opening preparation (ShelfLife: validate and
             # seed opening lots, write off stock expired at the opening).
@@ -1216,6 +1367,8 @@ class SimulationEngine:
                 validate_window(demand_data.copy(deep=True), n_periods)
         demand_fn = self._resolve_demand_source(demand_data)
         self._active_supply = copy.deepcopy(supply)
+        self._supply_timing_warned = False
+        self._supply_policy_lead_time = policy.lead_time
         if self._active_supply is not None:
             self._active_supply._prepare(
                 inventory.data[inventory.sku_column].tolist(), n_periods,
@@ -1308,6 +1461,8 @@ class SimulationEngine:
                 opening_period=opening_period,
                 opening_date=opening_date,
                 period_offset=period_offset,
+                resolutions=self._run_resolutions,
+                outcome_suppliers=self._run_outcome_suppliers,
             ),
             process_flows=(
                 self._process_runner.flow_frame()
@@ -1423,6 +1578,8 @@ class SimulationEngine:
 
         final = run.frame(current, run.log.history_view(n_periods))
         final._history = run.log.history_view(n_periods)
+        self._run_resolutions = run.resolutions
+        self._run_outcome_suppliers = run.outcome_suppliers
         return final, run.log.history(), run.log.event_frame(), run.placements
 
     def _log_period_detail(self, state) -> None:
@@ -1968,6 +2125,7 @@ class SimulationEngine:
                 period=current_period,
                 date=pd.Timestamp(inventory.data['date'].iloc[0]),
                 suppliers=supply.supplier_ids,
+                decision=order_frame.copy(deep=True),
             )
             allocated = supply._allocate(positive, context)
             deliveries = supply._deliveries(
@@ -1976,6 +2134,9 @@ class SimulationEngine:
                 demand_period=demand_period,
                 order_period=current_period,
             )
+            lead_times = deliveries['due_period'].to_numpy() - current_period
+            if (lead_times != self._supply_policy_lead_time).any():
+                self._warn_supply_timing()
             for sku, quantity in allocated[[sku_column, 'order_quantity']].itertuples(
                 index=False, name=None
             ):
@@ -2001,9 +2162,25 @@ class SimulationEngine:
             lines=lines[lines['order_quantity'] > 0],
         )
 
+    def _warn_supply_timing(self) -> None:
+        """Warn once per run when deliveries arrive off the policy's lead time."""
+        if self._supply_timing_warned:
+            return
+        self._supply_timing_warned = True
+        warnings.warn(
+            "supplier deliveries arrive at times other than the policy's lead_time "
+            f"({self._supply_policy_lead_time} periods). The policy's targets were set "
+            "for that fixed lead time and are not adjusted, so its protection window "
+            "does not describe this supply. Results are valid for this assumption; "
+            "see 'Lead-time assumption' in the suppliers-and-open-orders guide.",
+            UserWarning,
+            stacklevel=2,
+        )
+
     @staticmethod
     def _order_frame(final, *, opening_book, placements, opening_period, opening_date,
-                     period_offset) -> pd.DataFrame:
+                     period_offset, resolutions=None,
+                     outcome_suppliers=frozenset()) -> pd.DataFrame:
         """Order-level ledger of a run; the final book must match the pipeline."""
         final_period = int(final.data['period'].iloc[0])
         book = final._open_orders
@@ -2018,12 +2195,46 @@ class SimulationEngine:
             if mismatch:
                 raise AssertionError(f"final open-order book is inconsistent: {mismatch}")
         deliveries = _Deliveries.concat_all([opening_book.open, *placements])
+        outcomes = None
+        if outcome_suppliers:
+            # Every delivery of a supplier with an outcome that fell due was
+            # resolved exactly once; those rows come from the resolutions,
+            # all others from the book.
+            resolved_by_outcome = np.fromiter(
+                (supplier in outcome_suppliers for supplier in deliveries.supplier),
+                dtype=bool, count=len(deliveries),
+            ) & (deliveries.due <= final_period)
+            others = deliveries.select(~resolved_by_outcome)
+            done = others.due <= final_period
+            parts = [others] + [part for part, _, _ in resolutions]
+            received = np.concatenate(
+                [np.where(done, others.quantity, 0.0)]
+                + [values for _, values, _ in resolutions]
+            )
+            delayed = np.concatenate(
+                [np.zeros(len(others))] + [values for _, _, values in resolutions]
+            )
+            deliveries = _Deliveries.concat_all(parts)
+            undelivered = np.where(
+                deliveries.due <= final_period,
+                np.maximum(deliveries.quantity - received - delayed, 0.0),
+                0.0,
+            )
+            outcomes = {
+                'received': received,
+                'delayed': delayed,
+                'undelivered': undelivered,
+                'disrupted': (deliveries.due <= final_period) & (
+                    (delayed > 0) | (undelivered > 0)
+                ),
+            }
         return build_order_frame(
             deliveries,
             final_period=final_period,
             opening_period=opening_period,
             opening_date=opening_date,
             period_offset=period_offset,
+            outcomes=outcomes,
         )
 
     def _tracked_inventory_update(self, inventory, orders, policy=None):
@@ -2564,39 +2775,21 @@ class SimulationEngine:
         supply: Optional[SupplyModel] = None,
         processes: Optional[Sequence[InventoryProcess]] = None,
     ) -> 'ComparisonResult':
-        """
-        Run simulation for multiple policies and compare results.
+        """Simulate several policies on the same experiment.
 
-        Each policy gets its own deep-copied inventory. All policies see the same demand.
+        The demand is built once and shared; each policy starts from its own copy of
+        ``inventory``. Constraints, callbacks, supply and processes apply to every
+        branch (callbacks and processes are reset between branches), and random
+        supplier lead times are drawn once and shared, so branches differ only by
+        the policy. Arguments not listed below are those of ``run``.
 
         Args:
-            policies: List of fitted BasePolicy instances.
-            demand_source: DataFrame or callable, same for all policies.
-            inventory: Initialized InventoryStateDataFrame (deep-copied per policy).
-            n_periods: Number of periods to simulate.
-            period_frequency: Explicit pandas frequency for one period.
-            initial_decision: Neutral compatibility argument, only ``"none"``.
-                First-period decisions are controlled by the policy schedule.
-            warmup_periods: State-advancing periods excluded from scoring.
-            scoring_periods: Periods included in result summaries.
-            settlement_periods: Tail periods excluded from scoring.
-            order_during_settlement: Whether review decisions remain active in
-                the settlement tail.
-            demand_source_name: Non-empty experiment identifier for demand.
-            random_seed: Demand/scenario seed, or explicit ``None``.
-            labels: Optional display names for each policy. Defaults to policy_name.
-            policy_schedules: Optional list of rolling fitted-policy schedules,
-                one per policy.
-            order_constraints: Optional constraints applied identically to each policy.
-            callbacks: Optional ordered callback objects, reset before each
-                comparison branch. Their final state reflects the last branch.
-            supply: Optional ``SupplyModel`` applied identically to each
-                policy; every branch sees the same random lead-time draws.
-            processes: Optional ``InventoryProcess`` objects, reset before
-                each branch. Their final state reflects the last branch.
+            policies: Fitted policies.
+            labels: Names for the results; defaults to the policies' names.
+            policy_schedules: One ``policy_schedule`` (or ``None``) per policy.
 
         Returns:
-            ComparisonResult with all SimulationResults accessible by label.
+            A ``ComparisonResult`` keyed by label.
         """
         return self._run_comparison(
             policies, demand_source, inventory, n_periods,

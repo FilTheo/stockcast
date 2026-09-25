@@ -38,6 +38,10 @@ _NONNEGATIVE_FLOW_COLUMNS = (
 # general (non-expiry) flows. When present they enter the physical balance.
 PROCESS_EVENT_COLUMNS = ("process_inflow_units", "process_outflow_units")
 
+# Optional column: present only in ledgers from runs with a supplier
+# DeliveryOutcome. Units due that never arrive leave stock on order.
+SUPPLY_EVENT_COLUMNS = ("supplier_shortfall_units",)
+
 _BOOLEAN_COLUMNS = (
     "allow_backorders", "is_review_period", "decision_flag", "stockout_flag",
     "backorder_flag", "constraint_binding_flag", "capacity_violation_flag",
@@ -64,7 +68,9 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     Ledgers from runs with general process flows also carry
     ``process_inflow_units`` and ``process_outflow_units``; when present
     (both are required together) they are validated as nonnegative flows and
-    enter the physical inventory balance.
+    enter the physical inventory balance. Ledgers from runs with supplier
+    delivery outcomes carry ``supplier_shortfall_units``; when present it is
+    validated as a nonnegative flow and leaves the pipeline balance.
     """
     if not isinstance(event_frame, pd.DataFrame) or event_frame.empty:
         raise ValueError("event_frame must be a non-empty pandas DataFrame")
@@ -116,7 +122,8 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
             "process_outflow_units, or neither"
         )
     process_columns = tuple(present)
-    for column in _NONNEGATIVE_FLOW_COLUMNS + process_columns:
+    supply_columns = tuple(column for column in SUPPLY_EVENT_COLUMNS if column in frame)
+    for column in _NONNEGATIVE_FLOW_COLUMNS + process_columns + supply_columns:
         values = pd.to_numeric(frame[column], errors="coerce")
         if values.isna().any() or not np.isfinite(values).all() or (values < 0).any():
             raise ValueError(f"event_frame.{column} must contain finite values >= 0")
@@ -153,7 +160,7 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     frame["_flow_magnitude"] = frame[
         list(_NONNEGATIVE_FLOW_COLUMNS) + ["inventory_adjustment_units", "callback_adjustment_units",
                                           "constraint_adjustment_units"]
-        + list(process_columns)
+        + list(process_columns) + list(supply_columns)
     ].abs().sum(axis=1)
     physical_expected = (
         frame["starting_on_hand"] + frame["received_units"]
@@ -184,9 +191,14 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
         frame["backorders_end"],
         "backlog balance",
     )
+    pipeline_expected = (
+        frame["starting_on_order"] - frame["received_units"] + frame["order_quantity"]
+    )
+    if supply_columns:
+        pipeline_expected = pipeline_expected - frame["supplier_shortfall_units"]
     _require_close(
         frame,
-        frame["starting_on_order"] - frame["received_units"] + frame["order_quantity"],
+        pipeline_expected,
         frame["on_order_end"],
         "pipeline balance",
     )

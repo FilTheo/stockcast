@@ -679,6 +679,7 @@ class FastRecord:
         "start", "final", "order_event_count", "line_counts", "squared_sums",
         "audit", "expired", "adjustments",
         "process_columns", "process_in", "process_out",
+        "supply_columns", "shortfall",
     )
 
     def __init__(self, **values):
@@ -686,6 +687,9 @@ class FastRecord:
         self.process_columns = False
         self.process_in = None
         self.process_out = None
+        # Supplier shortfall exists only in runs with delivery outcomes.
+        self.supply_columns = False
+        self.shortfall = None
         for name, value in values.items():
             setattr(self, name, value)
 
@@ -981,6 +985,10 @@ def _event_block(records: List[FastRecord]) -> pd.DataFrame:
         columns["process_outflow_units"] = _optional_pieces(
             [record.process_out for record in records], n
         )
+    if first.supply_columns:
+        columns["supplier_shortfall_units"] = _optional_pieces(
+            [record.shortfall for record in records], n
+        )
     return pd.DataFrame(columns)
 
 
@@ -1043,6 +1051,9 @@ def assert_flow_balance(record: FastRecord) -> None:
     backlog_expected = start.backorders + increment - backorders_fulfilled
     pipeline_terms = [starting_on_order, received, latest["latest_order"]]
     pipeline_expected = starting_on_order - received + latest["latest_order"]
+    if record.supply_columns and record.shortfall is not None:
+        pipeline_terms.append(record.shortfall)
+        pipeline_expected = pipeline_expected - record.shortfall
     checks = [
         ("physical inventory", physical_expected, final.on_hand, physical_terms),
         ("backlog", backlog_expected, final.backorders, backlog_terms),

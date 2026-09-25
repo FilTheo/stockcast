@@ -12,12 +12,26 @@ from stockcast.core.data_structures import OrderDecision, _require_identifiers
 
 
 class CallbackError(RuntimeError):
-    """A callback failed or returned an invalid intervention."""
+    """A callback failed or returned an invalid adjustment.
+
+    The message names the callback, its position, the hook, the period, and the
+    date; the original exception is chained as the cause.
+    """
 
 
 @dataclass(frozen=True)
 class CallbackContext:
-    """Defensive run state supplied at one precisely named callback phase."""
+    """Read-only information given to a callback at one hook.
+
+    Attributes:
+        inventory: A copy of the state table at this moment.
+        sku_column: Name of the SKU column.
+        period: State period (opening period + demand period + 1).
+        date: Date of the period.
+        run_window: ``"warmup"``, ``"scoring"`` or ``"settlement"``.
+        phase: ``"on_after_prediction"`` or ``"on_after_demand"``.
+        initial_decision: Kept for compatibility; ``False`` in current runs.
+    """
 
     inventory: pd.DataFrame
     sku_column: str
@@ -33,7 +47,14 @@ class CallbackContext:
 
 
 class InventoryAdjustmentResult:
-    """Sparse, signed on-hand adjustments proposed by a callback."""
+    """Signed on-hand changes proposed by ``on_after_demand``.
+
+    Args:
+        adjustments: One row per SKU with ``unique_id``, ``quantity_delta``
+            (positive adds stock, negative removes it), ``reason`` and ``source``,
+            and optionally ``received_date`` (needed for added stock under shelf
+            life).
+    """
 
     def __init__(self, adjustments: pd.DataFrame):
         if not isinstance(adjustments, pd.DataFrame):
@@ -41,11 +62,19 @@ class InventoryAdjustmentResult:
         self._adjustments = adjustments.copy(deep=True)
 
     def get_dataframe(self) -> pd.DataFrame:
+        """Return a copy of the proposed adjustments.
+        """
         return self._adjustments.copy(deep=True)
 
 
 class OrderAdjustmentResult:
-    """Sparse absolute order quantities proposed by a callback."""
+    """Order quantities proposed by ``on_after_prediction``.
+
+    Args:
+        adjustments: One row per SKU to change, with ``unique_id``,
+            ``order_quantity`` (the new absolute quantity, >= 0), ``reason`` and
+            ``source``. SKUs not listed keep their quantity.
+    """
 
     def __init__(self, adjustments: pd.DataFrame):
         if not isinstance(adjustments, pd.DataFrame):
@@ -53,29 +82,82 @@ class OrderAdjustmentResult:
         self._adjustments = adjustments.copy(deep=True)
 
     def get_dataframe(self) -> pd.DataFrame:
+        """Return a copy of the proposed quantities.
+        """
         return self._adjustments.copy(deep=True)
 
 
 class SimulationCallback:
-    """Keras-like base class for typed simulation interventions."""
+    """Base class for planned interventions in a run, in the spirit of Keras callbacks.
+
+    Override one or both hooks. Return ``None`` to change nothing. The engine
+    validates each proposal, applies it, and records it in
+    ``SimulationResult.to_callback_audit_frame()``. Callbacks receive copies of
+    the state; they never change it directly.
+
+    - ``on_after_prediction`` runs after the policy proposes an order and before
+      ordering constraints. It can set new order quantities.
+    - ``on_after_demand`` runs after demand is served. It can add or remove
+      on-hand stock, which affects later decisions.
+
+    Example:
+        ```python
+        class DoubleOrdersOn(SimulationCallback):
+            def __init__(self, date):
+                self.date = pd.Timestamp(date)
+
+            def on_after_prediction(self, decision, context):
+                if context.date != self.date:
+                    return None
+                orders = decision.get_dataframe()
+                return OrderAdjustmentResult(pd.DataFrame({
+                    "unique_id": orders["unique_id"],
+                    "order_quantity": 2 * orders["order_quantity"],
+                    "reason": "promotion", "source": "marketing",
+                }))
+        ```
+    """
 
     def reset(self, context: CallbackContext) -> None:
-        """Reset run-local callback state before a simulation starts."""
+        """Reset run-local state. Called before every run and comparison branch.
+
+        Args:
+            context: Context of the opening state.
+        """
 
     def on_after_demand(
         self, context: CallbackContext
     ) -> InventoryAdjustmentResult | None:
-        """Propose on-hand adjustments after demand and before ordering."""
+        """Propose on-hand adjustments after demand is served.
+
+        Args:
+            context: The state after demand, and the period's date and window.
+
+        Returns:
+            An ``InventoryAdjustmentResult``, or ``None`` for no change.
+        """
         return None
 
     def on_after_prediction(
         self, decision: OrderDecision, context: CallbackContext
     ) -> OrderAdjustmentResult | None:
-        """Propose absolute order quantities before operational constraints."""
+        """Propose order quantities after the policy's prediction.
+
+        Args:
+            decision: A copy of the current ``OrderDecision``.
+            context: The state before demand, and the period's date and window.
+
+        Returns:
+            An ``OrderAdjustmentResult``, or ``None`` for no change.
+        """
         return None
 
     def get_config(self) -> dict:
-        """Return JSON-serializable constructor configuration."""
+        """Settings recorded in the run manifest.
+
+        Returns:
+            A JSON-serialisable dict (empty by default).
+        """
         return {}
 
 
@@ -161,7 +243,13 @@ class _ScheduledCallback(SimulationCallback):
 
 
 class ScheduledOrderOverride(_ScheduledCallback):
-    """Set scheduled order quantities to explicit absolute values."""
+    """Set the order to a fixed quantity on scheduled dates.
+
+    Args:
+        schedule: One row per SKU and date (or state period), with columns
+            ``unique_id``, ``date`` and/or ``period``, and non-blank ``reason`` and
+            ``source`` strings recorded in the audit; plus ``order_quantity`` (>= 0).
+    """
 
     value_column = "order_quantity"
 
@@ -180,7 +268,13 @@ class ScheduledOrderOverride(_ScheduledCallback):
 
 
 class ScheduledOrderMultiplier(_ScheduledCallback):
-    """Multiply scheduled current predicted quantities."""
+    """Multiply the policy's order on scheduled dates.
+
+    Args:
+        schedule: One row per SKU and date (or state period), with columns
+            ``unique_id``, ``date`` and/or ``period``, and non-blank ``reason`` and
+            ``source`` strings recorded in the audit; plus ``multiplier`` (>= 0).
+    """
 
     value_column = "multiplier"
 
@@ -205,7 +299,13 @@ class ScheduledOrderMultiplier(_ScheduledCallback):
 
 
 class ScheduledOrderHold(_ScheduledCallback):
-    """Set scheduled current predicted quantities to zero."""
+    """Set the order to zero on scheduled dates, for example supplier holidays.
+
+    Args:
+        schedule: One row per SKU and date (or state period), with columns
+            ``unique_id``, ``date`` and/or ``period``, and non-blank ``reason`` and
+            ``source`` strings recorded in the audit.
+    """
 
     def on_after_prediction(self, decision, context):
         matching = self._matching(context)
@@ -218,7 +318,17 @@ class ScheduledOrderHold(_ScheduledCallback):
 
 
 class ScheduledInventoryAdjustment(_ScheduledCallback):
-    """Apply scheduled signed on-hand unit adjustments after demand."""
+    """Add or remove on-hand stock after demand on scheduled dates.
+
+    Useful for stock counts, damages, and one-off corrections. Removals cannot
+    exceed on-hand stock, and stock cannot be added while the SKU has backorders.
+
+    Args:
+        schedule: One row per SKU and date (or state period), with columns
+            ``unique_id``, ``date`` and/or ``period``, and non-blank ``reason`` and
+            ``source`` strings recorded in the audit; plus a signed ``quantity_delta`` and, for stock added
+            under shelf life, an optional ``received_date``.
+    """
 
     value_column = "quantity_delta"
 

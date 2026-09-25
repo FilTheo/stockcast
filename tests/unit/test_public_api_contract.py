@@ -41,6 +41,8 @@ def test_public_export_sets_are_frozen_for_0_1():
         # Additive inventory-process API (knowledge 93.8).
         "Flow", "InventoryProcess", "PROCESS_FLOW_COLUMNS", "ProcessContext",
         "ProcessFlows", "ShelfLife", "StockChange",
+        # Additive supplier delivery outcomes (knowledge 93.9).
+        "DeliveryContext", "DeliveryOutcome",
     ]
     assert policies.__all__ == [
         "OrderUpToPolicy", "ReorderPointPolicy", "PeriodicReviewPolicy",

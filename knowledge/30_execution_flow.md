@@ -54,6 +54,8 @@ opening pipeline. Settlement suppression also suppresses `decision_flag`.
 ```text
 copy opening state
   -> process before_demand flows (ShelfLife: expire unusable lots)
+  -> [supply with DeliveryOutcome: resolve deliveries due now -> received /
+      delayed / undelivered; pipeline and book updated; shortfall recorded]
   -> advance_period (reset flows, advance, receive, clear old backlog)
   -> process on_receipt (ShelfLife: register due receipts as lots)
   -> if schedule eligible and ordering enabled:
@@ -89,6 +91,9 @@ With `supply=SupplyModel(...)`, step 7 splits the accepted quantity into
 supplier lines with their own lead times and partial deliveries
 ([97.4](97_open_orders_and_suppliers.md#974-engine-supply-stage)); receipts
 due now are immediate. Steps 1–6 and the per-SKU audit columns are unchanged.
+Allocations receive the accepted decision as `AllocationContext.decision`.
+A supplier's optional `DeliveryOutcome` acts later, at the start of each due
+period before receipt ([97.7](97_open_orders_and_suppliers.md#977-supplier-delivery-outcomes)).
 
 The engine performs this path once per enabled decision opportunity. The
 current callback result adjusts one composed decision; it does not add a second

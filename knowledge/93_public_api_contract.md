@@ -153,3 +153,27 @@ No existing name, argument, output column or behavior changed.
 `ShelfLifeEngine` keeps its signature, attributes (`ledger`,
 `expired_this_period`, `shelf_life_days`) and outputs. Its private lifecycle
 hook overrides were removed; they were never public.
+
+## 93.9 Additive supplier delivery outcomes (2026-09-25)
+
+Owner-approved backward-compatible addition
+([97.7](97_open_orders_and_suppliers.md#977-supplier-delivery-outcomes)):
+
+- exports appended to `stockcast.core` only: `DeliveryContext`,
+  `DeliveryOutcome`;
+- new optional keyword `delivery=None` on `Supplier`;
+- new frozen-dataclass field `AllocationContext.decision` (default `None`,
+  set by the engine);
+- optional event-ledger column `supplier_shortfall_units`, present only for
+  runs in which a supplier has a `DeliveryOutcome`, included in
+  `validate_event_frame`'s pipeline balance;
+- order-frame columns `scheduled_due_period`, `received_quantity`,
+  `delayed_quantity`, `undelivered_quantity`, the status `disrupted` and the
+  source `delayed`, only in such runs; `ORDER_FRAME_COLUMNS` is unchanged;
+- a `UserWarning` once per run when a delivery is scheduled or delayed to a
+  time other than `policy.lead_time` after its order. It does not change
+  results.
+
+No existing name, argument, output column or result changed. The warning is
+new output for existing supply runs whose suppliers deliver off the policy's
+lead time.

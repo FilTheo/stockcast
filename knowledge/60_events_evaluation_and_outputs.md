@@ -17,6 +17,7 @@ cover these groups:
 | operational audit | order-event/line counts, capacity flags, constraint audit |
 | perishability | expired units and explicit stock adjustment |
 | inventory processes (optional) | `process_inflow_units`, `process_outflow_units`, present together only when a run's processes declare general flows ([98](98_inventory_processes.md)) |
+| supplier delivery outcomes (optional) | `supplier_shortfall_units`, present only when a supplier has a `DeliveryOutcome`; leaves the pipeline balance ([97.7](97_open_orders_and_suppliers.md#977-supplier-delivery-outcomes)) |
 
 `validate_event_frame` enforces required columns, types, finite/nonnegative
 values, unique row keys, mutually consistent shortage mode, timing flags, and
@@ -38,6 +39,11 @@ all flow identities from [20.8](20_data_and_time_contracts.md#208-balance-equati
   with supplier, dates, realized lead time and status. Received rows sum to
   `received_units` per SKU-period and open rows to the final `on_order_end`
   ([97](97_open_orders_and_suppliers.md)). Built-in metrics do not use it.
+  Runs with a supplier `DeliveryOutcome` add `scheduled_due_period`,
+  `received_quantity`, `delayed_quantity` and `undelivered_quantity`
+  ([97.7](97_open_orders_and_suppliers.md#977-supplier-delivery-outcomes)).
+  No built-in metric reads `supplier_shortfall_units`; supplier fill rate
+  and similar are custom callables (Notebook 05f).
 - a process flow frame, `to_process_flow_frame()` (`PROCESS_FLOW_COLUMNS`):
   one row per nonzero process flow, SKU and period. Expiry rows sum to
   `expired_units`, general rows to the two process columns. Built-in metrics

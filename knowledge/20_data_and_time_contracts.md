@@ -154,6 +154,7 @@ ending_backorders
 
 ending_pipeline
   = starting_pipeline - receipts + orders_placed
+  - supplier_shortfall   (only when the column exists; see 97.7)
   (per SKU; with supply the supplier lines sum to orders_placed within tolerance)
 
 ending_inventory_position

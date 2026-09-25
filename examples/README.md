@@ -47,6 +47,16 @@ overtake each other), compares planning lead times on shared draws, and ends
 with dual sourcing, partial deliveries and a custom allocation rule. Purchase
 costs per supplier come from the order frame at declared prices.
 
+Notebook `05f_unreliable_supplier.ipynb` follows a garden centre whose
+wholesaler is sometimes late, sometimes short, and limited in what it can ship.
+It starts from the ordinary one-supplier run, writes it with `SupplyModel` and
+a pass-through `DeliveryOutcome` with identical results, then adds late
+deliveries (and explains the lead-time warning), short deliveries and the
+`supplier_shortfall_units` ledger column, capacity as an ordering constraint,
+and a backup distributor that takes the excess or is chosen by the policy.
+Supplier fill rate and purchase cost at declared prices come from custom
+metrics and the order frame.
+
 Notebook `05e_inventory_processes.ipynb` stocks two chilled products. It runs
 shelf life with `ShelfLifeEngine`, repeats the identical run with
 `processes=[ShelfLife(...)]`, then writes a Monday-inspection process and a

@@ -21,7 +21,13 @@ from stockcast.core.data_structures import (
 
 @dataclass(frozen=True)
 class ConstraintContext:
-    """State visible to an ordering constraint at one decision opportunity."""
+    """Information given to a constraint at one decision.
+
+    Attributes:
+        inventory: The ``InventoryStateDataFrame`` before demand.
+        policy: The policy that proposed the order.
+        decision_period: The state period of the decision.
+    """
 
     inventory: InventoryStateDataFrame
     policy: object | None
@@ -30,29 +36,63 @@ class ConstraintContext:
 
 @dataclass(frozen=True)
 class ConstraintResult:
-    """One constraint's validated decision and audit rows."""
+    """What a constraint returns: the new order and its audit rows.
+
+    Attributes:
+        order: The constrained ``OrderDecision``.
+        audit: One row per SKU with ``unique_id``, ``requested_order_quantity``,
+            ``constrained_order_quantity``, ``constraint_adjustment_units``,
+            ``constraint_binding_flag``, ``capacity_violation_flag`` and
+            ``binding_constraints``.
+    """
 
     order: OrderDecision
     audit: pd.DataFrame
 
 
 class OrderingConstraint(ABC):
-    """Extension interface for one operational ordering constraint."""
+    """Base class for one operational ordering rule.
+
+    Subclass it, set a unique ``name``, and implement ``apply``. Override
+    ``validate`` to check the final order after the whole sequence has run, and
+    ``to_manifest`` to record the rule's settings. Constraints run after order
+    callbacks and before the order is placed, in the order they are listed in
+    ``OrderingConstraints``.
+    """
 
     name = "custom_constraint"
 
     def reset(self, context: ConstraintContext) -> None:
-        """Reset run-local state. Stateless constraints need no action."""
+        """Reset run-local state before a run. Stateless rules need nothing.
+        """
 
     @abstractmethod
     def apply(self, order: OrderDecision, context: ConstraintContext) -> ConstraintResult:
-        """Apply this constraint and return a decision plus audit."""
+        """Apply the rule to an order.
+
+        Args:
+            order: The order after callbacks and earlier constraints.
+            context: The state before demand, the policy, and the decision period.
+
+        Returns:
+            A ``ConstraintResult`` with the new order and one audit row per SKU.
+        """
 
     def validate(self, order: OrderDecision, context: ConstraintContext) -> None:
-        """Validate a final composed decision. Custom constraints may override this."""
+        """Check the final order after every constraint has run.
+
+        The base implementation checks the order's shape (known SKUs, finite,
+        non-negative quantities). Raise ``ValueError`` if the final order breaks this
+        rule.
+        """
         _validated_order_frame(order, context)
 
     def to_manifest(self) -> dict:
+        """Describe the rule for the run manifest.
+
+        Returns:
+            A JSON-serialisable dict.
+        """
         return {"class": type(self).__name__, "name": self.name}
 
 
@@ -190,7 +230,16 @@ class _PerSkuConstraint(OrderingConstraint):
 
 
 class MinimumOrderQuantity(_PerSkuConstraint):
-    """Raise or adjust positive orders below a declared minimum."""
+    """Positive orders must be at least a minimum quantity.
+
+    With ``mode="adjust"``, a positive order below the minimum is raised to it.
+    Zero orders are always allowed.
+
+    Args:
+        values: One number for all SKUs, or a dict with exactly one value per SKU.
+        mode: ``"raise"`` (default) stops the run when an order breaks the rule;
+            ``"adjust"`` changes the order to satisfy it.
+    """
 
     name = "minimum_order_quantity"
     parameter_name = "minimum_quantities"
@@ -221,7 +270,15 @@ class MinimumOrderQuantity(_PerSkuConstraint):
 
 
 class OrderMultiple(_PerSkuConstraint):
-    """Raise or round positive orders up to a declared multiple."""
+    """Positive orders must be whole multiples, for example of a case size.
+
+    With ``mode="adjust"``, orders are rounded up to the next multiple.
+
+    Args:
+        values: One number for all SKUs, or a dict with exactly one value per SKU. Values must be > 0.
+        mode: ``"raise"`` (default) stops the run when an order breaks the rule;
+            ``"adjust"`` changes the order to satisfy it.
+    """
 
     name = "order_multiple"
     parameter_name = "multiples"
@@ -266,7 +323,16 @@ class OrderMultiple(_PerSkuConstraint):
 
 
 class MaximumOrderQuantity(_PerSkuConstraint):
-    """Raise or clip orders above a declared per-SKU maximum."""
+    """Orders may not exceed a maximum quantity.
+
+    With ``mode="adjust"``, larger orders are cut to the maximum and the ledger's
+    ``capacity_violation_flag`` is set.
+
+    Args:
+        values: One number for all SKUs, or a dict with exactly one value per SKU.
+        mode: ``"raise"`` (default) stops the run when an order breaks the rule;
+            ``"adjust"`` changes the order to satisfy it.
+    """
 
     name = "maximum_order_quantity"
     parameter_name = "maximum_quantities"
@@ -297,7 +363,17 @@ class MaximumOrderQuantity(_PerSkuConstraint):
 
 
 class ShelfSpaceLimit(_PerSkuConstraint):
-    """Limit each order using on-hand plus pipeline occupancy in unit space."""
+    """On-hand stock plus pipeline plus the new order may not exceed a capacity.
+
+    The free space is ``max(0, capacity - (on_hand + on_order))``. With
+    ``mode="adjust"``, larger orders are cut to it and the ledger's
+    ``capacity_violation_flag`` is set.
+
+    Args:
+        values: One number for all SKUs, or a dict with exactly one value per SKU.
+        mode: ``"raise"`` (default) stops the run when an order breaks the rule;
+            ``"adjust"`` changes the order to satisfy it.
+    """
 
     name = "shelf_space_limit"
     parameter_name = "capacity_units"
@@ -346,7 +422,23 @@ class ShelfSpaceLimit(_PerSkuConstraint):
 
 
 class OrderingConstraints(OrderingConstraint):
-    """Apply an explicit sequence of independent ordering constraints."""
+    """An ordered sequence of constraints, passed to the engine as ``order_constraints``.
+
+    Each constraint is applied to the result of the previous one. The final order
+    is then checked against every constraint; if one rule's adjustment breaks
+    another, the run stops with a message naming the SKU and the rule.
+
+    Args:
+        constraints: One or more ``OrderingConstraint`` objects with unique names.
+
+    Example:
+        ```python
+        OrderingConstraints([
+            MinimumOrderQuantity(12, mode="adjust"),
+            OrderMultiple(6, mode="adjust"),
+        ])
+        ```
+    """
 
     name = "ordering_constraints"
 
@@ -422,6 +514,8 @@ class OrderingConstraints(OrderingConstraint):
             constraint.validate(order, context)
 
     def to_manifest(self) -> dict:
+        """Describe the sequence for the run manifest.
+        """
         component_manifests = [constraint.to_manifest() for constraint in self.constraints]
         if not all(isinstance(manifest, dict) for manifest in component_manifests):
             raise TypeError("every constraint manifest must be a dictionary")

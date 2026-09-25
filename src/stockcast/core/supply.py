@@ -7,6 +7,8 @@ This module provides:
     - SupplierAllocation: extension point that splits each SKU's accepted
       order quantity across suppliers
     - SupplierShares: fixed fractional split, globally or per SKU
+    - DeliveryOutcome: optional extension point deciding what actually
+      arrives when a supplier's delivery falls due (short, late, cancelled)
     - SupplyModel: the suppliers, their allocation and an explicit random seed
 
 The supply stage runs after a policy's order has passed order callbacks and
@@ -14,6 +16,11 @@ constraints, and before the order enters the pipeline:
 
     policy -> order callbacks -> constraints -> supply (allocation, lead times,
     delivery split) -> pipeline / immediate receipt
+
+A supplier with a ``DeliveryOutcome`` is asked, at the start of each period
+in which one of its deliveries falls due and before that period's receipt,
+how much arrives now, how much arrives later and how much never arrives.
+Without an outcome, every delivery arrives in full on its due period.
 
 Policies, callbacks and constraints are unchanged: they still work on one
 order quantity per SKU. The event ledger keeps its per-SKU columns; the
@@ -65,28 +72,34 @@ def _json_identifier(value):
 
 
 class Supplier:
-    """
-    One source of supply.
+    """One source of supply.
 
     Args:
-        supplier_id: Hashable, nonblank supplier identifier.
-        lead_time: Periods from order placement to (first) delivery. Either a
-            fixed integer >= 0, or a mapping ``{lead_time: probability}`` with
-            integer lead times >= 0 and positive probabilities summing to 1.
-            Random lead times are drawn with the ``SupplyModel`` seed.
-        partial_deliveries: Optional sequence of ``(delay, fraction)`` pairs.
-            Each order line is delivered in parts, ``delay`` periods after the
-            (drawn) lead time, with the given fraction of the line quantity.
-            Delays are strictly increasing integers >= 0 and fractions are
-            positive and sum to 1. Default: one delivery of the full quantity.
+        supplier_id (Hashable): Nonblank supplier identifier.
+        lead_time (int | Mapping[int, float]): Periods from order placement to
+            (first) delivery. Either a fixed integer >= 0, or a mapping
+            ``{lead_time: probability}`` with integer lead times >= 0 and
+            positive probabilities summing to 1. Random lead times are drawn
+            with the ``SupplyModel`` seed.
+        partial_deliveries (Sequence[tuple[int, float]] | None): Optional
+            sequence of ``(delay, fraction)`` pairs. Each order line is
+            delivered in parts, ``delay`` periods after the (drawn) lead time,
+            with the given fraction of the line quantity. Delays are strictly
+            increasing integers >= 0 and fractions are positive and sum to 1.
+            Default: one delivery of the full quantity.
+        delivery (DeliveryOutcome | None): Optional outcome that decides, at
+            each due period, what actually arrives (see ``DeliveryOutcome``).
+            Default ``None``: every delivery arrives in full when due.
 
     Example:
+        ```python
         Supplier("importer", lead_time={4: 0.6, 5: 0.3, 7: 0.1},
                  partial_deliveries=[(0, 0.7), (2, 0.3)])
         # 70% arrives after 4, 5 or 7 periods; the rest two periods later.
+        ```
     """
 
-    def __init__(self, supplier_id, lead_time, *, partial_deliveries=None):
+    def __init__(self, supplier_id, lead_time, *, partial_deliveries=None, delivery=None):
         if supplier_id is None:
             raise ValueError("supplier_id must not be None")
         _require_supplier_ids([supplier_id], "Supplier")
@@ -157,6 +170,9 @@ class Supplier:
                 raise ValueError("partial delivery fractions must sum to 1")
             self._delays = np.asarray(delays, dtype=np.int64)
             self._fractions = np.asarray(fractions)
+        if delivery is not None and not isinstance(delivery, DeliveryOutcome):
+            raise TypeError("Supplier.delivery must be a DeliveryOutcome instance or None")
+        self.delivery = delivery
 
     @property
     def is_random(self) -> bool:
@@ -169,6 +185,8 @@ class Supplier:
         return int(self._lead_values.max() + self._delays.max())
 
     def to_manifest(self) -> dict:
+        """Describe the supplier for the run manifest.
+        """
         if self.is_random:
             lead_time = {
                 "distribution": [
@@ -178,7 +196,7 @@ class Supplier:
             }
         else:
             lead_time = {"fixed": int(self._lead_values[0])}
-        return {
+        manifest = {
             "supplier_id": _json_identifier(self.supplier_id),
             "lead_time": lead_time,
             "partial_deliveries": [
@@ -186,13 +204,34 @@ class Supplier:
                 for delay, fraction in zip(self._delays, self._fractions)
             ],
         }
+        if self.delivery is not None:
+            # Present only for suppliers with an outcome, so manifests of
+            # suppliers without one are unchanged.
+            manifest["delivery"] = _extension_manifest(
+                self.delivery, "DeliveryOutcome.get_config()"
+            )
+        return manifest
 
     def __repr__(self) -> str:
         if self.is_random:
             lead = dict(zip(self._lead_values.tolist(), self._lead_probabilities.tolist()))
         else:
             lead = int(self._lead_values[0])
-        return f"Supplier({self.supplier_id!r}, lead_time={lead!r})"
+        delivery = (
+            "" if self.delivery is None else f", delivery={type(self.delivery).__name__}()"
+        )
+        return f"Supplier({self.supplier_id!r}, lead_time={lead!r}{delivery})"
+
+
+def _extension_manifest(extension, label: str) -> dict:
+    config = extension.get_config()
+    if not isinstance(config, dict):
+        raise TypeError(f"{label} must return a dictionary")
+    return {
+        "module": type(extension).__module__,
+        "class": type(extension).__name__,
+        "config": copy.deepcopy(config),
+    }
 
 
 @dataclass(frozen=True)
@@ -206,6 +245,10 @@ class AllocationContext:
         period: State period of the decision (the order period).
         date: Calendar date of the decision period.
         suppliers: Supplier identifiers of the ``SupplyModel``, in order.
+        decision: Copy of the accepted order decision (after callbacks and
+            constraints), one row per SKU, including any extra columns the
+            policy wrote. A policy can, for example, add a ``supplier_id``
+            column and a custom allocation can follow it.
     """
 
     inventory: pd.DataFrame
@@ -214,6 +257,7 @@ class AllocationContext:
     period: int
     date: pd.Timestamp
     suppliers: tuple
+    decision: Optional[pd.DataFrame] = None
 
 
 class SupplierAllocation:
@@ -227,6 +271,8 @@ class SupplierAllocation:
     supplier, known suppliers only, quantities >= 0, and per-SKU totals equal
     to the requested quantity (within floating-point tolerance). The per-SKU
     total in the event ledger is always the accepted order quantity.
+    ``context.decision`` holds the policy's full accepted decision, so an
+    allocation can follow a supplier the policy chose.
 
     Allocations never change inventory. ``reset()`` is called before every
     run and ``get_config()`` must return JSON-serializable settings.
@@ -235,21 +281,35 @@ class SupplierAllocation:
     name = "supplier_allocation"
 
     def allocate(self, orders: pd.DataFrame, context: AllocationContext) -> pd.DataFrame:
+        """Split each SKU's accepted order across suppliers.
+
+        Args:
+            orders: One row per SKU with a positive accepted ``order_quantity``.
+            context: An ``AllocationContext``: copies of the state and open orders,
+                the period and date, the supplier ids, and the accepted decision.
+
+        Returns:
+            One row per SKU and supplier with the SKU column, ``supplier_id`` and
+            ``order_quantity``. Each SKU's rows must add up to its order.
+        """
         raise NotImplementedError
 
     def validate(self, supplier_ids: Sequence, skus: Sequence) -> None:
-        """Optional preflight check against the run's suppliers and SKUs."""
+        """Check, before a run, that the allocation fits the suppliers and SKUs.
+        """
 
     def reset(self) -> None:
-        """Reset any per-run state."""
+        """Reset run-local state. Called before every run.
+        """
 
     def get_config(self) -> dict:
+        """Settings recorded in the run manifest (a JSON-serialisable dict).
+        """
         return {}
 
 
 class SupplierShares(SupplierAllocation):
-    """
-    Fixed fractional split of every order across suppliers.
+    """Fixed fractional split of every order across suppliers.
 
     Args:
         shares: Mapping ``{supplier_id: fraction}``; fractions are >= 0 and sum
@@ -261,8 +321,10 @@ class SupplierShares(SupplierAllocation):
     share receives the remainder, so line quantities add up to the order.
 
     Example:
+        ```python
         SupplierShares({"local_roaster": 0.3, "importer": 0.7},
                        by_sku={"decaf": {"local_roaster": 1.0}})
+        ```
     """
 
     name = "supplier_shares"
@@ -310,6 +372,8 @@ class SupplierShares(SupplierAllocation):
             )
 
     def allocate(self, orders: pd.DataFrame, context: AllocationContext) -> pd.DataFrame:
+        """Split each SKU's order by the configured shares.
+        """
         rows = []
         for sku, quantity in orders[[context.sku_column, "order_quantity"]].itertuples(
             index=False, name=None
@@ -330,6 +394,8 @@ class SupplierShares(SupplierAllocation):
         return pd.DataFrame(rows, columns=[context.sku_column, "supplier_id", "order_quantity"])
 
     def get_config(self) -> dict:
+        """The shares, for the run manifest.
+        """
         return {
             "shares": {str(_json_identifier(key)): value for key, value in self.shares.items()},
             "by_sku": {
@@ -339,6 +405,106 @@ class SupplierShares(SupplierAllocation):
                 for sku, shares in self.by_sku.items()
             },
         }
+
+
+@dataclass(frozen=True)
+class DeliveryContext:
+    """Defensive information handed to ``DeliveryOutcome.resolve``.
+
+    Attributes:
+        inventory: Copy of the state frame before this period's receipts.
+        sku_column: SKU identifier column of the frames.
+        period: State period in which the deliveries are due.
+        date: Calendar date of that period.
+        supplier_id: The supplier whose deliveries are due.
+        rng: ``numpy.random.Generator`` for this supplier, seeded from
+            ``SupplyModel.random_seed`` (one stream per supplier, created
+            anew for every run). ``None`` when the model has no seed.
+    """
+
+    inventory: pd.DataFrame
+    sku_column: str
+    period: int
+    date: pd.Timestamp
+    supplier_id: object
+    rng: Optional[np.random.Generator]
+
+
+class DeliveryOutcome:
+    """Extension point: what arrives when a supplier's deliveries fall due.
+
+    Attach an instance to a supplier with ``Supplier(..., delivery=...)``. At
+    the start of every period in which deliveries of that supplier are due,
+    before they are received, the engine calls ``resolve(due, context)``.
+
+    ``due`` has one row per due delivery, with columns ``order_id``, the SKU
+    column, ``supplier_id``, ``source``, ``order_period``,
+    ``scheduled_due_period`` (the due period set when the order was placed),
+    ``due_period`` (now) and ``quantity``.
+
+    Return ``None`` to let everything arrive, or a DataFrame with the same
+    index as ``due`` and the column ``received_quantity``, optionally with
+    ``delayed_quantity`` and ``delay_periods``. Other columns are ignored, so
+    returning ``due`` with added columns works. Per row:
+
+        - ``received_quantity`` arrives now;
+        - ``delayed_quantity`` stays on order and is due again
+          ``delay_periods`` periods later (an integer >= 1), when it is
+          resolved again;
+        - the rest, ``quantity - received - delayed``, never arrives. It
+          leaves stock on order and is recorded as
+          ``supplier_shortfall_units`` in the event ledger.
+
+    Quantities are finite and >= 0, and ``received + delayed`` must not
+    exceed ``quantity``. A delayed delivery must still fall within
+    ``inventory.max_lead_time`` periods of the current state.
+
+    The base class returns ``None``: ``Supplier(id, lead_time, delivery=
+    DeliveryOutcome())`` gives the same deliveries as a supplier without an
+    outcome. ``reset()`` is called before every run; ``get_config()`` must
+    return JSON-serializable settings for the run manifest.
+
+    Example (10% of deliveries arrive one period late, the rest 90% filled):
+        ```python
+
+        class LateOrShort(DeliveryOutcome):
+            def resolve(self, due, context):
+                out = due.copy()
+                late = context.rng.random(len(due)) < 0.1
+                out["received_quantity"] = np.where(late, 0.0, 0.9 * due["quantity"])
+                out["delayed_quantity"] = np.where(late, due["quantity"], 0.0)
+                out["delay_periods"] = 1
+                return out
+        ```
+    """
+
+    name = "delivery_outcome"
+
+    def resolve(self, due: pd.DataFrame, context: DeliveryContext) -> Optional[pd.DataFrame]:
+        """Decide what arrives of the deliveries due now.
+
+        Args:
+            due: One row per due delivery of this supplier, with ``order_id``, the
+                SKU column, ``supplier_id``, ``source``, ``order_period``,
+                ``scheduled_due_period``, ``due_period`` and ``quantity``.
+            context: A ``DeliveryContext`` with a copy of the state, the period, the
+                date, the supplier id, and a seeded random generator ``rng``.
+
+        Returns:
+            ``None`` to let everything arrive, or a DataFrame with the index of
+            ``due`` and ``received_quantity``, optionally ``delayed_quantity`` and
+            ``delay_periods`` (>= 1). The rest never arrives.
+        """
+        return None
+
+    def reset(self) -> None:
+        """Reset run-local state. Called before every run.
+        """
+
+    def get_config(self) -> dict:
+        """Settings recorded in the run manifest (a JSON-serialisable dict).
+        """
+        return {}
 
 
 class SupplyModel:
@@ -395,6 +561,8 @@ class SupplyModel:
 
     @property
     def supplier_ids(self) -> tuple:
+        """The supplier ids, in the order given.
+        """
         return tuple(supplier.supplier_id for supplier in self.suppliers)
 
     @property
@@ -402,17 +570,19 @@ class SupplyModel:
         """Longest possible time from order to last delivery over all suppliers."""
         return max(supplier.max_delivery_offset for supplier in self.suppliers)
 
+    @property
+    def has_delivery_outcomes(self) -> bool:
+        """Whether any supplier has a ``DeliveryOutcome``."""
+        return any(supplier.delivery is not None for supplier in self.suppliers)
+
     def to_manifest(self) -> dict:
+        """Describe the suppliers, allocation, and seed for the run manifest.
+        """
         allocation = None
         if self.allocation is not None:
-            config = self.allocation.get_config()
-            if not isinstance(config, dict):
-                raise TypeError("SupplierAllocation.get_config() must return a dictionary")
-            allocation = {
-                "module": type(self.allocation).__module__,
-                "class": type(self.allocation).__name__,
-                "config": copy.deepcopy(config),
-            }
+            allocation = _extension_manifest(
+                self.allocation, "SupplierAllocation.get_config()"
+            )
         manifest = {
             "suppliers": [supplier.to_manifest() for supplier in self.suppliers],
             "allocation": allocation,
@@ -442,6 +612,16 @@ class SupplyModel:
             else:
                 draws.append(None)
         self._draws = draws
+        # Delivery-outcome generators use their own streams, so lead-time
+        # draws are identical with or without outcomes.
+        self._outcome_rngs = {}
+        for position, supplier in enumerate(self.suppliers):
+            if supplier.delivery is not None:
+                supplier.delivery.reset()
+                self._outcome_rngs[supplier.supplier_id] = (
+                    None if self.random_seed is None
+                    else np.random.default_rng([self.random_seed, position, 1])
+                )
 
     def _allocate(self, orders: pd.DataFrame, context: AllocationContext) -> pd.DataFrame:
         """Validated supplier lines for the positive per-SKU orders."""
@@ -525,6 +705,70 @@ class SupplyModel:
         return pd.DataFrame(rows, columns=[
             sku_column, "supplier_id", "order_quantity", "order_period", "due_period", "order_line",
         ])
+
+    def _check_outcome_timing(self) -> None:
+        """Deliveries resolved by an outcome must be due after the order period."""
+        for supplier in self.suppliers:
+            if supplier.delivery is not None and supplier._lead_values.min() + supplier._delays.min() < 1:
+                raise ValueError(
+                    f"supplier {supplier.supplier_id!r} has a DeliveryOutcome but can deliver in "
+                    "the order period (lead time 0); a delivery due at placement is received "
+                    "immediately, so outcomes require every delivery to be due at least one "
+                    "period after the order"
+                )
+
+    def _resolve(self, supplier_id, due: pd.DataFrame, context: DeliveryContext):
+        """Validated ``(received, delayed, delay)`` arrays for one supplier's due deliveries."""
+        outcome = self.suppliers[self.supplier_ids.index(supplier_id)].delivery
+        quantity = due["quantity"].to_numpy(dtype=float)
+        n = len(due)
+        result = outcome.resolve(due.copy(deep=True), context)
+        if result is None:
+            return quantity.copy(), np.zeros(n), np.zeros(n, dtype=np.int64)
+        label = f"DeliveryOutcome of supplier {supplier_id!r}"
+        if not isinstance(result, pd.DataFrame):
+            raise TypeError(f"{label} must return a pandas DataFrame or None")
+        if len(result) != n or not result.index.sort_values().equals(due.index.sort_values()):
+            raise ValueError(f"{label} must return one row per due delivery, with the index of `due`")
+        result = result.reindex(due.index)
+        if "received_quantity" not in result.columns:
+            raise ValueError(f"{label} must return a received_quantity column")
+
+        def numbers(column, default):
+            if column not in result.columns:
+                return np.full(n, default, dtype=float)
+            values = pd.to_numeric(result[column], errors="coerce").to_numpy(dtype=float)
+            if np.isnan(values).any() or not np.isfinite(values).all() or (values < 0).any():
+                raise ValueError(f"{label}: {column} must contain finite values >= 0")
+            return values
+
+        received = numbers("received_quantity", 0.0)
+        delayed = numbers("delayed_quantity", 0.0)
+        tolerance = 1e-9 * np.maximum(1.0, quantity)
+        if (received + delayed > quantity + tolerance).any():
+            raise ValueError(
+                f"{label}: received_quantity + delayed_quantity must not exceed the due quantity"
+            )
+        delay = np.zeros(n, dtype=np.int64)
+        later = delayed > 0
+        if later.any():
+            if "delay_periods" not in result.columns:
+                raise ValueError(f"{label} must return delay_periods for delayed quantities")
+            values = pd.to_numeric(result["delay_periods"], errors="coerce").to_numpy(dtype=float)
+            chosen = values[later]
+            if (
+                np.isnan(chosen).any() or not np.isfinite(chosen).all()
+                or (chosen < 1).any() or not np.equal(chosen, np.floor(chosen)).all()
+            ):
+                raise ValueError(
+                    f"{label}: delay_periods must be an integer >= 1 for delayed quantities"
+                )
+            delay[later] = chosen.astype(np.int64)
+        # Rounding within the tolerance never creates stock: the excess is
+        # taken off the received quantity.
+        delayed = np.minimum(delayed, quantity)
+        received = np.minimum(received, quantity - delayed).clip(min=0.0)
+        return received, delayed, delay
 
     def __repr__(self) -> str:
         return (

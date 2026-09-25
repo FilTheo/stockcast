@@ -915,3 +915,156 @@ def test_summing_marginal_quantiles_is_refused():
         policy.fit(frame, forecast_origin=ORIGIN, forecast_frequency="D", mean_column="mean",
                    std_column="std", forecast_date_column="date", protection_horizon=2,
                    target_probability=0.9, aggregation_method="sum_marginal_quantiles")
+
+
+# ---------------------------------------------------------------------------
+# Supplier delivery outcomes: independent delivery-list oracle
+# ---------------------------------------------------------------------------
+
+from stockcast.core import DeliveryOutcome, Supplier, SupplyModel  # noqa: E402
+
+
+def _outcome_rule(sku_index: int, order_t: int, scheduled_t: int, due_t: int):
+    """Deterministic supplier behaviour shared by engine outcome and oracle.
+
+    Returns (received fraction, delayed fraction, delay). A delivery slips at
+    most twice; after that it is received in full or partly lost.
+    """
+    code = (sku_index * 7919 + order_t * 104729 + due_t * 1299709) % 1000
+    u = code / 1000.0
+    delay = 1 + code % 3
+    if due_t - scheduled_t >= 2:
+        return (1.0, 0.0, 0) if u < 0.7 else (0.25, 0.0, 0)
+    if u < 0.2:
+        return 0.0, 1.0, delay       # all late
+    if u < 0.35:
+        return 0.5, 0.5, delay       # half now, half owed
+    if u < 0.5:
+        return 0.6, 0.0, 0           # short: 40% never arrives
+    return 1.0, 0.0, 0
+
+
+class RuleOutcome(DeliveryOutcome):
+    def __init__(self, skus, offset):
+        self.skus = list(skus)
+        self.offset = offset  # state period of demand period 0
+
+    def resolve(self, due, context):
+        rows = [
+            _outcome_rule(self.skus.index(sku), int(order) - self.offset,
+                          int(scheduled) - self.offset, int(now) - self.offset)
+            for sku, order, scheduled, now in due[
+                ["unique_id", "order_period", "scheduled_due_period", "due_period"]
+            ].itertuples(index=False, name=None)
+        ]
+        received, delayed, delay = map(np.asarray, zip(*rows))
+        return due.assign(received_quantity=received * due["quantity"],
+                          delayed_quantity=delayed * due["quantity"],
+                          delay_periods=delay)
+
+
+def outcome_oracle(*, skus, demand, lead, backorders, on_hand, pipeline, decide, rule):
+    """Before-demand contract with supplier outcomes, on a plain delivery list.
+
+    Opening pipeline deliveries (``pipeline[i][k]`` due before demand ``k``)
+    have no supplier and arrive as scheduled. Every placed delivery is
+    resolved by ``_outcome_rule`` when it falls due.
+    """
+    stock = [float(v) for v in on_hand]
+    back = [0.0 for _ in skus]
+    deliveries = [  # [sku, order_t, scheduled_t, due_t, quantity, placed]
+        [i, None, k, k, float(q), False]
+        for i, row in enumerate(pipeline) for k, q in enumerate(row) if q > 0
+    ]
+    rows = []
+    for t in range(demand.shape[0]):
+        starting = {i: sum(d[4] for d in deliveries if d[0] == i) for i in range(len(skus))}
+        shortfall = [0.0] * len(skus)
+        resolved = []
+        for d in deliveries:
+            if d[3] != t or not d[5]:
+                resolved.append(d)
+                continue
+            got, late, delay = _outcome_rule(d[0], d[1], d[2], d[3])
+            received, delayed = got * d[4], late * d[4]
+            shortfall[d[0]] += d[4] - received - delayed
+            if received > 0:
+                resolved.append([d[0], d[1], d[2], t, received, True])
+            if delayed > 0:
+                resolved.append([d[0], d[1], d[2], t + delay, delayed, True])
+        deliveries = resolved
+        for i, sku in enumerate(skus):
+            received = sum(d[4] for d in deliveries if d[0] == i and d[3] == t)
+            cleared = min(back[i], received) if backorders else 0.0
+            back[i] -= cleared
+            stock[i] += received - cleared
+            order = 0.0
+            if decide(t):
+                ip = stock[i] + sum(d[4] for d in deliveries if d[0] == i and d[3] > t) - back[i]
+                order = float(rule(i, ip))
+                if order > 0:
+                    deliveries.append([i, t, t + lead, t + lead, order, True])
+            d_t = float(demand[t, i])
+            served = min(stock[i], d_t)
+            stock[i] -= served
+            if backorders:
+                back[i] += d_t - served
+            rows.append(dict(
+                unique_id=sku, demand_period=t, starting_on_hand=None,
+                starting_on_order=starting[i], received_units=received,
+                supplier_shortfall_units=shortfall[i], ending_on_hand=stock[i],
+                backorders_end=back[i], order_quantity=order,
+                on_order_end=sum(d[4] for d in deliveries if d[0] == i and d[3] > t),
+            ))
+        deliveries = [d for d in deliveries if d[3] > t]
+    return pd.DataFrame(rows)
+
+
+@pytest.mark.parametrize("seed", range(12))
+def test_supplier_outcomes_match_independent_oracle(seed):
+    rng = random.Random(1000 + seed)
+    nrng = np.random.default_rng(1000 + seed)
+    skus = [f"s{seed}_{i}" for i in range(rng.randint(1, 3))]
+    lead, review = rng.randint(1, 3), rng.randint(1, 3)
+    backorders = rng.random() < 0.5
+    max_lead = lead + 4  # a delay of up to 3 periods must still fit the pipeline
+    n_periods = rng.randint(15, 30)
+    demand = nrng.poisson(rng.randint(2, 8), size=(n_periods, len(skus))).astype(float)
+    on_hand = [float(rng.randint(0, 20)) for _ in skus]
+    pipeline = [[float(rng.randint(0, 6)) if k < 2 else 0.0 for k in range(max_lead)]
+                for _ in skus]
+    targets = [float(rng.randint(10, 45)) for _ in skus]
+    schedule = sc.PeriodicSchedule(review, start=rng.randint(0, review - 1))
+    policy = fit_out(sc.OrderUpToPolicy(lead, schedule=schedule, allow_backorders=backorders),
+                     skus, targets, horizon=lead + review)
+    state = opening_state(skus, max_lead=max_lead, backorders=backorders,
+                          on_hand=on_hand, pipeline=pipeline)
+    offset = int(state.get_dataframe()["period"].iloc[0]) + 1
+    supply = SupplyModel([Supplier("vendor", lead_time=lead,
+                                   delivery=RuleOutcome(skus, offset))])
+    with pytest.warns(UserWarning, match="policy's lead_time"):
+        result = sc.SimulationEngine().run(
+            policy, demand_frame(demand, skus), state, n_periods, period_frequency="D",
+            warmup_periods=0, scoring_periods=n_periods, settlement_periods=0,
+            order_during_settlement=False, demand_source_name="outcome_stress",
+            random_seed=None, supply=supply,
+        )
+    events = validate_event_frame(result.to_event_frame())
+    events = events.sort_values(["demand_period", "unique_id"]).reset_index(drop=True)
+    expected = outcome_oracle(
+        skus=skus, demand=demand, lead=lead, backorders=backorders, on_hand=on_hand,
+        pipeline=pipeline, decide=schedule.should_decide,
+        rule=lambda i, ip: max(0.0, targets[i] - ip),
+    ).sort_values(["demand_period", "unique_id"]).reset_index(drop=True)
+    assert events["unique_id"].tolist() == expected["unique_id"].tolist()
+    for column in ["starting_on_order", "received_units", "supplier_shortfall_units",
+                   "ending_on_hand", "backorders_end", "order_quantity", "on_order_end"]:
+        np.testing.assert_allclose(events[column].to_numpy(float),
+                                   expected[column].to_numpy(float),
+                                   rtol=0, atol=1e-7, err_msg=column)
+    # Stock that never arrived is exactly what left the pipeline unreceived.
+    orders = result.to_order_frame()
+    done = orders[orders["status"] != "open"]
+    assert (done["status"] == "disrupted").any()
+    assert done["undelivered_quantity"].sum() == pytest.approx(
+        events["supplier_shortfall_units"].sum(), abs=1e-7)

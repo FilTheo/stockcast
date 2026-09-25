@@ -26,32 +26,38 @@ from stockcast.core.data_structures import InventoryStateDataFrame, OrderDecisio
 
 
 class BasePolicy:
-    """
-    Base class for all inventory policies (like nn.Module in PyTorch).
+    """Base class for every ordering policy, in the spirit of PyTorch's ``nn.Module``.
 
-    All inventory policies inherit from this class and implement:
-        - fit(): Calculate policy parameters from forecast data
-        - predict(): Calculate order quantities from current inventory
+    A policy is configured with the operation (lead time, decision schedule,
+    shortage rule), fitted on forecast information with ``fit``, and asked for
+    orders with ``predict``. It reads a copy of the state and returns an
+    ``OrderDecision``; it never changes stock. Subclasses implement ``fit`` (set
+    ``self.fitted_ = True`` and return ``self``) and ``predict``.
 
-    Provides lead time, decision schedule, shortage mode, and the fitted_ flag.
-    review_period is periodic shorthand and service_level is optional metadata.
-
-    Example (custom policy):
-        class SimpleMultiplierPolicy(BasePolicy):
-            def __init__(self, lead_time, review_period, multiplier, **kwargs):
-                super().__init__(lead_time, review_period, **kwargs)
-                self.multiplier = multiplier
+    Example:
+        ```python
+        class DaysOfCover(BasePolicy):
+            def __init__(self, days, **kwargs):
+                super().__init__(**kwargs)
+                self.days = days
 
             def fit(self, forecast_df, **kwargs):
-                self.forecast_df_ = forecast_df.copy()
+                self.daily_mean_ = forecast_df.set_index("unique_id")["daily_mean"]
                 self.fitted_ = True
                 return self
 
-            def predict(self, inventory_state_df, **kwargs):
-                # Custom ordering logic
-                ...
-                return OrderDecision(result_df, lead_time=self.lead_time,
+            def predict(self, inventory_state_df, *, current_period, **kwargs):
+                state = inventory_state_df.inventory_position()
+                level = state["unique_id"].map(self.daily_mean_) * self.days
+                orders = pd.DataFrame({
+                    "unique_id": state["unique_id"],
+                    "order_quantity": (level - state["inventory_position"]).clip(lower=0),
+                    "order_period": current_period,
+                    "expected_delivery_period": current_period + self.lead_time,
+                })
+                return OrderDecision(orders, lead_time=self.lead_time,
                                      review_period=self.review_period)
+        ```
     """
 
     def __init__(self,
@@ -60,16 +66,22 @@ class BasePolicy:
                  service_level: Optional[float] = None,
                  allow_backorders: bool = None,
                  *, schedule: Optional[DecisionSchedule] = None):
-        """
-        Initialize base policy with common parameters.
+        """Configure the policy's operation.
 
         Args:
-            lead_time: Lead time in periods (L)
-            review_period: Positive periodic shorthand; omit with a schedule.
-            service_level: Explicit target probability, or ``None`` for rules
-                that do not use a probabilistic target
-            allow_backorders: Whether to allow backorders or treat as lost sales
-            schedule: Explicit decision opportunities in zero-based demand periods.
+            lead_time: Periods from order to delivery, an integer >= 0. An order
+                placed in period ``t`` arrives before demand in period ``t + L``.
+            review_period: Periods between ordering opportunities, an integer >= 1.
+                Shorthand for ``schedule=PeriodicSchedule(review_period)``.
+            service_level: Probability that the policy's targets represent, in
+                (0, 1), or ``None`` when targets are not quantiles.
+            allow_backorders: ``True`` to keep unserved demand as backorders,
+                ``False`` for lost sales. Required.
+            schedule: A ``DecisionSchedule``. Give either this or ``review_period``
+                (or both, if they agree).
+
+        Raises:
+            ValueError: If a value is out of range or the timing arguments disagree.
         """
         if not isinstance(lead_time, int) or isinstance(lead_time, bool) or lead_time < 0:
             raise ValueError("lead_time must be an integer >= 0")
@@ -112,34 +124,28 @@ class BasePolicy:
         self.policy_name = self.__class__.__name__
 
     def fit(self, forecast_df: pd.DataFrame, **kwargs: object) -> 'BasePolicy':
-        """
-        Calculate policy parameters from forecast data.
-
-        Must be overridden by subclasses.
+        """Bind forecast information to the policy. Subclasses must implement it.
 
         Args:
-            forecast_df: DataFrame with forecast data
-            **kwargs: Additional policy-specific parameters
+            forecast_df: Targets or forecasts, one or more rows per SKU.
+            **kwargs: Policy-specific options.
 
         Returns:
-            self (for method chaining)
+            The fitted policy (``self``), with ``fitted_ = True``.
         """
         raise NotImplementedError("Subclasses must implement fit()")
 
     def predict(self,
                 inventory_state_df: Union[pd.DataFrame, InventoryStateDataFrame],
                 **kwargs: object) -> Union[OrderDecision, pd.DataFrame]:
-        """
-        Calculate order quantities from current inventory state.
-
-        Must be overridden by subclasses.
+        """Propose orders for the given state. Subclasses must implement it.
 
         Args:
-            inventory_state_df: Current inventory state
-            **kwargs: Additional policy-specific parameters
+            inventory_state_df: A copy of the state before demand.
+            **kwargs: The engine passes ``current_period`` (the state period).
 
         Returns:
-            OrderDecision object or DataFrame with order quantities
+            An ``OrderDecision`` with one row per SKU and the policy's ``lead_time``.
         """
         raise NotImplementedError("Subclasses must implement predict()")
 

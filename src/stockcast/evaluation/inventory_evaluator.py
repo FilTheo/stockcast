@@ -15,11 +15,21 @@ from .event_validation import validate_event_frame
 
 
 class InventoryEvaluator:
-    """
-    Evaluate inventory simulations at the event-frame level.
+    """Compute metrics from a run's event ledger.
 
-    Aggregation grain is always explicit. Pass ``groupby=[]`` for one pooled
-    result or name the dimensions to retain.
+    ``fit`` selects and validates the ledger rows; ``evaluate`` computes metrics
+    over an explicit grouping. The grain is always stated: pass ``groupby=[]``
+    for one pooled row, or name ledger columns such as ``["unique_id"]``.
+
+    Args:
+        default_groupby: Grouping used when ``evaluate`` is called without
+            ``groupby``. ``None`` (default) makes ``groupby`` required.
+
+    Example:
+        ```python
+        evaluator = InventoryEvaluator().fit(result, window="scoring")
+        evaluator.evaluate([fill_rate, avg_on_hand], groupby=["unique_id"])
+        ```
     """
 
     def __init__(self, default_groupby: Optional[Sequence[str]] = None) -> None:
@@ -35,6 +45,25 @@ class InventoryEvaluator:
         *,
         window: Optional[str] = None,
     ) -> "InventoryEvaluator":
+        """Select and validate the ledger rows to evaluate.
+
+        Pass either a ``SimulationResult`` or a ledger DataFrame. The rows are checked
+        with ``validate_event_frame`` so metrics are computed from balanced books.
+
+        Args:
+            simulation_result: A result from ``SimulationEngine.run``.
+            event_frame: A ledger DataFrame, for example one you saved or enriched
+                with per-row cost rates.
+            window: ``"scoring"``, ``"warmup"``, ``"settlement"``, or ``"all"``.
+                Required with ``simulation_result``; optional with ``event_frame``.
+
+        Returns:
+            The fitted evaluator (``self``).
+
+        Raises:
+            ValueError: If both or neither inputs are given, the window is missing or
+                unknown, or the ledger fails validation.
+        """
         if (simulation_result is None) == (event_frame is None):
             raise ValueError("Provide either simulation_result or event_frame")
 
@@ -68,6 +97,24 @@ class InventoryEvaluator:
         groupby: Optional[Sequence[str]] = None,
         context: Optional[dict] = None,
     ) -> pd.DataFrame:
+        """Compute metrics for each group of the fitted ledger.
+
+        Args:
+            metrics: Metric functions (``metric(event_frame, context)``) or objects
+                with ``name`` and ``compute``, such as ``BaseInventoryMetric``
+                subclasses. A function's ``__name__`` becomes its column name.
+            groupby: Ledger columns to group by; ``[]`` for one pooled row.
+            context: Options and rates for the metrics, for example cost rates,
+                ``cost_components``, ``include_partial_cycles``, or
+                ``periods_per_year``.
+
+        Returns:
+            One row per group, with the group columns followed by one column per
+            metric.
+
+        Raises:
+            ValueError: If the evaluator is not fitted or ``groupby`` is missing.
+        """
         if self.event_frame_.empty:
             raise ValueError("Evaluator is not fitted or event_frame is empty")
 

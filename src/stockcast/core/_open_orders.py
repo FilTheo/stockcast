@@ -23,6 +23,7 @@ import pandas as pd
 
 _FIELDS = (
     "order_id", "sku", "supplier", "order_period", "ordered", "due", "quantity", "source",
+    "scheduled",
 )
 _DTYPES = {
     "order_id": np.dtype("int64"),
@@ -33,10 +34,15 @@ _DTYPES = {
     "due": np.dtype("int64"),
     "quantity": np.dtype("float64"),
     "source": np.dtype(object),
+    # Due period set when the delivery was scheduled; differs from ``due``
+    # only after a supplier ``DeliveryOutcome`` delayed it.
+    "scheduled": np.dtype("int64"),
 }
 
 OPENING_SOURCE = "opening"
 PLACED_SOURCE = "placed"
+# Part of a delivery that a supplier DeliveryOutcome moved to a later period.
+DELAYED_SOURCE = "delayed"
 
 
 def _objects(values) -> pd.Series:
@@ -74,16 +80,18 @@ class _Deliveries:
 
     @classmethod
     def build(cls, *, order_id, sku, supplier, order_period, ordered, due, quantity,
-              source) -> "_Deliveries":
+              source, scheduled=None) -> "_Deliveries":
+        due = np.asarray(due, dtype=np.int64)
         return cls(
             order_id=np.asarray(order_id, dtype=np.int64),
             sku=_object_array(sku),
             supplier=_object_array(supplier),
             order_period=np.asarray(order_period, dtype=np.float64),
             ordered=np.asarray(ordered, dtype=np.float64),
-            due=np.asarray(due, dtype=np.int64),
+            due=due,
             quantity=np.asarray(quantity, dtype=np.float64),
             source=_object_array(source),
+            scheduled=due if scheduled is None else np.asarray(scheduled, dtype=np.int64),
         )
 
     def __len__(self) -> int:
@@ -218,6 +226,33 @@ class _OpenOrderBook:
             self.next_id + int(line.max()) + 1,
         )
 
+    def resolved(self, positions: np.ndarray, received: np.ndarray, delayed: np.ndarray,
+                 delay: np.ndarray) -> tuple:
+        """Apply supplier delivery outcomes to open deliveries due next.
+
+        ``positions`` index ``self.open``. Each delivery keeps only its
+        ``received`` quantity at its due period; a positive ``delayed``
+        quantity becomes a new delivery of the same order line, due
+        ``delay`` periods later, with source ``"delayed"``. Returns the new
+        book and the rescheduled deliveries.
+        """
+        quantity = self.open.quantity.copy()
+        quantity[positions] = received
+        keep = np.ones(len(self.open), dtype=bool)
+        keep[positions] = received > 0
+        current = _Deliveries(**{
+            name: (quantity if name == "quantity" else getattr(self.open, name))
+            for name in _FIELDS
+        }).select(keep)
+        later = delayed > 0
+        rescheduled = self.open.select(positions[later])
+        rescheduled = _Deliveries(**{
+            name: getattr(rescheduled, name) for name in _FIELDS
+            if name not in ("due", "quantity", "source")
+        }, due=rescheduled.due + delay[later], quantity=delayed[later],
+            source=_object_array([DELAYED_SOURCE] * int(later.sum())))
+        return self._with(current.concat(rescheduled), self.placed, self.next_id), rescheduled
+
     # ---- views -------------------------------------------------------------
 
     def pipeline_matrix(self, sku_index: pd.Index, period: int, max_lead_time: int) -> Optional[np.ndarray]:
@@ -321,14 +356,31 @@ ORDER_FRAME_COLUMNS = (
 )
 
 
+DELIVERY_OUTCOME_COLUMNS = (
+    "scheduled_due_period",
+    "received_quantity",
+    "delayed_quantity",
+    "undelivered_quantity",
+)
+
+
 def build_order_frame(deliveries: _Deliveries, *, final_period: int, opening_period: int,
-                      opening_date: pd.Timestamp, period_offset) -> pd.DataFrame:
-    """One row per scheduled delivery of a run, with calendar dates and status."""
+                      opening_date: pd.Timestamp, period_offset,
+                      outcomes: Optional[dict] = None) -> pd.DataFrame:
+    """One row per scheduled delivery of a run, with calendar dates and status.
+
+    ``outcomes`` (runs with supplier delivery outcomes only) holds arrays
+    ``received``, ``delayed``, ``undelivered`` and ``disrupted`` aligned with
+    ``deliveries``; it appends ``DELIVERY_OUTCOME_COLUMNS``.
+    """
     if not len(deliveries):
-        return _empty_frame(ORDER_FRAME_COLUMNS, {
+        columns = ORDER_FRAME_COLUMNS + (DELIVERY_OUTCOME_COLUMNS if outcomes is not None else ())
+        return _empty_frame(columns, {
             "order_id": "int64", "order_period": "float64", "order_date": "datetime64[ns]",
             "due_period": "int64", "due_date": "datetime64[ns]", "lead_time": "float64",
             "ordered_quantity": "float64", "delivery_quantity": "float64",
+            "scheduled_due_period": "int64", "received_quantity": "float64",
+            "delayed_quantity": "float64", "undelivered_quantity": "float64",
         })
     periods = np.unique(np.concatenate([
         deliveries.due.astype(np.float64),
@@ -358,4 +410,13 @@ def build_order_frame(deliveries: _Deliveries, *, final_period: int, opening_per
         "delivery_quantity": deliveries.quantity,
         "status": _objects(np.where(deliveries.due <= final_period, "received", "open")),
     })
+    if outcomes is not None:
+        frame["status"] = _objects(np.where(
+            deliveries.due > final_period, "open",
+            np.where(outcomes["disrupted"], "disrupted", "received"),
+        ))
+        frame["scheduled_due_period"] = deliveries.scheduled
+        frame["received_quantity"] = outcomes["received"]
+        frame["delayed_quantity"] = outcomes["delayed"]
+        frame["undelivered_quantity"] = outcomes["undelivered"]
     return frame.sort_values(["order_id", "due_period"], kind="stable").reset_index(drop=True)

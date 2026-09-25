@@ -54,8 +54,7 @@ from stockcast.core.data_structures import (
 
 
 class DemandGenerator:
-    """
-    Generates multi-SKU demand DataFrames for inventory simulation.
+    """Generates multi-SKU demand DataFrames for inventory simulation.
 
     All generation methods produce DataFrames with columns:
         [unique_id, y, period, date]
@@ -72,6 +71,7 @@ class DemandGenerator:
         negative_demand_handling: Explicitly reject or clip negative draws.
 
     Example:
+        ```python
         gen = DemandGenerator(
             ['A', 'B', 'C'],
             start_date='2025-01-01',
@@ -99,6 +99,7 @@ class DemandGenerator:
             demand_source_name="synthetic_poisson",
             random_seed=42,
         )
+        ```
     """
 
     def __init__(

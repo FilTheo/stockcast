@@ -1,5 +1,69 @@
 # 80 — Tests and evidence
 
+Notebook 09 callback explanation pass (2026-09-25): source-import nbclient
+execution passed in the prepared Python 3.12 environment (266.63 s), with 84
+source-matched cells, no cell stderr, and six inspected figures. The executed
+trigger table confirmed zero accepted `PriorityExpedite` triggers and zero
+expedite fees for all four methods. Only Markdown and inline comments changed;
+forecast, simulation, and cost calculations were untouched. Saved numeric
+outputs were retained because Smooth's simulated target branch is unseeded.
+
+Notebooks 07–09 tutorial explanation pass (2026-09-25): source-import nbclient
+runs passed for all three (07: 50.82 s, 08: 18.22 s, 09: 246.42 s under the
+prepared Python 3.12 runtime). Result reports recorded 5, 7, and 6 rendered
+figures respectively, with no cell stderr; all were inspected. Notebook 08's
+two pandas display warnings were removed and its final cost-chart layout was
+rechecked after rerun. Its saved outputs were copied only after exact source
+cell equality and notebook validation. Notebook 09's saved numeric outputs
+were retained because Smooth simulated targets are unseeded and this pass did
+not change its experiment code or scientific results. No package API or
+simulation behavior was changed in this pass.
+
+Documentation examples (2026-09-25, [99](99_documentation_site.md)):
+`tests/docs/test_docs_examples.py` executes every `python` code block of
+`docs/` (38 pages) against the source; all pass. `mkdocs build --strict` with
+anchor validation passes. Docstring-only edits in `src/` were checked by AST
+comparison (code unchanged) and `tests/unit` (424 passed).
+
+Supplier delivery outcomes (2026-09-25, [97.7](97_open_orders_and_suppliers.md#977-supplier-delivery-outcomes)):
+additive. Before the change, checkpoint `fd5bc4c` was committed and its
+`src/` frozen. A scratch recorder (not a repository test) captured every
+outermost engine run: event ledger, history, final state, callback audit,
+order frame, process-flow frame, run settings, manifest (without run id,
+timestamp and commit), summary, and every state and order handed to policies.
+Baseline versus final source:
+
+- `tests/unit` + `tests/stress`: 521/521 runs identical under Python 3.10.12
+  / pandas 2.3.3 and under Python 3.12.13 / pandas 3.0.6;
+- the same suites with every run rerouted through the one-supplier
+  `SupplyModel` mapping: 521/521 identical (13 tests fail in that mode before
+  and after, because they assert `supplier_id=None` or no supply settings);
+- all 20 existing notebooks (seeded draws, pandas 3.0.6): 105/105 runs
+  identical, both direct and through the supply mapping.
+
+Final suites: 513 passed on both environments (459 existing, 42 in
+`tests/unit/test_supplier_delivery_outcomes.py`, 12 stress cases in
+`test_supplier_outcomes_match_independent_oracle`). The 12 pytest warnings
+are the new lead-time `UserWarning` in existing supply tests with random or
+off-policy lead times. The stress oracle keeps its own delivery list,
+applies a deterministic outcome rule keyed by SKU, order period and due
+period, and matches the engine ledger (including `supplier_shortfall_units`)
+on 12 randomized cases; every case has delays, and 11 have lost units. Unit
+tests cover the pass-through mapping (4 settings × both engine paths), array
+versus DataFrame paths, seed reproducibility, reconciliation of the order
+frame with the ledger, `source="delayed"` rows not double-counting orders,
+repeated delays, declared opening orders, shelf-life lots, `run_comparison`,
+every fail-closed validation, the warning conditions, and a policy-chosen
+supplier through `AllocationContext.decision`.
+
+Notebook 05f executed from source with no cell errors or stderr, and its
+figure was inspected. Notebook 05d gained one Markdown cell and a link; its
+24 code cells kept identical text outputs, plus the expected warning streams.
+`mkdocs build --strict` passes. It had already failed at the checkpoint on
+three untyped `Supplier` docstring parameters, which are now typed. The new
+guide snippets were executed against the source. No benchmark was run; the
+default path executes no new code.
+
 Inventory processes (2026-09-24, [98](98_inventory_processes.md)): additive.
 Before the change, golden outputs of `ShelfLifeEngine` were captured at
 checkpoint `0dd52a9` for 40 randomized scenarios plus one comparison, on the

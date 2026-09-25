@@ -30,38 +30,31 @@ from stockcast.policies._target_validation import (
 
 
 class OrderUpToPolicy(BasePolicy):
-    """
-    Order-Up-To (R,S) inventory policy with fit/predict API.
+    """Order-up-to ``(R, S)`` policy: restore the inventory position to ``S``.
 
-    This policy reviews inventory every R periods and places orders to
-    bring the inventory position up to the target level S.
+    At every decision period the policy orders ``max(0, S - IP)``, where ``IP``
+    is on hand + on order - backorders. ``S`` is fitted per SKU as a target for
+    the protection window ``H = L + R``: typically the ``service_level``
+    quantile of total demand over the window, computed outside Stockcast, or
+    from per-period means and standard deviations under an independent-normal
+    assumption.
 
-    Usage:
-        # Initialize with policy parameters
+    Example:
+        ```python
         policy = OrderUpToPolicy(
-            lead_time=7,
-            review_period=7,
-            service_level=0.95,
-            allow_backorders=False,
-        )
-
-        # Fit: accept a protection-period target calculated outside Stockcast
-        policy.fit(
-            target_df,
-            target_column="protection_q95",
+            lead_time=2, review_period=4, service_level=0.95, allow_backorders=False,
+        ).fit(
+            targets,                          # unique_id, S, S_end
+            target_column="S",
             target_probability=0.95,
-            protection_horizon=14,
+            protection_horizon=6,             # lead_time + review_period
             target_source="external_direct",
-            forecast_origin=decision_date,
+            forecast_origin=pd.Timestamp("2026-01-05"),
             forecast_frequency="D",
-            target_end_date_column="protection_end_date",
+            target_end_date_column="S_end",
         )
-
-        # Predict: Calculate order quantities from current inventory
-        orders_df = policy.predict(
-            inventory_state_df=current_inventory,
-            current_period=decision_period,
-        )
+        decision = policy.predict(state, current_period=1)
+        ```
     """
 
     def __init__(self,
@@ -279,7 +272,20 @@ class OrderUpToPolicy(BasePolicy):
         return self
 
     def validate_decision_window(self, period, information_date, offset):
-        """Check irregular coverage against the next opportunity, before a run."""
+        """Check, before a run, that the target covers the decision's window.
+
+        Called by the engine for every scheduled decision. For irregular schedules the
+        window is ``(next decision - period) + lead_time``; the forecast origin and
+        end date must match the decision's information date.
+
+        Args:
+            period: Zero-based demand period of the decision.
+            information_date: Date of the last demand known at the decision.
+            offset: The simulation's period frequency.
+
+        Raises:
+            ValueError: If the target's window or dates do not match.
+        """
         validate_schedule_coverage(
             self.schedule,
             lead_time=self.lead_time,
@@ -388,11 +394,13 @@ class OrderUpToPolicy(BasePolicy):
             )
 
     def get_target_levels(self) -> pd.DataFrame:
-        """
-        Get the calculated target levels per SKU.
+        """Return the fitted order-up-to level ``S`` per SKU.
 
         Returns:
-            DataFrame with target levels (only available after fit())
+            A DataFrame with the SKU column and ``target_level``.
+
+        Raises:
+            ValueError: If the policy is not fitted.
         """
         if not self.fitted_:
             raise ValueError("Policy must be fitted first. Call fit() to calculate target levels.")
@@ -400,7 +408,17 @@ class OrderUpToPolicy(BasePolicy):
         return self.target_levels_.copy()
 
     def get_target_metadata(self) -> dict:
-        """Return a copy of the target probability and aggregation provenance."""
+        """Return how the target was made.
+
+        Returns:
+            A dict with ``representation``, ``target_probability``,
+            ``protection_horizon``, ``target_source``, ``forecast_origin``,
+            ``forecast_frequency``, ``target_end_date`` and, for independent-normal
+            targets, ``calculation_method``.
+
+        Raises:
+            ValueError: If the policy is not fitted.
+        """
         if not self.fitted_:
             raise ValueError("Policy must be fitted first. Call fit() to calculate target levels.")
         return self.target_metadata_.copy()

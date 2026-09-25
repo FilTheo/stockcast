@@ -54,6 +54,8 @@ from .simulation_engine import (
 )
 from .supply import (
     AllocationContext,
+    DeliveryContext,
+    DeliveryOutcome,
     Supplier,
     SupplierAllocation,
     SupplierShares,
@@ -106,4 +108,6 @@ __all__ = [
     "ProcessFlows",
     "ShelfLife",
     "StockChange",
+    "DeliveryContext",
+    "DeliveryOutcome",
 ]

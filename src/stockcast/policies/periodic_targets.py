@@ -14,14 +14,26 @@ from stockcast.core.data_structures import _require_identifiers
 
 @dataclass(frozen=True)
 class PeriodicReviewTargets:
-    """Standard target-provider result consumed by ``PeriodicReviewPolicy``."""
+    """The result of a target provider.
+
+    Attributes:
+        frame: One row per SKU with the SKU column, ``reorder_point`` and
+            ``order_up_to_level``.
+        metadata: JSON-serialisable description, stored in the run manifest.
+    """
 
     frame: pd.DataFrame
     metadata: dict = field(default_factory=dict)
 
 
 class PeriodicReviewTargetProvider(ABC):
-    """Interface for code that supplies reorder and order-up-to targets."""
+    """Base class for objects that supply ``(s, S)`` to ``PeriodicReviewPolicy``.
+
+    Implement ``provide``. Set the class attribute ``target_source`` to
+    ``"external_direct"`` when the provider only passes along values computed
+    elsewhere (default ``"custom_provider"``), and extend ``to_manifest`` with
+    your settings.
+    """
 
     target_source = "custom_provider"
 
@@ -32,9 +44,20 @@ class PeriodicReviewTargetProvider(ABC):
         *,
         sku_column: str,
     ) -> PeriodicReviewTargets:
-        """Return one reorder point and order-up-to level per SKU."""
+        """Return one reorder point and order-up-to level per SKU.
+
+        Args:
+            target_data: The table passed to ``PeriodicReviewPolicy.fit``.
+            sku_column: SKU column name.
+
+        Returns:
+            A ``PeriodicReviewTargets``. Stockcast then checks that every value is
+            finite, ``s >= 0`` and ``S >= s``.
+        """
 
     def to_manifest(self) -> dict:
+        """Describe the provider for the run manifest.
+        """
         return {
             "provider_class": type(self).__name__,
             "target_source": self.target_source,
@@ -42,7 +65,12 @@ class PeriodicReviewTargetProvider(ABC):
 
 
 class ColumnPeriodicReviewTargets(PeriodicReviewTargetProvider):
-    """Read targets already calculated by the user from named columns."""
+    """Read ``s`` and ``S`` from two columns of the fitted table.
+
+    Args:
+        reorder_point_column: Column with ``s``.
+        order_up_to_column: Column with ``S``.
+    """
 
     target_source = "external_direct"
 
@@ -73,6 +101,8 @@ class ColumnPeriodicReviewTargets(PeriodicReviewTargetProvider):
         return PeriodicReviewTargets(frame=frame, metadata=self.to_manifest())
 
     def to_manifest(self) -> dict:
+        """Describe the provider and its column names.
+        """
         return {
             **super().to_manifest(),
             "reorder_point_column": self.reorder_point_column,
@@ -81,7 +111,13 @@ class ColumnPeriodicReviewTargets(PeriodicReviewTargetProvider):
 
 
 class FixedPeriodicReviewTargets(PeriodicReviewTargetProvider):
-    """Supply fixed scalar or per-SKU targets without forecast semantics."""
+    """Use fixed ``s`` and ``S`` values.
+
+    Args:
+        reorder_point: One value for all SKUs, or a dict with one value per SKU.
+        order_up_to_level: One value for all SKUs, or a dict with one value per
+            SKU.
+    """
 
     target_source = "external_direct"
 

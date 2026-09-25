@@ -24,6 +24,7 @@ the task:
 | Add a metric | [60](60_events_evaluation_and_outputs.md) | [80](80_tests_and_evidence.md) |
 | Prepare the new package | [90](90_stockcast_extraction_guide.md) | [10](10_system_context.md), [80](80_tests_and_evidence.md) |
 | Check the frozen 0.1 public API | [93](93_public_api_contract.md) | [20](20_data_and_time_contracts.md), [30](30_execution_flow.md), [40](40_policies_and_targets.md), [50](50_constraints_and_shelf_life.md), [60](60_events_evaluation_and_outputs.md) |
+| Change public documentation (`docs/`) | [99](99_documentation_site.md) | the subsystem page for the behaviour being documented |
 | Review or align the public example notebooks | [92](92_public_example_notebook_specification.md) | [10](10_system_context.md), [20](20_data_and_time_contracts.md), [30](30_execution_flow.md), [40](40_policies_and_targets.md), [50](50_constraints_and_shelf_life.md), [60](60_events_evaluation_and_outputs.md), [91](91_smooth_python_forecasting_research.md) |
 
 [70 — Module reference](70_module_reference.md) is a lookup table, not required
@@ -71,3 +72,4 @@ inputs with zero, or treat absent provenance as acceptable.
 - [96 — Public engine documentation sources](96_engine_documentation_sources.md): verified paper sections and attribution limits.
 - [97 — Open orders and suppliers](97_open_orders_and_suppliers.md): additive order-level pipeline, `SupplyModel`, and exact mapping to the per-SKU API.
 - [98 — Inventory processes](98_inventory_processes.md): additive `processes=[...]` API, `ShelfLife` as the first built-in process, and the `ShelfLifeEngine` migration evidence.
+- [99 — Public documentation site](99_documentation_site.md): structure of `docs/`, executed-example tests, figures, docstring conventions, and mike versioning.

@@ -22,8 +22,7 @@ def update_inventory_with_orders(
     orders: OrderDecision,
     policy: object | None = None,
 ) -> InventoryStateDataFrame:
-    """
-    Update inventory state by placing orders.
+    """Update inventory state by placing orders.
 
     This function updates multiple columns to track the order placement:
         - 'in_transit': Orders added to array at appropriate period offset
@@ -57,6 +56,7 @@ def update_inventory_with_orders(
         ValueError: If orders.lead_time is None or if max_lead_time is insufficient
 
     Example:
+        ```python
         from stockcast import InventoryStateDataFrame, OrderDecision
         from stockcast.utils import update_inventory_with_orders
 
@@ -70,6 +70,7 @@ def update_inventory_with_orders(
         new_inventory = update_inventory_with_orders(inventory, orders, policy=policy)
         # → in_transit updated, latest_order and target_level recorded
         # → allow_backorders transferred from policy
+        ```
     """
     allow_backorders, lead_time = _validate_order_decision(inventory_state, orders, policy)
     return _apply_orders(inventory_state, orders, allow_backorders, lead_time=lead_time)
@@ -290,8 +291,7 @@ def place_order_lines(
     order_lines: OrderLines,
     policy: object | None = None,
 ) -> InventoryStateDataFrame:
-    """
-    Place order lines with their own suppliers and due periods.
+    """Place order lines with their own suppliers and due periods.
 
     This is the order-level counterpart of ``update_inventory_with_orders``.
     Each row of ``order_lines`` is one scheduled delivery. Deliveries due in
@@ -322,6 +322,7 @@ def place_order_lines(
         New InventoryStateDataFrame with updated pipeline, receipts and book
 
     Example:
+        ```python
         lines = OrderLines(pd.DataFrame({
             'unique_id': ['beans', 'beans'],
             'supplier_id': ['local', 'import'],
@@ -330,6 +331,7 @@ def place_order_lines(
             'due_period': [6, 12],
         }))
         state = place_order_lines(state, lines)
+        ```
     """
     if not isinstance(order_lines, OrderLines):
         raise TypeError("order_lines must be an OrderLines instance")
@@ -386,8 +388,7 @@ def process_demand(
     demand_column: str = 'y',
     date_column: str = 'date'
 ) -> InventoryStateDataFrame:
-    """
-    Process incoming demand and advance inventory state by one period.
+    """Process incoming demand and advance inventory state by one period.
 
     This is a convenience wrapper around InventoryStateDataFrame.process_demand().
     It advances the simulation by:
@@ -416,6 +417,7 @@ def process_demand(
         value from the configured policy before processing demand.
 
     Example:
+        ```python
         from stockcast import InventoryStateDataFrame
         from stockcast.utils import process_demand
 
@@ -438,6 +440,7 @@ def process_demand(
         )
         # → period=1, inventory updated, stockouts tracked
         # → backorder behavior determined by inventory_state.allow_backorders
+        ```
     """
     return inventory_state.process_demand(
         demand_df=demand_df,

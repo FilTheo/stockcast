@@ -164,6 +164,25 @@ must preserve the policy family and operational configuration; only fitted
 target content may change. The schedule must cover valid decision periods and
 each snapshot origin equals the information cutoff before its demand epoch.
 
+## 40.7a Lead-time assumption under a supply model
+
+Every protection window above uses the policy's fixed `lead_time`. A
+`SupplyModel` can deliver at other times: different or random supplier lead
+times, partial deliveries, or `DeliveryOutcome` delays
+([97.7](97_open_orders_and_suppliers.md#977-supplier-delivery-outcomes)).
+Owner decision 2026-09-25:
+
+- targets are never adjusted, and no declaration argument is required;
+- the engine issues one `UserWarning` per run the first time a delivery is
+  scheduled or delayed off `policy.lead_time`;
+- the run stays correct accounting of that target against that supply
+  (typically a misspecification or robustness experiment);
+- targets meant for random lead times are computed outside Stockcast over
+  the random window and passed in as usual.
+
+Short deliveries without delays do not trigger the warning. The mapping case
+(one supplier, `lead_time == policy.lead_time`) never warns.
+
 ## 40.8 Safe extension checklist
 
 Before adding another policy or uncertainty model, decide and test:

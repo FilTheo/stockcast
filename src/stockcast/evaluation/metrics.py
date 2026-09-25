@@ -10,13 +10,39 @@ import pandas as pd
 
 
 class BaseInventoryMetric(ABC):
-    """Base class for inventory metrics."""
+    """Base class for a named, configurable metric.
+
+    Subclass it, set ``name`` (the output column) and implement ``compute``.
+    ``InventoryEvaluator`` calls ``compute(event_frame, context)`` once per
+    group. Plain functions with the signature ``metric(event_frame, context)``
+    work as metrics too; a class is useful when the metric has parameters.
+
+    Example:
+        ```python
+        class ShareOfDaysBelow(BaseInventoryMetric):
+            def __init__(self, level):
+                self.level = level
+                self.name = f"days_below_{level}"
+
+            def compute(self, event_frame, context):
+                rows = event_frame[event_frame["event_type"] == "period"]
+                return float((rows["ending_on_hand"] < self.level).mean())
+        ```
+    """
 
     name: str
 
     @abstractmethod
     def compute(self, event_frame: pd.DataFrame, context: dict) -> float:
-        """Compute the metric from an event-frame slice."""
+        """Compute the metric for one slice of the ledger.
+
+        Args:
+            event_frame: The ledger rows of one window and group.
+            context: The ``context`` dict passed to ``InventoryEvaluator.evaluate``.
+
+        Returns:
+            The metric value.
+        """
 
 
 def _require_columns(event_frame: pd.DataFrame, columns) -> None:
@@ -113,47 +139,146 @@ def _context_scalar(context: dict, key: str) -> float:
 
 
 def demand_units(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Total demand, ``sum(demand)`` over period rows.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The metric value.
+    """
     return _sum(_period_events(event_frame), "demand")
 
 
 def fulfilled_units(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Total demand served from stock in its own period, ``sum(fulfilled_units)``.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The metric value.
+    """
     return _sum(_period_events(event_frame), "fulfilled_units")
 
 
 def shortage_units(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Total demand not served in its own period, ``sum(shortage_units)``.
+
+    In lost-sales mode this equals lost sales; in backorder mode it equals new backorders.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The metric value.
+    """
     return _sum(_period_events(event_frame), "shortage_units")
 
 
 def lost_sales_units(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Total lost sales, ``sum(lost_sales_units)``; zero in backorder mode.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The metric value.
+    """
     return _sum(_period_events(event_frame), "lost_sales_units")
 
 
 def backlog_unit_periods(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
-    """Sum ending backlog over SKU-period rows (backlog exposure)."""
+    """Backorder exposure, ``sum(backorders_end)`` over SKU-period rows.
+
+    Measured in unit-periods: 3 units owed for 2 periods count 6.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The metric value.
+    """
     return _sum(_period_events(event_frame), "backorders_end")
 
 
 def terminal_backlog_units(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
-    """Sum backlog at the final scored period for each SKU."""
+    """Backorders still open at the end, summed over SKUs.
+
+    Uses each SKU's last period row in the slice.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The metric value.
+    """
     return _sum(_terminal_rows(event_frame), "backorders_end")
 
 
 def terminal_pipeline_units(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
-    """Sum outstanding pipeline at the final scored period for each SKU."""
+    """Units still on order at the end, summed over SKUs.
+
+    Uses each SKU's last period row in the slice.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The metric value.
+    """
     return _sum(_terminal_rows(event_frame), "on_order_end")
 
 
 def order_units(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Total ordered quantity, ``sum(order_quantity)``.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The metric value.
+    """
     return _sum(event_frame, "order_quantity")
 
 
 def sku_order_line_count(event_frame: pd.DataFrame, context: Optional[dict] = None) -> int:
-    """Count directly recorded positive SKU order lines."""
+    """Number of positive order lines, ``sum(sku_order_line_count)``.
+
+    Without a supply model this is one line per SKU and order; with one, each
+    supplier line counts.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The number of order lines.
+    """
     return int(_sum(event_frame, "sku_order_line_count"))
 
 
 def order_event_count(event_frame: pd.DataFrame, context: Optional[dict] = None) -> int:
-    """Count directly recorded order decisions with positive quantities."""
+    """Number of decisions that placed at least one positive order.
+
+    Counted once per decision for the whole portfolio, so it is additive across
+    SKUs and periods.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The number of order events.
+    """
     return int(_sum(event_frame, "order_event_count"))
 
 
@@ -161,7 +286,18 @@ def sku_order_quantity_variance(
     event_frame: pd.DataFrame,
     context: Optional[dict] = None,
 ) -> float:
-    """Population variance of directly observed positive SKU order-line sizes."""
+    """Population variance of positive order-line sizes.
+
+    Computed from ``order_quantity``, ``order_line_quantity_squared_sum`` and
+    ``sku_order_line_count``; NaN when there is no order line.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The variance, or NaN.
+    """
     count = _sum(event_frame, "sku_order_line_count")
     if count <= 0:
         return np.nan
@@ -172,12 +308,33 @@ def sku_order_quantity_variance(
 
 
 def capacity_violation_count(event_frame: pd.DataFrame, context: Optional[dict] = None) -> int:
-    """Count requested SKU order lines that exceeded a configured capacity."""
+    """Number of order lines cut by a capacity constraint.
+
+    Counts rows with ``capacity_violation_flag`` set (``MaximumOrderQuantity``,
+    ``ShelfSpaceLimit``, or a custom capacity rule).
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The number of capped order lines.
+    """
     return int(_boolean_series(event_frame, "capacity_violation_flag").sum())
 
 
 def capacity_violation_rate(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
-    """Share of positive requested SKU order lines exceeding capacity."""
+    """Share of positive requested order lines cut by a capacity constraint.
+
+    0.0 when nothing was requested.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        A share between 0 and 1.
+    """
     flags = _boolean_series(event_frame, "capacity_violation_flag")
     requested = _numeric_series(event_frame, "requested_order_quantity") > 0
     if not requested.any():
@@ -186,6 +343,18 @@ def capacity_violation_rate(event_frame: pd.DataFrame, context: Optional[dict] =
 
 
 def fill_rate(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Share of demand served from stock in the period it occurred.
+
+    ``sum(fulfilled_units) / sum(demand)`` over period rows, 1.0 when there is no
+    demand. Backorders served in later periods do not count as filled.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The fill rate, between 0 and 1.
+    """
     total_demand = demand_units(event_frame, context)
     if total_demand <= 0:
         return 1.0
@@ -196,7 +365,17 @@ def demand_period_service_level(
     event_frame: pd.DataFrame,
     context: Optional[dict] = None,
 ) -> float:
-    """Share of positive-demand SKU-period rows without shortage."""
+    """Share of SKU-period rows with demand in which nothing was short.
+
+    Rows without demand are excluded; 1.0 when no row has demand.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        A share between 0 and 1.
+    """
     period_events = _period_events(event_frame)
     demand = _numeric_series(period_events, "demand")
     shortage = _numeric_series(period_events, "shortage_units")
@@ -207,11 +386,18 @@ def demand_period_service_level(
 
 
 def cycle_service_level(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
-    """Fraction of receipt-to-receipt SKU cycles with no shortage.
+    """Share of replenishment cycles without any shortage.
 
-    A receipt starts a new cycle. The opening-stock cycle and terminal partial
-    cycle are included only when ``context['include_partial_cycles']`` is true.
-    Requiring that choice prevents an implicit partial-cycle convention.
+    A cycle runs from one receipt to the next, per SKU. The cycle before the
+    first receipt and the one after the last receipt are incomplete; the
+    context says whether they count.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Must contain ``include_partial_cycles`` (bool).
+
+    Returns:
+        A share between 0 and 1, or NaN when there is no cycle.
     """
     context = context or {}
     if "include_partial_cycles" not in context or not isinstance(
@@ -242,6 +428,15 @@ def cycle_service_level(event_frame: pd.DataFrame, context: Optional[dict] = Non
 
 
 def sku_period_stockout_rate(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Share of SKU-period rows with a shortage.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        A share between 0 and 1.
+    """
     period_events = _period_events(event_frame)
     if period_events.empty:
         return 0.0
@@ -249,7 +444,15 @@ def sku_period_stockout_rate(event_frame: pd.DataFrame, context: Optional[dict] 
 
 
 def stockout_period_rate(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
-    """Fraction of calendar periods with a stockout in any SKU in the slice."""
+    """Share of periods in which any SKU in the slice was short.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        A share between 0 and 1.
+    """
     period_events = _period_events(event_frame)
     _require_columns(period_events, ["period"])
     if period_events.empty:
@@ -261,7 +464,15 @@ def stockout_period_rate(event_frame: pd.DataFrame, context: Optional[dict] = No
 
 
 def backorder_period_rate(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
-    """Fraction of calendar periods ending with backlog in any SKU in the slice."""
+    """Share of periods in which any SKU in the slice ended with backorders.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        A share between 0 and 1.
+    """
     period_events = _period_events(event_frame)
     _require_columns(period_events, ["period"])
     if period_events.empty:
@@ -273,19 +484,59 @@ def backorder_period_rate(event_frame: pd.DataFrame, context: Optional[dict] = N
 
 
 def avg_on_hand(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Mean ending on-hand stock over SKU-period rows.
+
+    A per-SKU-per-period average. For the total stock of a portfolio use
+    ``peak_ending_on_hand`` or sum ``ending_on_hand`` by period yourself.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The mean, or NaN for an empty slice.
+    """
     return _mean(_period_events(event_frame), "ending_on_hand")
 
 
 def avg_inventory_position(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Mean ending inventory position over SKU-period rows.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The mean, or NaN for an empty slice.
+    """
     return _mean(_period_events(event_frame), "inventory_position_end")
 
 
 def avg_on_order(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Mean ending pipeline (units on order) over SKU-period rows.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The mean, or NaN for an empty slice.
+    """
     return _mean(_period_events(event_frame), "on_order_end")
 
 
 def ending_on_hand_variance(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
-    """Population variance of total ending stock across calendar periods."""
+    """Population variance over periods of total ending stock.
+
+    Stock is first summed over the SKUs of the slice for each period.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The variance, or NaN for an empty slice.
+    """
     period_events = _period_events(event_frame)
     _require_columns(period_events, ["period"])
     if period_events.empty:
@@ -298,7 +549,17 @@ def ending_on_hand_variance(event_frame: pd.DataFrame, context: Optional[dict] =
 
 
 def peak_ending_on_hand(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
-    """Peak total ending stock across calendar periods."""
+    """Largest total ending stock in any period.
+
+    Stock is first summed over the SKUs of the slice for each period.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The peak, or NaN for an empty slice.
+    """
     period_events = _period_events(event_frame)
     _require_columns(period_events, ["period"])
     if period_events.empty:
@@ -311,7 +572,17 @@ def peak_ending_on_hand(event_frame: pd.DataFrame, context: Optional[dict] = Non
 
 
 def inventory_turns(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
-    """Annualized fulfilled-unit throughput divided by average ending stock."""
+    """Annualised throughput divided by average total stock.
+
+    ``(sum(fulfilled_units) / n_periods * periods_per_year) / mean_t(total ending stock)``.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Must contain ``periods_per_year`` (> 0), e.g. 365 for daily periods.
+
+    Returns:
+        The number of turns per year, or NaN without stock.
+    """
     context = context or {}
     periods_per_year = _context_scalar(context, "periods_per_year")
     if periods_per_year <= 0:
@@ -332,6 +603,16 @@ def inventory_turns(event_frame: pd.DataFrame, context: Optional[dict] = None) -
 
 
 def holding_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Holding cost, ``sum(h * ending_on_hand)`` over period rows.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``holding_cost_per_unit_period`` unless the ledger has a
+            column of that name (per-row rates). Rates are per unit and per period.
+
+    Returns:
+        The cost.
+    """
     context = context or {}
     period_events = _period_events(event_frame)
     rates = _rate_series(period_events, context, "holding_cost_per_unit_period")
@@ -339,6 +620,16 @@ def holding_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> f
 
 
 def shortage_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Shortage cost, ``sum(p * shortage_units)`` over period rows.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``shortage_cost_per_unit`` unless the ledger has a
+            column of that name (per-row rates). Rates are per unit short.
+
+    Returns:
+        The cost.
+    """
     context = context or {}
     period_events = _period_events(event_frame)
     rates = _rate_series(period_events, context, "shortage_cost_per_unit")
@@ -346,6 +637,16 @@ def shortage_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> 
 
 
 def backlog_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Backorder cost, ``sum(b * backorders_end)`` over period rows.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``backlog_cost_per_unit_period`` unless the ledger has a
+            column of that name (per-row rates). Rates are per unit owed and per period.
+
+    Returns:
+        The cost.
+    """
     context = context or {}
     period_events = _period_events(event_frame)
     rates = _rate_series(period_events, context, "backlog_cost_per_unit_period")
@@ -353,11 +654,19 @@ def backlog_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> f
 
 
 def ordering_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
-    """Return SKU-level fixed line cost plus variable unit cost.
+    """Ordering cost: a fixed fee per order line plus a cost per unit ordered.
 
-    Stockcast does not model a shared/global order-event fixed cost. Each positive
-    SKU order line incurs its own explicit ``order_cost_per_sku_line`` rate, so
-    pooled cost is the sum of SKU-level costs and is independent of row order.
+    ``sum(K * sku_order_line_count + c_o * order_quantity)``. Each SKU order line
+    (each supplier line with a supply model) pays its own fee, so pooled costs are
+    sums of SKU costs. For a fee per decision, use ``order_event_count``.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Evaluation options with ``order_cost_per_sku_line`` and
+            ``order_cost_per_unit``, unless the ledger has columns of those names.
+
+    Returns:
+        The cost.
     """
     context = context or {}
     quantity = _numeric_series(event_frame, "order_quantity")
@@ -370,12 +679,32 @@ def ordering_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> 
 
 
 def purchase_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Purchase cost, ``sum(c * order_quantity)``, charged when orders are placed.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``purchase_cost_per_unit`` unless the ledger has a
+            column of that name (per-row rates). Rates are per unit ordered.
+
+    Returns:
+        The cost.
+    """
     context = context or {}
     rates = _rate_series(event_frame, context, "purchase_cost_per_unit")
     return float((_numeric_series(event_frame, "order_quantity") * rates).sum())
 
 
 def waste_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Waste cost, ``sum(w * expired_units)`` over period rows.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``waste_cost_per_unit`` unless the ledger has a
+            column of that name (per-row rates). Rates are per unit expired.
+
+    Returns:
+        The cost.
+    """
     context = context or {}
     period_events = _period_events(event_frame)
     rates = _rate_series(period_events, context, "waste_cost_per_unit")
@@ -383,6 +712,18 @@ def waste_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> flo
 
 
 def terminal_backlog_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Cost of backorders still open at the end of the slice.
+
+    Rate times each SKU's final ``backorders_end``.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``terminal_backlog_cost_per_unit`` unless the ledger has a
+            column of that name (per-row rates). Rates are per unit owed.
+
+    Returns:
+        The cost.
+    """
     context = context or {}
     terminal = _terminal_rows(event_frame)
     rates = _rate_series(terminal, context, "terminal_backlog_cost_per_unit")
@@ -390,6 +731,18 @@ def terminal_backlog_cost(event_frame: pd.DataFrame, context: Optional[dict] = N
 
 
 def terminal_pipeline_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Cost of units still on order at the end of the slice.
+
+    Rate times each SKU's final ``on_order_end``.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``terminal_pipeline_cost_per_unit`` unless the ledger has a
+            column of that name (per-row rates). Rates are per unit on order.
+
+    Returns:
+        The cost.
+    """
     context = context or {}
     terminal = _terminal_rows(event_frame)
     rates = _rate_series(terminal, context, "terminal_pipeline_cost_per_unit")
@@ -397,6 +750,19 @@ def terminal_pipeline_cost(event_frame: pd.DataFrame, context: Optional[dict] = 
 
 
 def salvage_credit(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Value of the stock and pipeline left at the end of the slice.
+
+    ``on_hand_salvage_per_unit * final ending_on_hand + pipeline_salvage_per_unit *
+    final on_order_end`` per SKU. ``total_cost`` subtracts it.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: Evaluation options with ``on_hand_salvage_per_unit`` and
+            ``pipeline_salvage_per_unit``, unless the ledger has columns of those names.
+
+    Returns:
+        The credit (a positive number).
+    """
     context = context or {}
     terminal = _terminal_rows(event_frame)
     on_hand_rates = _rate_series(terminal, context, "on_hand_salvage_per_unit")
@@ -421,11 +787,19 @@ _COST_COMPONENTS = {
 
 
 def total_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
-    """Sum only explicitly activated cost components.
+    """Sum of the cost components you list.
 
-    ``context['cost_components']`` is mandatory. Each component then requires
-    every rate in its own contract, including explicit zeros. Salvage is a
-    credit and is subtracted; all other components are added.
+    ``context['cost_components']`` names the components: ``holding``, ``shortage``,
+    ``backlog``, ``ordering``, ``purchase``, ``waste``, ``terminal_backlog``,
+    ``terminal_pipeline``, ``salvage``. Each listed component needs all of its
+    rates, zeros included; ``salvage`` is subtracted, the others are added.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: ``cost_components`` plus the rates of every listed component.
+
+    Returns:
+        The total cost.
     """
     context = context or {}
     components = context.get("cost_components")
@@ -444,6 +818,15 @@ def total_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> flo
 
 
 def cost_per_demand_unit(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """``total_cost`` divided by total demand.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: As for ``total_cost``.
+
+    Returns:
+        The cost per unit demanded, or NaN without demand.
+    """
     total_demand = demand_units(event_frame, context)
     if total_demand <= 0:
         return np.nan
@@ -451,6 +834,15 @@ def cost_per_demand_unit(event_frame: pd.DataFrame, context: Optional[dict] = No
 
 
 def cost_per_fulfilled_unit(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """``total_cost`` divided by units served from stock.
+
+    Args:
+        event_frame: Event ledger, or a slice of it (for example one window or group).
+        context: As for ``total_cost``.
+
+    Returns:
+        The cost per unit served, or NaN if nothing was served.
+    """
     fulfilled = fulfilled_units(event_frame, context)
     if fulfilled <= 0:
         return np.nan
@@ -458,11 +850,18 @@ def cost_per_fulfilled_unit(event_frame: pd.DataFrame, context: Optional[dict] =
 
 
 class CoverageMetric(BaseInventoryMetric):
-    """Mean SKU-period inventory coverage in periods.
+    """Mean inventory coverage in periods: stock divided by a demand rate.
 
-    Multi-SKU slices require
-    ``context['coverage_aggregation']='mean_of_sku_period_ratios'`` so pooled
-    coverage is never an implicit choice.
+    ``mode="forward"`` divides ending stock by an expected demand rate, taken from
+    an ``expected_demand_rate`` ledger column or ``context["forward_demand_rate"]``.
+    ``mode="trailing"`` divides by each SKU's average realised demand in the
+    slice. Rows with a zero rate are ignored. For slices with more than one SKU,
+    confirm the row-average grain with
+    ``context["coverage_aggregation"] = "mean_of_sku_period_ratios"``.
+
+    Args:
+        mode: ``"forward"`` or ``"trailing"``. The metric's name is
+            ``coverage_<mode>``.
     """
 
     def __init__(self, mode: str = "forward") -> None:

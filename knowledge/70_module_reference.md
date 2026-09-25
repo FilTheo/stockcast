@@ -47,17 +47,21 @@ represent stay DataFrames. Not a public or extension surface. See
 ### `core/_open_orders.py`
 
 Private open-order book (`_OpenOrderBook`, `_Deliveries`) kept in lockstep
-with `in_transit`, its pipeline-consistency check, and assembly of the public
-order frame (`ORDER_FRAME_COLUMNS`, `build_order_frame`). See
+with `in_transit`, its pipeline-consistency check, delivery-outcome
+resolution (`resolved`), and assembly of the public order frame
+(`ORDER_FRAME_COLUMNS`, `DELIVERY_OUTCOME_COLUMNS`, `build_order_frame`). See
 [97](97_open_orders_and_suppliers.md).
 
 ### `core/supply.py`
 
 Public optional supplier stage: `Supplier` (fixed or discrete random lead
-time, partial deliveries), `SupplierAllocation` and `AllocationContext`,
-`SupplierShares`, and `SupplyModel` (validation, manifest, seeded per-run
-lead-time draws, allocation validation, delivery scheduling). See
-[97.4](97_open_orders_and_suppliers.md#974-engine-supply-stage).
+time, partial deliveries, optional `delivery=`), `SupplierAllocation` and
+`AllocationContext` (including the accepted `decision`), `SupplierShares`,
+`DeliveryOutcome` and `DeliveryContext`, and `SupplyModel` (validation,
+manifest, seeded per-run lead-time draws and outcome generators, allocation
+validation, delivery scheduling, outcome validation `_resolve`). See
+[97.4](97_open_orders_and_suppliers.md#974-engine-supply-stage) and
+[97.7](97_open_orders_and_suppliers.md#977-supplier-delivery-outcomes).
 
 ### `core/callbacks.py`
 
