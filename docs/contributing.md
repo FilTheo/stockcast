@@ -50,7 +50,8 @@ How the docs are organised:
 Conventions:
 
 - **Code runs.** Every ` ```python ` block is executed by `tests/docs`, page
-  by page, like notebook cells. Use ` ```py ` for snippets that should not run,
+  by page, like notebook cells. The README's quickstart is executed too, and
+  `tests/release/artifact_smoke.py` repeats it against built packages. Use ` ```py ` for snippets that should not run,
   for example ones that need an optional forecasting package.
 - **Shared setup.** `docs/includes/learn-setup.py` holds the tea-shop scenario.
   Include it in a collapsed block with `--8<-- "learn-setup.py"`.

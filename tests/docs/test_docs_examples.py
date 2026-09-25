@@ -56,15 +56,16 @@ def python_blocks(text: str) -> list[str]:
     return blocks
 
 
+README = DOCS.parent / "README.md"
 PAGES = sorted(
     path for path in DOCS.rglob("*.md")
     if "notebooks" not in path.relative_to(DOCS).parts
     and "includes" not in path.relative_to(DOCS).parts
     and python_blocks(path.read_text(encoding="utf-8"))
-)
+) + [README]
 
 
-@pytest.mark.parametrize("page", PAGES, ids=lambda p: str(p.relative_to(DOCS)))
+@pytest.mark.parametrize("page", PAGES, ids=lambda p: str(p.relative_to(DOCS.parent)))
 def test_page_examples_run(page: Path, tmp_path, monkeypatch) -> None:
     import matplotlib
 
@@ -80,7 +81,7 @@ def test_page_examples_run(page: Path, tmp_path, monkeypatch) -> None:
                 exec(compile(code, f"{page.name}[block {number}]", "exec"), namespace)
             except Exception as error:  # pragma: no cover - failure path
                 raise AssertionError(
-                    f"{page.relative_to(DOCS)}: block {number} failed\n\n{code}"
+                    f"{page.relative_to(DOCS.parent)}: block {number} failed\n\n{code}"
                 ) from error
             finally:
                 plt.close("all")

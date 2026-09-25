@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "stockcast"
 version = "0.1.0"
-description = "DataFrame-first inventory simulation and replenishment library."
+description = "Turn forecasts into inventory decisions you can simulate, inspect, and evaluate."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"

@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use Stockcast in your research, please cite it as below."
+title: "Stockcast: forecast-driven inventory decisions, simulation, and evaluation in Python"
+type: software
+authors:
+  - family-names: Theodosiou
+    given-names: Filotas
+version: 0.1.0
+license: Apache-2.0
+repository-code: "https://github.com/FilTheo/stockcast"
+url: "https://filtheo.github.io/stockcast/"
+keywords:
+  - inventory management
+  - forecasting
+  - replenishment
+  - simulation
+  - supply chain

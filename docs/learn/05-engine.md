@@ -3,7 +3,7 @@
 # The engine
 
 `SimulationEngine` is the clock of a Stockcast run. It takes the demand, the
-opening state, and a fitted policy, and plays them forward period by period.
+opening state, and a fitted policy, and simulates them period by period.
 It is the only object that changes stock.
 
 ## One period, three moves

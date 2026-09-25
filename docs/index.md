@@ -19,15 +19,14 @@ hide:
 </div>
 
 Stockcast is a Python library for the step that comes **after** forecasting.
-You bring a forecast from any model you like. Stockcast turns it into order
-decisions, plays those decisions forward day by day against real or simulated
-demand, and records every unit that moves. You can then measure what the
-forecast and the ordering rule actually achieved: service, stock, shortages,
-waste, and cost. And when you are happy with a policy, the same objects
+You bring a forecast from any model you like. Stockcast maps it into orders,
+simulates their execution against historical or simulated demand, and
+evaluates the resulting impact against business metrics such as cost, service,
+and waste. And when you are happy with a policy, the same objects
 compute your real orders every day.
 
-It is built like PyTorch: a handful of small, well-defined objects that you
-combine. Swap the policy, the demand, the supplier, or the shelf-life rule, and
+It is built like PyTorch and assembled like Lego: a handful of bricks that
+snap onto one engine. Swap the policy, the demand, the supplier, or the shelf-life rule, and
 everything else stays exactly the same. The reasoning behind every design
 choice, and the literature it rests on, is in our
 [philosophy](get-started/philosophy.md).

@@ -4,11 +4,14 @@
 
 <p class="sc-byline">by Filotas Theodosiou</p>
 
-A forecast is not a decision. A forecast becomes useful when it changes an
-order, and an order becomes useful when it changes what happens on the shelf.
-Stockcast exists to make that chain explicit, executable, and measurable: from
-the forecast you trust, to the order it implies, to the stock, shortages,
-waste, and cost that follow.
+A forecast is not a decision. Its value comes from the downstream decisions it
+improves, and ultimately from the operational performance those decisions
+deliver. Stockcast brings this idea to inventory management: it is the layer
+between the forecast and the replenishment decision. It maps forecasts from
+**any model** into orders, simulates their execution against realised demand,
+and evaluates the resulting impact against business metrics such as cost,
+service, and waste. Its purpose is to make that chain explicit, executable, and
+measurable.
 
 This small article explains the choices behind the library: what we built, why we
 built it this way, and what we deliberately left out. Every other page of
@@ -224,7 +227,8 @@ habit of building systems out of small modules you subclass and combine, in
 plain Python (Paszke et al., 2019). From Keras, callbacks that intervene at
 named moments of a loop without owning the loop.
 
-The result is a small core and a ring of extension points.
+The result is Lego for inventory systems: a small core, and bricks that snap
+onto it at well-defined places.
 
 **The core** is three objects: the `InventoryStateDataFrame` (what you have),
 the `SimulationEngine` (the clock and the only place stock changes), and the
