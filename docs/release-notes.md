@@ -116,6 +116,18 @@ and manifest as before.
 See [unreliable deliveries](user-guide/unreliable-deliveries.md) and
 Notebook 05f.
 
+## Compatibility fixes for pandas 1.5 (2026-09-25)
+
+- The NumPy period kernel used `Timestamp.unit`, which exists only from pandas
+  2.0, so simulations failed on the declared minimum pandas 1.5. It now falls
+  back to nanoseconds there.
+- On pandas 1.5 the reference (DataFrame) path returned the final state with
+  an `Int64Index` instead of a `RangeIndex`; placing orders now keeps a
+  `RangeIndex` on every pandas version, as pandas 2 and later already did.
+- `OrderLines` no longer emits a pandas 1.5 `FutureWarning`.
+
+Results on pandas 2 and later are unchanged.
+
 ## Documentation (2026-09-25)
 
 A new documentation site: Quickstart, a nine-step *Learn the basics*

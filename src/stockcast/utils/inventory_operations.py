@@ -174,7 +174,7 @@ def _apply_orders(
         order_df[[inventory_state.sku_column, 'order_quantity', 'target_level', 'order_period', 'expected_delivery_period']],
         on=inventory_state.sku_column,
         how='left'
-    )
+    ).reset_index(drop=True)  # RangeIndex on every pandas version (1.5 returns Int64Index)
 
     # Missing SKU rows are explicit sparse no-order decisions.
     merged['order_quantity'] = merged['order_quantity'].fillna(0.0)

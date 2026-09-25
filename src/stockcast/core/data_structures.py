@@ -9,6 +9,7 @@ The supported staging import boundary is the ``stockcast`` package. Legacy
 duplicate top-level source trees are not part of that boundary.
 """
 import copy
+import warnings
 from typing import Dict, Optional, Any, List, Union
 import numpy as np
 import pandas as pd
@@ -1319,7 +1320,10 @@ class OrderLines:
             if any(_is_missing(value) for value in labels):
                 raise ValueError("order_lines.order_line must not contain missing values")
             try:
-                codes, _ = pd.factorize(pd.Series(labels, dtype=object), sort=False)
+                with warnings.catch_warnings():
+                    # pandas 1.5 warns about future Index dtype inference here.
+                    warnings.simplefilter("ignore", FutureWarning)
+                    codes, _ = pd.factorize(pd.Series(labels, dtype=object), sort=False)
             except TypeError as exc:
                 raise ValueError("order_lines.order_line values must be hashable") from exc
             frame['order_line'] = codes.astype(np.int64)

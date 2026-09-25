@@ -54,8 +54,7 @@ sales = pd.DataFrame({
     "y": [10, 3, 2, 4, 9, 2, 6, 5, 4, 1],
 })
 
-offset = pd.tseries.frequencies.to_offset("D")
-sales["period"] = ((sales["date"] - opening_date) / pd.Timedelta(offset)).astype(int) - 1
+sales["period"] = (sales["date"] - opening_date).dt.days - 1   # daily data
 sales.head(4)
 ```
 

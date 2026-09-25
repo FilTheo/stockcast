@@ -208,7 +208,8 @@ _date_dtype_cache: Dict[tuple, object] = {}
 
 def _assigned_date_dtype(date: pd.Timestamp):
     """dtype of a state date column assigned from one Timestamp scalar."""
-    key = (date.unit, str(date.tz))
+    # Timestamp.unit exists from pandas 2.0; earlier versions are always "ns".
+    key = (getattr(date, "unit", "ns"), str(date.tz))
     if key not in _date_dtype_cache:
         probe = pd.DataFrame(index=pd.RangeIndex(1))
         probe["value"] = date
