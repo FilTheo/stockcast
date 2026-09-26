@@ -30,7 +30,6 @@ class CallbackContext:
         date: Date of the period.
         run_window: ``"warmup"``, ``"scoring"`` or ``"settlement"``.
         phase: ``"on_after_prediction"`` or ``"on_after_demand"``.
-        initial_decision: Kept for compatibility; ``False`` in current runs.
     """
 
     inventory: pd.DataFrame
@@ -39,7 +38,6 @@ class CallbackContext:
     date: pd.Timestamp
     run_window: str
     phase: str
-    initial_decision: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "inventory", self.inventory.copy(deep=True))

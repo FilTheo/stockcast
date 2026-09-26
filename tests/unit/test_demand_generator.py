@@ -9,7 +9,7 @@ def _generator(**kwargs):
         ["A", "B"],
         start_date="2025-01-06",
         period_frequency="W-MON",
-        seed=17,
+        random_seed=17,
         negative_demand_handling="raise",
         **kwargs,
     )
@@ -23,7 +23,7 @@ def test_generator_requires_explicit_reproducibility_and_calendar_inputs():
             ["A"],
             start_date="2025-01-01",
             period_frequency="not-a-frequency",
-            seed=1,
+            random_seed=1,
             negative_demand_handling="raise",
         )
     with pytest.raises(ValueError, match="one identifier type"):
@@ -31,7 +31,7 @@ def test_generator_requires_explicit_reproducibility_and_calendar_inputs():
             ["1", 2],
             start_date="2025-01-01",
             period_frequency="D",
-            seed=1,
+            random_seed=1,
             negative_demand_handling="raise",
         )
     for frequency in ["0D", "-1D"]:
@@ -40,7 +40,7 @@ def test_generator_requires_explicit_reproducibility_and_calendar_inputs():
                 ["A"],
                 start_date="2025-01-01",
                 period_frequency=frequency,
-                seed=1,
+                random_seed=1,
                 negative_demand_handling="raise",
             )
 
@@ -62,20 +62,20 @@ def test_negative_draw_handling_is_explicit():
         ["A"],
         start_date="2025-01-01",
         period_frequency="D",
-        seed=1,
+        random_seed=1,
     )
     rejecting = DemandGenerator(
         ["A"],
         start_date="2025-01-01",
         period_frequency="D",
-        seed=1,
+        random_seed=1,
         negative_demand_handling="raise",
     )
     clipping = DemandGenerator(
         ["A"],
         start_date="2025-01-01",
         period_frequency="D",
-        seed=1,
+        random_seed=1,
         negative_demand_handling="clip_zero",
     )
 
@@ -164,7 +164,7 @@ def test_samplers_are_reproducible_from_the_generator_seed():
         ["A", "B"],
         start_date="2025-01-06",
         period_frequency="W-MON",
-        seed=18,
+        random_seed=18,
     ).sample(10, _poisson)
 
     pd.testing.assert_frame_equal(first, second)
@@ -217,7 +217,7 @@ def test_negative_sampler_draws_follow_negative_demand_handling():
         ["A", "B"],
         start_date="2025-01-06",
         period_frequency="W-MON",
-        seed=17,
+        random_seed=17,
         negative_demand_handling="clip_zero",
     )
     with pytest.warns(RuntimeWarning, match="clipped to zero"):
@@ -240,7 +240,7 @@ def test_engine_runs_on_a_poisson_sampler():
         skus,
         start_date=opening_date + pd.Timedelta(days=1),
         period_frequency="D",
-        seed=5,
+        random_seed=5,
     )
     inventory = InventoryStateDataFrame(
         skus, max_lead_time=1, allow_backorders=False,

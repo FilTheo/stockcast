@@ -18,7 +18,7 @@ Usage:
         ['SKU_A', 'SKU_B'],
         start_date=pd.Timestamp('2025-01-01'),
         period_frequency='D',
-        seed=42,
+        random_seed=42,
         negative_demand_handling='clip_zero',
     )
 
@@ -33,7 +33,6 @@ Usage:
         inventory=inv,
         n_periods=365,
         period_frequency="D",
-        initial_decision="none",
         warmup_periods=0,
         scoring_periods=365,
         settlement_periods=0,
@@ -72,7 +71,7 @@ class DemandGenerator:
         start_date: Explicit date for demand period 0. For ``SimulationEngine``
             this is one period after the inventory opening date.
         period_frequency: Explicit pandas frequency for one period.
-        seed: Explicit random seed, or ``None`` for intentionally unseeded data.
+        random_seed: Explicit random seed, or ``None`` for intentionally unseeded data.
         negative_demand_handling: Explicitly reject or clip negative draws.
 
     Example:
@@ -81,7 +80,7 @@ class DemandGenerator:
             ['A', 'B', 'C'],
             start_date='2025-01-01',
             period_frequency='D',
-            seed=42,
+            random_seed=42,
             negative_demand_handling='clip_zero',
         )
 
@@ -99,7 +98,6 @@ class DemandGenerator:
             inventory=inv,
             n_periods=30,
             period_frequency="D",
-            initial_decision="none",
             warmup_periods=0,
             scoring_periods=30,
             settlement_periods=0,
@@ -116,7 +114,7 @@ class DemandGenerator:
         *,
         start_date: pd.Timestamp,
         period_frequency: str,
-        seed: int | None,
+        random_seed: int | None,
         negative_demand_handling: Literal["raise", "clip_zero"] = "raise",
     ):
         self.skus = list(skus)
@@ -138,13 +136,15 @@ class DemandGenerator:
             period_frequency,
             "period_frequency",
         )
-        if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool)):
-            raise ValueError("seed must be an integer or explicit None")
+        if random_seed is not None and (
+            not isinstance(random_seed, int) or isinstance(random_seed, bool)
+        ):
+            raise ValueError("random_seed must be an integer or explicit None")
         if negative_demand_handling not in {"raise", "clip_zero"}:
             raise ValueError("negative_demand_handling must be 'raise' or 'clip_zero'")
-        self.seed = seed
+        self.random_seed = random_seed
         self.negative_demand_handling = negative_demand_handling
-        self.rng = np.random.default_rng(seed)
+        self.rng = np.random.default_rng(random_seed)
 
     # ========================================================================
     # INTERNAL HELPERS
@@ -474,7 +474,7 @@ class DemandGenerator:
         A sampler is a function ``sampler(rng, periods)`` that returns one
         demand value per entry of ``periods``. ``rng`` is the generator's
         seeded ``np.random.Generator``; draw from it so the panel is
-        reproducible from ``seed``. ``periods`` holds the integer period
+        reproducible from ``random_seed``. ``periods`` holds the integer period
         indices, so demand can change over time.
 
         Pass one sampler to generate every SKU in the panel from it (each SKU
@@ -619,5 +619,5 @@ class DemandGenerator:
     def __repr__(self) -> str:
         return (
             f"DemandGenerator(skus={self.skus}, start_date={self.start_date}, "
-            f"period_frequency={self.period_offset.freqstr}, seed={self.seed})"
+            f"period_frequency={self.period_offset.freqstr}, random_seed={self.random_seed})"
         )

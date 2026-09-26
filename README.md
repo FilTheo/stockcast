@@ -71,7 +71,7 @@ horizon = lead_time + review_period             # each order must cover 6 days
 
 # Eight weeks of daily demand, and 30 packs on the shelf to start with.
 demand = DemandGenerator([sku], start_date=opening + pd.Timedelta(days=1),
-                         period_frequency="D", seed=3,
+                         period_frequency="D", random_seed=3,
                          negative_demand_handling="clip_zero").seasonal(
     n_periods=56, base=6.0, amplitude=2.0, season_length=7, std=2.0)
 inventory = InventoryStateDataFrame([sku], max_lead_time=lead_time, allow_backorders=False)

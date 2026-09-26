@@ -82,7 +82,7 @@ def tea_demand(n_periods=56):
         [SKU],
         start_date=OPENING + pd.Timedelta(days=1),
         period_frequency="D",
-        seed=3,
+        random_seed=3,
         negative_demand_handling="clip_zero",
     ).seasonal(n_periods=n_periods, base=6.0, amplitude=2.0, season_length=7, std=2.0)
     demand["y"] = demand["y"].round()

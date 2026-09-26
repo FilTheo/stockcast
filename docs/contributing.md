@@ -8,8 +8,9 @@ issue or pull request on the [GitHub repository](https://github.com/FilTheo/stoc
 ```bash
 git clone https://github.com/FilTheo/stockcast.git
 cd stockcast
-python -m pip install -e . pytest
+python -m pip install -e . pytest ruff
 python -m pytest -p no:cacheprovider -q -o addopts='' tests/unit
+ruff check .
 ```
 
 The release checks run the tests on Python 3.10 to 3.13, and on Python 3.10
@@ -40,7 +41,7 @@ How the docs are organised:
 
 | Folder | Purpose | Style |
 |---|---|---|
-| `docs/get-started/`, `docs/learn/` | first contact and the 8-step series | one idea per page, the tea-shop example throughout |
+| `docs/get-started/`, `docs/learn/` | first contact and the 9-step series | one idea per page, the tea-shop example throughout |
 | `docs/user-guide/` | concepts and building blocks | idea → math → code → notebooks |
 | `docs/user-guide/design/` | the reasoning behind core choices | short essays |
 | `docs/how-to/` | task recipes | straight to the point |
@@ -50,7 +51,7 @@ How the docs are organised:
 Conventions:
 
 - **Code runs.** Every ` ```python ` block is executed by `tests/docs`, page
-  by page, like notebook cells. The README's quickstart is executed too, and
+  by page, like notebook cells, and must run without warnings. The README's quickstart is executed too, and
   `tests/release/artifact_smoke.py` repeats it against built packages. Use ` ```py ` for snippets that should not run,
   for example ones that need an optional forecasting package.
 - **Shared setup.** `docs/includes/learn-setup.py` holds the tea-shop scenario.
@@ -74,7 +75,7 @@ checks without publishing.
 ## Notebooks
 
 To execute the notebook collection against an installed wheel, use Python
-3.11+ with `smooth`, `nbclient`, and `ipykernel` installed:
+3.11+ with `smooth>=1.0.7`, `nbclient`, and `ipykernel` installed:
 
 ```bash
 python tests/release/run_notebooks.py ../stockcast-notebook-review

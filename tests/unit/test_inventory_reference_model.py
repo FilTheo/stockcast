@@ -43,7 +43,6 @@ def test_inventory_matches_delivery_calendar_oracle(backorders, lead, review, de
             "date": pd.date_range(origin + pd.Timedelta(days=1), periods=len(demand)),
         }),
         n_periods=len(demand), period_frequency="D",
-        initial_decision="none",
         warmup_periods=0, scoring_periods=20, settlement_periods=4,
         order_during_settlement=False, demand_source_name="independent_reference",
         random_seed=142,

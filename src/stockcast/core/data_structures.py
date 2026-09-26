@@ -7,7 +7,7 @@ This module provides:
 """
 import copy
 import warnings
-from typing import Dict, Optional, Any, List, Union
+from typing import Dict, Optional, List, Union
 import numpy as np
 import pandas as pd
 
@@ -311,9 +311,7 @@ class InventoryStateDataFrame:
                  max_lead_time: int,
                  sku_column: str = 'unique_id',
                  start_date: Optional[pd.Timestamp] = None,
-                 allow_backorders: Optional[bool] = None,
-                 _history: Optional[List[pd.DataFrame]] = None,
-                 _open_orders: Optional[_OpenOrderBook] = None):
+                 allow_backorders: Optional[bool] = None):
         """Create a state for a fixed set of SKUs.
 
         Args:
@@ -339,8 +337,8 @@ class InventoryStateDataFrame:
         self.sku_column = sku_column
         self.max_lead_time = max_lead_time
         self.allow_backorders = allow_backorders
-        self._history = _history if _history is not None else []
-        self._open_orders = _open_orders
+        self._history = []
+        self._open_orders = None
 
         # === STEP 1: Convert input to DataFrame ===
         if isinstance(data, pd.DataFrame):
@@ -466,6 +464,24 @@ class InventoryStateDataFrame:
         # Initialize class-level attributes
         self.has_stockout = False
         self.has_backorder = False
+
+    @classmethod
+    def _successor(
+        cls,
+        data: pd.DataFrame,
+        *,
+        sku_column: str,
+        max_lead_time: int,
+        allow_backorders: Optional[bool],
+        history: List[pd.DataFrame],
+        open_orders: Optional[_OpenOrderBook],
+    ) -> 'InventoryStateDataFrame':
+        """Build a validated state that carries over history and open orders."""
+        state = cls(data, max_lead_time, sku_column=sku_column,
+                    allow_backorders=allow_backorders)
+        state._history = history
+        state._open_orders = open_orders
+        return state
 
     @classmethod
     def _from_trusted(
@@ -1027,11 +1043,11 @@ class InventoryStateDataFrame:
         book = self._open_orders
         if book is not None:
             book = book.advanced(int(data["period"].iloc[0]))
-        return InventoryStateDataFrame(data, sku_column=self.sku_column,
-                                       max_lead_time=self.max_lead_time,
-                                       allow_backorders=self.allow_backorders,
-                                       _history=self._history,
-                                       _open_orders=book)
+        return InventoryStateDataFrame._successor(
+            data, sku_column=self.sku_column, max_lead_time=self.max_lead_time,
+            allow_backorders=self.allow_backorders, history=self._history,
+            open_orders=book,
+        )
 
     def fulfill_demand(self, demand_df: pd.DataFrame, *, demand_column: str = "y",
                        date_column: str = "date", sku_column: Optional[str] = None
@@ -1078,11 +1094,11 @@ class InventoryStateDataFrame:
         data["latest_incoming_demand"] = demand
         data["latest_fulfilled"] = fulfilled
         data["latest_shortage"] = shortage
-        result = InventoryStateDataFrame(data, sku_column=self.sku_column,
-                                        max_lead_time=self.max_lead_time,
-                                        allow_backorders=self.allow_backorders,
-                                        _history=self._history,
-                                        _open_orders=self._open_orders)
+        result = InventoryStateDataFrame._successor(
+            data, sku_column=self.sku_column, max_lead_time=self.max_lead_time,
+            allow_backorders=self.allow_backorders, history=self._history,
+            open_orders=self._open_orders,
+        )
         result.has_stockout = bool((shortage > 0).any())
         result.has_backorder = bool((data["backorders"] > 0).any())
         result._history.append(result.data.copy())

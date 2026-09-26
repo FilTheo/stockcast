@@ -465,8 +465,8 @@ def test_periodic_rss_uses_only_explicit_reorder_and_restore_targets():
             reorder_point_column="reorder",
             order_up_to_column="restore",
         ),
-        information_origin=ORIGIN,
-        information_frequency="D",
+        forecast_origin=ORIGIN,
+        forecast_frequency="D",
     )
 
     order = policy.predict(
@@ -498,8 +498,8 @@ def test_periodic_fixed_provider_supports_scalar_targets():
             reorder_point=5.0,
             order_up_to_level=12.0,
         ),
-        information_origin=ORIGIN,
-        information_frequency="D",
+        forecast_origin=ORIGIN,
+        forecast_frequency="D",
     )
     assert policy.get_parameters()["order_up_to_level"].tolist() == [12.0, 12.0]
 
@@ -522,8 +522,8 @@ def test_custom_periodic_provider_is_revalidated_centrally():
         ).fit(
             pd.DataFrame({"unique_id": ["A"]}),
             target_provider=BrokenProvider(),
-            information_origin=ORIGIN,
-            information_frequency="D",
+            forecast_origin=ORIGIN,
+            forecast_frequency="D",
         )
 
 
@@ -548,6 +548,6 @@ def test_custom_periodic_provider_metadata_must_be_serializable():
         ).fit(
             pd.DataFrame({"unique_id": ["A"]}),
             target_provider=InvalidMetadataProvider(),
-            information_origin=ORIGIN,
-            information_frequency="D",
+            forecast_origin=ORIGIN,
+            forecast_frequency="D",
         )

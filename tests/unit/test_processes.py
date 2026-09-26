@@ -536,7 +536,7 @@ def test_processes_cannot_be_combined_with_a_hook_overriding_engine():
             return inventory
 
     policy, demand, state = _setup()
-    with pytest.raises(ValueError, match="overrides the private lifecycle hooks"):
+    with pytest.raises(ValueError, match="processes= is not supported by HookEngine"):
         _run(HookEngine(), policy, demand, state, processes=[InspectionLoss()])
     # Without processes such an engine runs as before.
     _run(HookEngine(), policy, demand, state)

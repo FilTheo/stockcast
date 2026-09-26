@@ -1,6 +1,6 @@
 """Execute examples against an installed package, retaining review artifacts.
 
-Run with a Python 3.11+ environment containing Stockcast, smooth==1.0.7,
+Run with a Python 3.11+ environment containing Stockcast, smooth>=1.0.7,
 nbclient and ipykernel. Output belongs outside the source tree. Each notebook
 gets a fresh working directory containing only the declared example assets.
 """
@@ -11,6 +11,7 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -31,8 +32,9 @@ def main():
     if output == root or root in output.parents:
         parser.error("output must be outside the repository")
     output.mkdir(parents=True, exist_ok=True)
-    if importlib.metadata.version("smooth") != "1.0.7":
-        raise RuntimeError("Notebook contract requires smooth==1.0.7")
+    smooth_version = importlib.metadata.version("smooth")
+    if tuple(int(part) for part in re.findall(r"\d+", smooth_version)[:3]) < (1, 0, 7):
+        raise RuntimeError(f"Notebook contract requires smooth>=1.0.7, found {smooth_version}")
     os.environ.pop("PYTHONPATH", None)
     os.environ["PATH"] = str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"]
     os.environ["MPLCONFIGDIR"] = str(output / "matplotlib")

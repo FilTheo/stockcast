@@ -13,7 +13,7 @@ open `examples/notebooks` from the repository root:
 
 ```bash
 pip install -e .
-pip install jupyterlab smooth
+pip install jupyterlab "smooth>=1.0.7"
 jupyter lab examples/notebooks
 ```
 

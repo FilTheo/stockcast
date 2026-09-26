@@ -34,8 +34,8 @@ class PeriodicReviewPolicy(BasePolicy):
             target_provider=FixedPeriodicReviewTargets(
                 reorder_point={"tea": 25.0}, order_up_to_level={"tea": 60.0},
             ),
-            information_origin=pd.Timestamp("2026-01-05"),
-            information_frequency="D",
+            forecast_origin=pd.Timestamp("2026-01-05"),
+            forecast_frequency="D",
         )
         ```
     """
@@ -68,8 +68,8 @@ class PeriodicReviewPolicy(BasePolicy):
         target_data: pd.DataFrame,
         *,
         target_provider: PeriodicReviewTargetProvider,
-        information_origin,
-        information_frequency: str,
+        forecast_origin,
+        forecast_frequency: str,
         sku_column: str = "unique_id",
     ) -> "PeriodicReviewPolicy":
         """Obtain ``s`` and ``S`` per SKU from a target provider.
@@ -77,8 +77,8 @@ class PeriodicReviewPolicy(BasePolicy):
         Args:
             target_data: The table passed to the provider (one row per SKU).
             target_provider: A ``PeriodicReviewTargetProvider``.
-            information_origin: Date of the last information the targets used.
-            information_frequency: Period frequency, such as ``"D"``.
+            forecast_origin: Date of the last information the targets used.
+            forecast_frequency: Period frequency, such as ``"D"``.
             sku_column: SKU column name.
 
         Returns:
@@ -93,8 +93,8 @@ class PeriodicReviewPolicy(BasePolicy):
         if not isinstance(target_provider, PeriodicReviewTargetProvider):
             raise TypeError("target_provider must be a PeriodicReviewTargetProvider")
         origin, offset = validate_forecast_origin_and_frequency(
-            information_origin,
-            information_frequency,
+            forecast_origin,
+            forecast_frequency,
         )
         provider_result = target_provider.provide(
             target_data.copy(),

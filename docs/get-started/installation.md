@@ -30,20 +30,21 @@ pandas, and Matplotlib.
 ## Check that it works
 
 ```python
+import stockcast
 from stockcast.core import SimulationEngine
 from stockcast.policies import OrderUpToPolicy
 
-print(SimulationEngine, OrderUpToPolicy)
+print(stockcast.__version__, SimulationEngine, OrderUpToPolicy)
 ```
 
-If this prints two class names, you are ready for the
+If this prints the version and two class names, you are ready for the
 [Quickstart](quickstart.md).
 
 ## Optional: a forecasting library
 
 Stockcast does not fit forecasts, so it does not install a forecasting
 library. Use the one you already know. Several notebooks use
-[smooth](https://openforecast.org/smooth-py/) (`pip install smooth`), a Python
+[smooth](https://openforecast.org/smooth-py/) (`pip install "smooth>=1.0.7"`), a Python
 implementation of state-space forecasting models from the same open-source
 ecosystem. See [Connect any forecasting model](../how-to/connect-a-forecaster.md).
 
@@ -54,7 +55,7 @@ The [example notebooks](../tutorials/index.md) live in
 Clone the repository, install Stockcast, then install Jupyter and smooth:
 
 ```bash
-pip install jupyterlab smooth
+pip install jupyterlab "smooth>=1.0.7"
 jupyter lab examples/notebooks
 ```
 

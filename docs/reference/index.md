@@ -18,7 +18,7 @@ Import each name from its home module:
 | `stockcast.visualization` | plots |
 
 The most common names are also re-exported from the top-level `stockcast`
-package.
+package, and `stockcast.__version__` gives the installed version.
 
 ## Pages
 

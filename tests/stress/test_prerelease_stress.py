@@ -343,7 +343,9 @@ def _random_case(seed: int):
         targets = [float(rng.randint(5, 40)) for _ in skus]
         policy = fit_out(sc.OrderUpToPolicy(lead, schedule=schedule, allow_backorders=backorders),
                          skus, targets, horizon=lead + review)
-        rule = lambda i, ip: max(0.0, targets[i] - ip)
+
+        def rule(i, ip):
+            return max(0.0, targets[i] - ip)
     elif family in {"sQ", "sS"}:
         schedule = sc.PeriodicSchedule(rng.choice([1, 1, 2, 3]), start=rng.randint(0, 1))
         s_values = [float(rng.randint(0, 15)) for _ in skus]
@@ -353,13 +355,17 @@ def _random_case(seed: int):
             policy = fit_reorder(sc.ReorderPointPolicy(
                 lead, schedule=schedule, policy_type="sQ", service_level=service, order_quantity=q,
                 order_quantity_source="case_pack", allow_backorders=backorders), skus, s_values)
-            rule = lambda i, ip: q if ip <= s_values[i] else 0.0
+
+            def rule(i, ip):
+                return q if ip <= s_values[i] else 0.0
         else:
             S_values = [s + rng.randint(0, 20) for s in s_values]
             policy = fit_reorder(sc.ReorderPointPolicy(
                 lead, schedule=schedule, policy_type="sS", service_level=service,
                 allow_backorders=backorders), skus, s_values, S_values)
-            rule = lambda i, ip: max(0.0, S_values[i] - ip) if ip <= s_values[i] else 0.0
+
+            def rule(i, ip):
+                return max(0.0, S_values[i] - ip) if ip <= s_values[i] else 0.0
     elif family == "RsS":
         periods = sorted(rng.sample(range(n_periods), k=max(1, n_periods // 3)))
         schedule = sc.ExplicitSchedule(tuple(periods))
@@ -368,17 +374,23 @@ def _random_case(seed: int):
         policy = sc.PeriodicReviewPolicy(lead, schedule=schedule, allow_backorders=backorders).fit(
             pd.DataFrame({"unique_id": skus}),
             target_provider=sc.FixedPeriodicReviewTargets(reorder_point=s_values, order_up_to_level=S_values),
-            information_origin=ORIGIN, information_frequency="D",
+            forecast_origin=ORIGIN, forecast_frequency="D",
         )
-        rule = lambda i, ip: max(0.0, S_values[skus[i]] - ip) if ip <= s_values[skus[i]] else 0.0
+
+        def rule(i, ip):
+            return max(0.0, S_values[skus[i]] - ip) if ip <= s_values[skus[i]] else 0.0
     else:
         periods = sorted(rng.sample(range(n_periods), k=max(1, n_periods // 2)))
         schedule = sc.ExplicitSchedule(tuple(periods))
         quantities = {sku: float(rng.randint(0, 9)) for sku in skus}
         policy = StandingOrderPolicy(lead, quantities, schedule=schedule, allow_backorders=backorders).fit()
-        rule = lambda i, ip: quantities[skus[i]]
 
-    decide = lambda t: schedule.should_decide(t) and (t < warmup + scoring or windows[3])
+        def rule(i, ip):
+            return quantities[skus[i]]
+
+    def decide(t):
+        return schedule.should_decide(t) and (t < warmup + scoring or windows[3])
+
     return dict(
         skus=skus, lead=lead, backorders=backorders, max_lead=max_lead, windows=windows,
         demand=demand, on_hand=on_hand, backlog=backlog, pipeline=pipeline, lots=lots,
@@ -727,7 +739,7 @@ def test_retailer_weekly_rolling_forecast_workflow_with_perishables():
     dates = pd.date_range(ORIGIN - (history_days - 1) * DAY, periods=total_days, freq="D")
     means = level[None, :] * weekday[dates.dayofweek.to_numpy()][:, None]
     sales = rng.poisson(means).astype(float)
-    history, future = sales[:history_days], sales[history_days:]
+    future = sales[history_days:]
     observed = pd.DataFrame(sales, index=dates, columns=skus)
 
     def snapshot(decision_period):

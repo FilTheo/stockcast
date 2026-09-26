@@ -100,7 +100,6 @@ def test_missing_sku_period_is_rejected_before_inventory_mutation():
             inventory,
             n_periods=1,
             period_frequency="D",
-            initial_decision="none",
             **_run_contract(1),
         )
     assert inventory.data["on_hand"].tolist() == [5.0, 5.0]
@@ -120,7 +119,6 @@ def test_missing_calendar_period_is_rejected():
             _inventory(),
             n_periods=3,
             period_frequency="D",
-            initial_decision="none",
             **_run_contract(3),
         )
 
@@ -134,7 +132,6 @@ def test_missing_dates_are_rejected_instead_of_assuming_daily_frequency():
             _inventory(),
             n_periods=1,
             period_frequency="D",
-            initial_decision="none",
             **_run_contract(1),
         )
 
@@ -152,7 +149,6 @@ def test_weekly_frequency_validates_calendar_and_is_recorded():
         _inventory(opening_date="2025-01-06"),
         n_periods=2,
         period_frequency="W-MON",
-        initial_decision="none",
         **_run_contract(2),
     )
 
@@ -178,7 +174,6 @@ def test_simulation_frequency_must_advance_time(frequency):
             _inventory(),
             n_periods=1,
             period_frequency=frequency,
-            initial_decision="none",
             **_run_contract(1),
         )
 
@@ -197,7 +192,6 @@ def test_wrong_date_for_declared_frequency_is_rejected():
             _inventory(opening_date="2025-01-06"),
             n_periods=1,
             period_frequency="W-MON",
-            initial_decision="none",
             **_run_contract(1),
         )
 
@@ -214,7 +208,7 @@ def test_first_decision_uses_schedule_and_old_opening_option_fails_explicitly():
     assert event["received_units"] == 10
     assert event["fulfilled_units"] == 4
     assert event["ending_on_hand"] == 6
-    with pytest.raises(ValueError, match="decisions now occur before demand"):
+    with pytest.raises(TypeError, match="initial_decision"):
         SimulationEngine().run(policy, demand, _inventory(), 1, period_frequency="D",
                                initial_decision="before_first_demand", **_run_contract(1))
 
@@ -239,7 +233,6 @@ def test_comparison_materializes_callable_once_and_copies_policies():
         _inventory(),
         n_periods=2,
         period_frequency="D",
-        initial_decision="none",
         labels=["first", "second"],
         **_run_contract(2),
     )
@@ -268,7 +261,6 @@ def test_comparison_rejects_duplicate_user_labels_before_demand_is_materialized(
             _inventory(),
             n_periods=1,
             period_frequency="D",
-            initial_decision="none",
             labels=["same", "same"],
             **_run_contract(1),
         )
@@ -293,7 +285,6 @@ def test_run_does_not_mutate_input_or_include_pre_run_history():
         inventory,
         n_periods=1,
         period_frequency="D",
-        initial_decision="none",
         **_run_contract(1),
     )
 
@@ -319,7 +310,6 @@ def test_demand_identifier_types_must_match_inventory_identifiers():
             _inventory(),
             n_periods=1,
             period_frequency="D",
-            initial_decision="none",
             **_run_contract(1),
         )
 
@@ -341,7 +331,6 @@ def test_numeric_identifiers_are_preserved_through_orders_and_events():
         inventory,
         n_periods=1,
         period_frequency="D",
-        initial_decision="none",
         **_run_contract(1),
     )
 
@@ -364,7 +353,6 @@ def test_policy_schedule_updates_targets_only_at_declared_decisions():
         _inventory(),
         n_periods=2,
         period_frequency="D",
-        initial_decision="none",
         policy_schedule={1: _policy(order_quantity=10.0)},
         **_run_contract(2),
     )
@@ -394,7 +382,6 @@ def test_policy_schedule_rejects_non_decision_periods():
             _inventory(),
             n_periods=1,
             period_frequency="D",
-            initial_decision="none",
             policy_schedule={1: _policy(review_period=2)},
             **_run_contract(1),
         )
@@ -414,7 +401,6 @@ def test_policy_schedule_rejects_configuration_changes():
             _inventory(),
             n_periods=1,
             period_frequency="D",
-            initial_decision="none",
             policy_schedule={0: FixedOrderPolicy(
                 order_quantity=2.0,
                 lead_time=2,
@@ -439,7 +425,6 @@ def test_run_windows_control_scoring_and_settlement_ordering():
         _inventory(),
         n_periods=4,
         period_frequency="D",
-        initial_decision="none",
         warmup_periods=1,
         scoring_periods=2,
         settlement_periods=1,
@@ -474,14 +459,14 @@ def test_clipped_demand_diagnostics_are_recorded_in_run_manifest():
         ["A"],
         start_date=pd.Timestamp("2025-01-02"),
         period_frequency="D",
-        seed=1,
+        random_seed=1,
         negative_demand_handling="clip_zero",
     )
     with pytest.warns(RuntimeWarning, match="clipped to zero"):
         demand = generator.trend(2, initial=0.0, growth_rate=-1.0, std=0.0)
     result = SimulationEngine().run(
         _policy(), demand, _inventory(), n_periods=2,
-        period_frequency="D", initial_decision="none",
+        period_frequency="D",
         **_run_contract(2),
     )
     provenance = result.run_manifest["demand_source"]["generation_provenance"]
@@ -506,7 +491,6 @@ def test_run_window_lengths_must_match_total_periods():
             _inventory(),
             n_periods=1,
             period_frequency="D",
-            initial_decision="none",
             warmup_periods=0,
             scoring_periods=1,
             settlement_periods=1,
@@ -537,7 +521,6 @@ def test_initial_policy_cannot_use_a_future_information_origin():
             _inventory(),
             n_periods=1,
             period_frequency="D",
-            initial_decision="none",
             **_run_contract(1),
         )
 
@@ -570,7 +553,6 @@ def test_scheduled_policy_origin_must_equal_its_decision_date():
             _inventory(),
             n_periods=2,
             period_frequency="D",
-            initial_decision="none",
             policy_schedule={1: wrong_snapshot},
             **_run_contract(2),
         )
@@ -599,6 +581,5 @@ def test_policy_forecast_frequency_must_match_simulation_periods():
             _inventory(),
             n_periods=1,
             period_frequency="D",
-            initial_decision="none",
             **_run_contract(1),
         )

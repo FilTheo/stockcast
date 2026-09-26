@@ -22,7 +22,6 @@ Usage (the simple engine):
         inventory=inventory,
         n_periods=30,
         period_frequency="D",
-        initial_decision="none",
         warmup_periods=0,
         scoring_periods=30,
         settlement_periods=0,
@@ -135,6 +134,7 @@ class FIFOLotLedger:
             })
 
     def receive(self, unique_id, qty: float, date: pd.Timestamp) -> None:
+        """Add a lot of qty units received on date (zero is skipped with a warning)."""
         if isinstance(qty, (bool, np.bool_)):
             raise ValueError("lot receipt quantity must be a finite number >= 0")
         try:
@@ -482,7 +482,6 @@ class ShelfLifeEngine(SimulationEngine):
         n_periods,
         *,
         period_frequency,
-        initial_decision="none",
         warmup_periods,
         scoring_periods,
         settlement_periods,
@@ -497,6 +496,25 @@ class ShelfLifeEngine(SimulationEngine):
         supply=None,
         processes=None,
     ):
+        """Simulate a policy with FIFO shelf life.
+
+        Takes the arguments of ``SimulationEngine.run`` plus the dated opening
+        lots. The run uses a ``ShelfLife`` process with this engine's
+        ``shelf_life_days``; after it, ``ledger`` holds the remaining lots.
+
+        Args:
+            opening_lots: DataFrame with ``unique_id``, ``received_date`` and
+                ``quantity``; lot quantities must add up to opening on_hand for
+                every SKU.
+            opening_expiry_handling: ``"reject"`` (default) fails if an opening
+                lot is already expired at the opening date;
+                ``"expire_before_initial_decision"`` writes that stock off before
+                the run (recorded in the manifest, not as a period flow);
+                ``"preprocessed"`` asserts no opening lot is expired.
+
+        Returns:
+            A ``SimulationResult``.
+        """
         shelf = ShelfLife(self.shelf_life_days, opening_lots, opening_expiry_handling)
         inventory = copy.deepcopy(inventory)
         shelf._prepare_opening(inventory)
@@ -508,7 +526,6 @@ class ShelfLifeEngine(SimulationEngine):
                 inventory,
                 n_periods,
                 period_frequency=period_frequency,
-                initial_decision=initial_decision,
                 warmup_periods=warmup_periods,
                 scoring_periods=scoring_periods,
                 settlement_periods=settlement_periods,
@@ -538,7 +555,6 @@ class ShelfLifeEngine(SimulationEngine):
         n_periods,
         *,
         period_frequency,
-        initial_decision="none",
         warmup_periods,
         scoring_periods,
         settlement_periods,
@@ -562,7 +578,6 @@ class ShelfLifeEngine(SimulationEngine):
         return self._run_comparison(
             policies, demand_source, inventory, n_periods,
             period_frequency=period_frequency,
-            initial_decision=initial_decision,
             warmup_periods=warmup_periods,
             scoring_periods=scoring_periods,
             settlement_periods=settlement_periods,

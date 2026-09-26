@@ -146,6 +146,17 @@ class SingleOrderPolicy(OrderUpToPolicy):
         return self
 
     def validate_decision_window(self, period, information_date, offset):
+        """Check, before a run, that the target covers the selling season.
+
+        Args:
+            period: Zero-based demand period of the decision.
+            information_date: Date of the last demand known at the decision.
+            offset: The simulation's period frequency.
+
+        Raises:
+            ValueError: If the forecast origin is not the decision's information
+                date, or the target does not end at the season's last date.
+        """
         metadata = self.target_metadata_
         if pd.Timestamp(metadata["forecast_origin"]) != information_date:
             raise ValueError(

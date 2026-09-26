@@ -192,6 +192,7 @@ class ProcessFlows:
 
     @property
     def quantities(self) -> dict:
+        """A copy of the per-flow quantities."""
         return {
             flow: values.copy(deep=True) if isinstance(values, pd.Series) else dict(values)
             for flow, values in self._quantities.items()
@@ -199,6 +200,7 @@ class ProcessFlows:
 
     @property
     def received_dates(self) -> dict:
+        """A copy of the per-flow lot dates."""
         return dict(self._received_dates)
 
 

@@ -285,13 +285,13 @@ def _apply_orders(
     merged = merged.drop(columns=['order_quantity', 'order_period', 'expected_delivery_period'])
 
     # Return new InventoryStateDataFrame with updated values and preserve history
-    return InventoryStateDataFrame(
+    return InventoryStateDataFrame._successor(
         merged,
         sku_column=inventory_state.sku_column,
         max_lead_time=inventory_state.max_lead_time,
         allow_backorders=allow_backorders,
-        _history=inventory_state._history,  # Preserve accumulated history
-        _open_orders=book,
+        history=inventory_state._history,  # Preserve accumulated history
+        open_orders=book,
     )
 
 

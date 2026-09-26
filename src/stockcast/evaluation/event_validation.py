@@ -97,7 +97,7 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     _require_unique(frame, ["unique_id", "event_type", "period", "policy"], "event_frame")
 
     event_types = set(frame["event_type"].dropna())
-    unknown_types = sorted(event_types - {"period", "initial_decision"})
+    unknown_types = sorted(event_types - {"period"})
     if unknown_types or frame["event_type"].isna().any():
         raise ValueError(f"event_frame.event_type contains invalid values: {unknown_types}")
     unknown_windows = sorted(set(frame["run_window"].dropna()) - {"warmup", "scoring", "settlement"})
@@ -124,8 +124,6 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
         or not np.equal(demand_periods, np.floor(demand_periods)).all()
     ):
         raise ValueError("period events require finite integer demand_period values >= 0")
-    if frame.loc[~period_rows, "demand_period"].notna().any():
-        raise ValueError("initial_decision events must have a missing demand_period")
 
     present = [column for column in PROCESS_EVENT_COLUMNS if column in frame]
     if present and len(present) != len(PROCESS_EVENT_COLUMNS):

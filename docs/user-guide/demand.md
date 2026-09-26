@@ -82,7 +82,7 @@ generator = DemandGenerator(
     ["tea_250g", "coffee_1kg"],
     start_date=opening_date + pd.Timedelta(days=1),   # date of period 0
     period_frequency="D",
-    seed=7,
+    random_seed=7,
     negative_demand_handling="clip_zero",
 )
 weekly_pattern = generator.seasonal(
@@ -123,7 +123,7 @@ stored in the run manifest.
 
 For everything else, write a **sampler**: a small function
 `sampler(rng, periods)` that returns one demand value per period. `rng` is the
-generator's seeded random stream: draw from it, and the same `seed` gives the
+generator's seeded random stream: draw from it, and the same `random_seed` gives the
 same demand every time. `periods` holds the period indices, so demand can
 change over time.
 

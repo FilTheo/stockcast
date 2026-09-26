@@ -426,8 +426,8 @@ def test_provider_policy_accepts_separate_nonperiodic_schedule_without_probabili
         target_provider=FixedPeriodicReviewTargets(
             reorder_point=5.0, order_up_to_level=10.0
         ),
-        information_origin=ORIGIN,
-        information_frequency="D",
+        forecast_origin=ORIGIN,
+        forecast_frequency="D",
     )
     events = run(policy, [2.0, 3.0, 0.0, 0.0], stock=0.0).to_event_frame()
     assert events.order_quantity.tolist() == [10.0, 0.0, 0.0, 0.0]

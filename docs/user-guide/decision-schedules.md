@@ -110,7 +110,7 @@ later = {
 }
 
 demand = DemandGenerator([sku], start_date=opening_date + pd.Timedelta(days=1),
-                         period_frequency="D", seed=3).constant(n_periods=14, value=6.0)
+                         period_frequency="D", random_seed=3).constant(n_periods=14, value=6.0)
 inventory = InventoryStateDataFrame([sku], max_lead_time=lead_time, allow_backorders=False)
 inventory.initialize_from_observed(pd.DataFrame({"unique_id": [sku], "on_hand": [20.0]}),
                                    on_hand_column="on_hand", start_date=opening_date)

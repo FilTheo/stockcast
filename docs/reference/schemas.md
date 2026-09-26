@@ -22,7 +22,7 @@ columns are listed in `stockcast.evaluation.CANONICAL_EVENT_COLUMNS`.
 | Column | Meaning |
 |---|---|
 | `unique_id` | SKU |
-| `event_type` | `"period"` for runs of this engine (`"initial_decision"` is recognised in older ledgers) |
+| `event_type` | always `"period"`: one row per SKU and demand period |
 | `demand_period` | zero-based demand period, matching the demand table |
 | `period` | state period (opening period + demand period + 1) |
 | `date` | the period's date |
@@ -123,7 +123,7 @@ effect. `stockcast.core.CALLBACK_AUDIT_COLUMNS`:
 |---|---|
 | `callback_position`, `callback_module`, `callback_class` | which callback |
 | `phase` | `"on_after_prediction"` or `"on_after_demand"` |
-| `period`, `date`, `run_window`, `initial_decision` | when |
+| `period`, `date`, `run_window` | when |
 | `unique_id` | SKU |
 | `before_value`, `after_value`, `quantity_delta` | the order quantity (prediction phase) or on-hand stock (demand phase) before and after |
 | `order_quantity` | the resulting order quantity (prediction phase) |

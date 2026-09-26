@@ -75,7 +75,12 @@ def test_page_examples_run(page: Path, tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     namespace: dict = {"__name__": "__docs__"}
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)
+        # Examples must run warning-free; the one warning a page shows on
+        # purpose is the supplier lead-time notice.
+        warnings.simplefilter("error")
+        warnings.filterwarnings(
+            "ignore", message="supplier deliveries arrive", category=UserWarning,
+        )
         for number, code in enumerate(python_blocks(page.read_text(encoding="utf-8")), 1):
             try:
                 exec(compile(code, f"{page.name}[block {number}]", "exec"), namespace)

@@ -31,7 +31,7 @@ from stockcast.utils import DemandGenerator
 origin = pd.Timestamp("2026-01-05")          # last observed day
 history = DemandGenerator(
     ["tea_250g"], start_date=origin - pd.Timedelta(days=111), period_frequency="D",
-    seed=11, negative_demand_handling="clip_zero",
+    random_seed=11, negative_demand_handling="clip_zero",
 ).seasonal(n_periods=112, base=6.0, amplitude=2.0, season_length=7, std=1.5)
 y = history["y"].round().to_numpy()
 ```

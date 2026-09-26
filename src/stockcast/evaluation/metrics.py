@@ -72,7 +72,7 @@ def _boolean_series(event_frame: pd.DataFrame, column: str) -> pd.Series:
 
 
 def _period_events(event_frame: pd.DataFrame) -> pd.DataFrame:
-    """Exclude time-zero decision events from period-state metrics."""
+    """Keep the period rows (``event_type == "period"``) of a ledger."""
     if "event_type" not in event_frame.columns:
         return event_frame
     return event_frame[event_frame["event_type"] == "period"]

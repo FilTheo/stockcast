@@ -55,7 +55,7 @@ from stockcast.utils import update_inventory_with_orders
 # Four weeks of sales before the opening day: the model's starting history.
 history = DemandGenerator(
     [sku], start_date=opening_date - pd.Timedelta(days=27), period_frequency="D",
-    seed=4, negative_demand_handling="clip_zero",
+    random_seed=4, negative_demand_handling="clip_zero",
 ).seasonal(n_periods=28, base=6.0, amplitude=2.0, season_length=7, std=2.0)
 history = history[["unique_id", "date", "y"]].assign(y=lambda d: d["y"].round())
 

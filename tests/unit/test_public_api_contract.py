@@ -83,9 +83,9 @@ def test_public_output_schema_constants_are_available_from_public_namespaces():
     )
     assert core.CALLBACK_AUDIT_COLUMNS == (
         "callback_position", "callback_module", "callback_class", "phase", "period",
-        "date", "run_window", "initial_decision", "unique_id", "before_value",
-        "after_value", "quantity_delta", "order_quantity", "reason", "source",
-        "received_date", "lot_evidence",
+        "date", "run_window", "unique_id", "before_value", "after_value",
+        "quantity_delta", "order_quantity", "reason", "source", "received_date",
+        "lot_evidence",
     )
     assert core.ORDER_FRAME_COLUMNS == (
         "order_id", "unique_id", "supplier_id", "source", "order_period", "order_date",

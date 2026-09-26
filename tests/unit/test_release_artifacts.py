@@ -1,12 +1,16 @@
 """Packaging regressions: stale local metadata must not enter a release."""
 
+import importlib.metadata
 import io
+import re
 import runpy
 import tarfile
 import zipfile
 from pathlib import Path
 
 import pytest
+
+import stockcast
 
 check_artifacts = runpy.run_path(
     str(Path(__file__).resolve().parents[1] / "release/check_artifacts.py")
@@ -32,3 +36,14 @@ def test_artifact_check_requires_one_wheel_and_one_sdist(tmp_path):
     (tmp_path / "stockcast-two.whl").touch()
     with pytest.raises(AssertionError, match="one wheel and one sdist"):
         check_artifacts(tmp_path)
+
+
+def test_version_attribute_matches_the_project_version():
+    pyproject = (Path(__file__).resolve().parents[2] / "pyproject.toml").read_text()
+    declared = re.search(r'^version = "([^"]+)"$', pyproject, re.MULTILINE).group(1)
+    assert stockcast.__version__ == declared
+    try:
+        installed = importlib.metadata.version("stockcast")
+    except importlib.metadata.PackageNotFoundError:  # a source checkout
+        return
+    assert stockcast.__version__ == installed

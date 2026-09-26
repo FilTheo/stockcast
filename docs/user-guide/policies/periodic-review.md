@@ -58,8 +58,8 @@ policy = PeriodicReviewPolicy(
         reorder_point={"tea_250g": 25.0, "coffee_1kg": 10.0},
         order_up_to_level={"tea_250g": 60.0, "coffee_1kg": 30.0},
     ),
-    information_origin=opening_date,
-    information_frequency="D",
+    forecast_origin=opening_date,
+    forecast_frequency="D",
 )
 
 state = InventoryStateDataFrame(
@@ -92,7 +92,7 @@ from_columns = PeriodicReviewPolicy(lead_time=2, review_period=7,
     table,
     target_provider=ColumnPeriodicReviewTargets(reorder_point_column="s",
                                                 order_up_to_column="S"),
-    information_origin=opening_date, information_frequency="D",
+    forecast_origin=opening_date, forecast_frequency="D",
 )
 ```
 
@@ -129,7 +129,7 @@ class DaysOfCoverTargets(PeriodicReviewTargetProvider):
 rates = pd.DataFrame({"unique_id": ["tea_250g", "coffee_1kg"], "daily_rate": [6.0, 2.0]})
 cover = PeriodicReviewPolicy(lead_time=2, review_period=7, allow_backorders=False).fit(
     rates, target_provider=DaysOfCoverTargets(4, 10),
-    information_origin=opening_date, information_frequency="D",
+    forecast_origin=opening_date, forecast_frequency="D",
 )
 cover.get_parameters()
 ```

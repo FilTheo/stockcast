@@ -18,7 +18,6 @@ Usage:
         inventory=inventory,
         n_periods=365,
         period_frequency="D",
-        initial_decision="none",
         warmup_periods=0,
         scoring_periods=365,
         settlement_periods=0,
@@ -98,7 +97,6 @@ CALLBACK_AUDIT_COLUMNS = (
     "period",
     "date",
     "run_window",
-    "initial_decision",
     "unique_id",
     "before_value",
     "after_value",
@@ -913,7 +911,7 @@ class _PeriodRun:
         )
         orders = engine._decide_order(
             before, active_policy, sim_period,
-            run_window=run_window, initial_decision=False,
+            run_window=run_window,
         )
         supply = engine._active_supply
         # Constraints receive the live state in their context, so with
@@ -1039,13 +1037,13 @@ class _PeriodRun:
         inventory['in_transit'] = pd.Series(
             [row.copy() for row in pipelines], index=inventory.index, dtype=object,
         )
-        resolved_frame = InventoryStateDataFrame(
+        resolved_frame = InventoryStateDataFrame._successor(
             inventory,
             sku_column=sku_column,
             max_lead_time=frame.max_lead_time,
             allow_backorders=frame.allow_backorders,
-            _history=frame._history,
-            _open_orders=new_book,
+            history=frame._history,
+            open_orders=new_book,
         )
         self.resolutions.append((deliveries.select(positions), received, delayed))
         if len(rescheduled):
@@ -1196,7 +1194,6 @@ class SimulationEngine:
         n_periods: int,
         *,
         period_frequency: str,
-        initial_decision: str = "none",
         warmup_periods: int,
         scoring_periods: int,
         settlement_periods: int,
@@ -1227,8 +1224,6 @@ class SimulationEngine:
             n_periods: Number of demand periods.
             period_frequency: Length of one period, a pandas frequency such as
                 ``"D"``. Period ``p`` is dated opening date + ``(p + 1)`` periods.
-            initial_decision: Kept for compatibility; only ``"none"``. The first
-                decision comes from the policy's schedule.
             warmup_periods: Leading periods excluded from scoring.
             scoring_periods: Periods that metrics describe by default (>= 1).
             settlement_periods: Trailing periods excluded from scoring. The three
@@ -1293,8 +1288,9 @@ class SimulationEngine:
         all_processes = engine_processes + user_processes
         if all_processes and self._lifecycle_hooks_overridden():
             raise ValueError(
-                "processes cannot be combined with an engine subclass that "
-                "overrides the private lifecycle hooks"
+                f"processes= is not supported by {type(self).__name__}, which "
+                "overrides SimulationEngine's internal period steps; add custom "
+                "physical flows as InventoryProcess objects instead"
             )
         supply_manifest = supply.to_manifest() if supply is not None else None
         constraint_manifest = (
@@ -1308,12 +1304,6 @@ class SimulationEngine:
             period_frequency,
             "period_frequency",
         )
-        if initial_decision != "none":
-            raise ValueError(
-                "initial_decision must be 'none': decisions now occur before demand; "
-                "use OneTimeSchedule(0) or PeriodicSchedule(..., start=0), "
-                "and explicit opening pipeline for pre-run orders"
-            )
         schedule_manifest = policy.schedule.to_manifest()
         if not isinstance(schedule_manifest, dict):
             raise TypeError("decision schedule manifest must be a dictionary")
@@ -1476,7 +1466,6 @@ class SimulationEngine:
         resolved_commit = self._repository_commit()
         run_settings = {
             'period_frequency': period_offset.freqstr,
-            'initial_decision': initial_decision,
             'timing_convention': 'receive_decide_receive_zero_lead_demand',
             'decision_schedule': copy.deepcopy(schedule_manifest),
             'decision_period_convention': 'zero_based_demand_period',
@@ -1759,7 +1748,6 @@ class SimulationEngine:
             period=opening_period,
             run_window="opening",
             phase="reset",
-            initial_decision=False,
             date=opening_date,
         )
         for position, callback in enumerate(self._active_callbacks):
@@ -1784,7 +1772,6 @@ class SimulationEngine:
         period,
         run_window,
         phase,
-        initial_decision,
         date=None,
     ) -> CallbackContext:
         state = inventory.get_dataframe()
@@ -1796,7 +1783,6 @@ class SimulationEngine:
             date=current_date,
             run_window=run_window,
             phase=phase,
-            initial_decision=initial_decision,
         )
 
     def _before_demand_transition(self, inventory, demand_df, period):
@@ -1855,7 +1841,6 @@ class SimulationEngine:
                 period=period,
                 run_window=run_window,
                 phase="on_after_demand",
-                initial_decision=False,
             )
             try:
                 result = callback.on_after_demand(context)
@@ -1995,16 +1980,6 @@ class SimulationEngine:
             source=type(callback).__name__,
         )
 
-    def _execute_order_decision(
-        self, inventory, policy, period, *, run_window, initial_decision
-    ):
-        self._captured_decision_positions = self._decision_positions(inventory)
-        orders = self._decide_order(
-            inventory, policy, period,
-            run_window=run_window, initial_decision=initial_decision,
-        )
-        return self._update_inventory_primitive(inventory, orders, policy=policy)
-
     @staticmethod
     def _decision_positions(inventory) -> dict:
         return inventory.inventory_position().set_index(
@@ -2012,7 +1987,7 @@ class SimulationEngine:
         )["inventory_position"].to_dict()
 
     def _decide_order(
-        self, inventory, policy, period, *, run_window, initial_decision
+        self, inventory, policy, period, *, run_window
     ) -> OrderDecision:
         """Predict, apply order callbacks and constraints; return the final order."""
         raw = policy.predict(copy.deepcopy(inventory), current_period=period)
@@ -2027,7 +2002,6 @@ class SimulationEngine:
                 period=period,
                 run_window=run_window,
                 phase="on_after_prediction",
-                initial_decision=initial_decision,
             )
             decision_view = OrderDecision(
                 adjusted.get_dataframe(),
@@ -2122,7 +2096,6 @@ class SimulationEngine:
             "period": context.period,
             "date": context.date,
             "run_window": context.run_window,
-            "initial_decision": context.initial_decision,
             "unique_id": unique_id,
             "before_value": float(before),
             "after_value": float(after),
@@ -2835,7 +2808,6 @@ class SimulationEngine:
         n_periods: int,
         *,
         period_frequency: str,
-        initial_decision: str = "none",
         warmup_periods: int,
         scoring_periods: int,
         settlement_periods: int,
@@ -2870,7 +2842,6 @@ class SimulationEngine:
         return self._run_comparison(
             policies, demand_source, inventory, n_periods,
             period_frequency=period_frequency,
-            initial_decision=initial_decision,
             warmup_periods=warmup_periods,
             scoring_periods=scoring_periods,
             settlement_periods=settlement_periods,
@@ -2886,7 +2857,7 @@ class SimulationEngine:
 
     def _run_comparison(
         self, policies, demand_source, inventory, n_periods, *,
-        period_frequency, initial_decision, warmup_periods, scoring_periods,
+        period_frequency, warmup_periods, scoring_periods,
         settlement_periods, order_during_settlement, demand_source_name,
         random_seed, labels, policy_schedules, order_constraints, callbacks,
         branch_run_options: dict,
@@ -2952,7 +2923,6 @@ class SimulationEngine:
                 inv_copy,
                 n_periods,
                 period_frequency=period_frequency,
-                initial_decision=initial_decision,
                 warmup_periods=warmup_periods,
                 scoring_periods=scoring_periods,
                 settlement_periods=settlement_periods,
