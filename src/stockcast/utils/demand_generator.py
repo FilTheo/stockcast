@@ -9,7 +9,9 @@ in the format expected by SimulationEngine and process_demand():
     - date: date corresponding to the period
 
 Supports both batch generation (full DataFrame) and callable generation
-(period-by-period, for dynamic demand with SimulationEngine).
+(period-by-period, for dynamic demand with SimulationEngine). Built-in
+distributions cover common cases; ``sample``/``sample_fn`` accept any
+user-defined sampler.
 
 Usage:
     gen = DemandGenerator(
@@ -36,7 +38,7 @@ Usage:
         scoring_periods=365,
         settlement_periods=0,
         order_during_settlement=False,
-        demand_source_name="synthetic_poisson",
+        demand_source_name="synthetic_normal",
         random_seed=42,
     )
 """
@@ -60,7 +62,10 @@ class DemandGenerator:
         [unique_id, y, period, date]
 
     Parameters accept scalars (same for all SKUs) or dicts keyed by SKU
-    for per-SKU configuration. All demand values are clipped to ≥ 0.
+    for per-SKU configuration. ``sample`` and ``sample_fn`` accept any
+    sampler function in the same way: one for the whole panel, or a dict with
+    one per SKU. Negative draws are rejected by default, or clipped to zero
+    with a warning when ``negative_demand_handling='clip_zero'``.
 
     Args:
         skus: List of SKU identifiers.
@@ -83,6 +88,9 @@ class DemandGenerator:
         # Batch: full DataFrame
         df = gen.normal(n_periods=30, mean=100, std=20)
 
+        # Any distribution: a sampler(rng, periods) -> one value per period
+        df = gen.sample(30, lambda rng, periods: rng.poisson(100, periods.size))
+
         # Dynamic: callable for SimulationEngine
         fn = gen.normal_fn(mean=100, std=20)
         result = engine.run(
@@ -96,7 +104,7 @@ class DemandGenerator:
             scoring_periods=30,
             settlement_periods=0,
             order_during_settlement=False,
-            demand_source_name="synthetic_poisson",
+            demand_source_name="synthetic_normal",
             random_seed=42,
         )
         ```
@@ -142,8 +150,8 @@ class DemandGenerator:
     # INTERNAL HELPERS
     # ========================================================================
 
-    def _resolve_param(self, param, name: str, *, nonnegative: bool = False):
-        """Convert a finite scalar or complete SKU dictionary to a list."""
+    def _per_sku(self, param, name: str) -> list:
+        """Expand a single value or complete SKU dictionary to SKU order."""
         if isinstance(param, dict):
             expected = set(self.skus)
             supplied = set(param)
@@ -153,9 +161,12 @@ class DemandGenerator:
                     f"missing={sorted(expected - supplied)[:5]}, "
                     f"extra={sorted(supplied - expected)[:5]}"
                 )
-            raw_values = [param[sku] for sku in self.skus]
-        else:
-            raw_values = [param] * len(self.skus)
+            return [param[sku] for sku in self.skus]
+        return [param] * len(self.skus)
+
+    def _resolve_param(self, param, name: str, *, nonnegative: bool = False):
+        """Convert a finite scalar or complete SKU dictionary to a list."""
+        raw_values = self._per_sku(param, name)
         try:
             values = np.asarray(raw_values, dtype=float)
         except (TypeError, ValueError) as exc:
@@ -166,10 +177,43 @@ class DemandGenerator:
             raise ValueError(f"{name} must contain non-negative values")
         return values.tolist()
 
+    def _resolve_sampler(self, sampler) -> list:
+        """Convert one sampler or a complete SKU dictionary of samplers to a list."""
+        samplers = self._per_sku(sampler, "sampler")
+        for sku, fn in zip(self.skus, samplers):
+            if not callable(fn):
+                raise TypeError(
+                    f"sampler for SKU {sku!r} must be callable as "
+                    f"sampler(rng, periods); got {type(fn).__name__}"
+                )
+        return samplers
+
+    def _draw(self, sampler, sku, periods: np.ndarray) -> np.ndarray:
+        """Call a sampler on the seeded stream and check its output."""
+        values = np.asarray(sampler(self.rng, periods))
+        if values.dtype.kind not in "iuf":
+            raise ValueError(
+                f"sampler for SKU {sku!r} must return numeric values; "
+                f"got dtype {values.dtype}"
+            )
+        if values.shape != periods.shape:
+            raise ValueError(
+                f"sampler for SKU {sku!r} returned shape {values.shape}; "
+                f"expected {periods.shape}, one value per period"
+            )
+        if not np.isfinite(values).all():
+            raise ValueError(f"sampler for SKU {sku!r} returned non-finite values")
+        return values.astype(float)
+
     @staticmethod
     def _validate_n_periods(n_periods: int) -> None:
         if not isinstance(n_periods, int) or isinstance(n_periods, bool) or n_periods < 1:
             raise ValueError("n_periods must be an integer >= 1")
+
+    @staticmethod
+    def _validate_period(period: int) -> None:
+        if not isinstance(period, int) or isinstance(period, bool) or period < 0:
+            raise ValueError("period must be an integer >= 0")
 
     def _handle_negative(self, values) -> np.ndarray:
         array = np.asarray(values, dtype=float)
@@ -231,8 +275,7 @@ class DemandGenerator:
 
     def _single_period_df(self, period, demands):
         """Build DataFrame for a single period from per-SKU demand values."""
-        if not isinstance(period, int) or isinstance(period, bool) or period < 0:
-            raise ValueError("period must be an integer >= 0")
+        self._validate_period(period)
         prepared = self._handle_negative(demands)
         date = self.start_date + period * self.period_offset
         frame = pd.DataFrame({
@@ -270,7 +313,7 @@ class DemandGenerator:
         std: Union[float, Dict[str, float]],
     ) -> pd.DataFrame:
         """
-        Generate normally distributed demand (clipped to ≥ 0).
+        Generate normally distributed demand.
 
         Args:
             n_periods: Number of periods to generate.
@@ -380,6 +423,9 @@ class DemandGenerator:
         Args:
             historical_df: DataFrame with historical demand data.
             n_periods: Number of periods to generate.
+            sampling_method: How to sample from the history. Only
+                ``"normal_moments"`` is supported: normal draws with each SKU's
+                historical mean and sample standard deviation (``ddof=1``).
             demand_column: Column name for demand values.
             sku_column: Column name for SKU identifiers.
 
@@ -415,6 +461,50 @@ class DemandGenerator:
                 float(sku_data.std(ddof=1)),
                 n_periods,
             )
+        return self._build_df(n_periods, arrays)
+
+    def sample(
+        self,
+        n_periods: int,
+        sampler: Union[Callable, Dict[str, Callable]],
+    ) -> pd.DataFrame:
+        """
+        Generate demand from any sampler function.
+
+        A sampler is a function ``sampler(rng, periods)`` that returns one
+        demand value per entry of ``periods``. ``rng`` is the generator's
+        seeded ``np.random.Generator``; draw from it so the panel is
+        reproducible from ``seed``. ``periods`` holds the integer period
+        indices, so demand can change over time.
+
+        Pass one sampler to generate every SKU in the panel from it (each SKU
+        gets its own draws), or a dict with one sampler per SKU.
+
+        Args:
+            n_periods: Number of periods to generate.
+            sampler: A sampler for the whole panel, or a dict keyed by SKU.
+
+        Returns:
+            DataFrame with columns [unique_id, y, period, date].
+
+        Example:
+            ```python
+            def poisson(rng, periods):
+                return rng.poisson(6.0, periods.size)
+
+            def busy_weekends(rng, periods):
+                return rng.poisson(6.0 + 3.0 * (periods % 7 >= 5))
+
+            panel = gen.sample(28, poisson)
+            mixed = gen.sample(28, {"A": poisson, "B": busy_weekends})
+            ```
+        """
+        self._validate_n_periods(n_periods)
+        samplers = self._resolve_sampler(sampler)
+        arrays = {
+            sku: self._draw(fn, sku, np.arange(n_periods))
+            for sku, fn in zip(self.skus, samplers)
+        }
         return self._build_df(n_periods, arrays)
 
     # ========================================================================
@@ -505,6 +595,24 @@ class DemandGenerator:
             stats[sku] = (float(sku_data.mean()), float(sku_data.std(ddof=1)))
         def fn(period):
             demands = [self.rng.normal(stats[sku][0], stats[sku][1]) for sku in self.skus]
+            return self._single_period_df(period, demands)
+        return fn
+
+    def sample_fn(self, sampler: Union[Callable, Dict[str, Callable]]) -> Callable:
+        """Returns callable(period) -> demand_df drawing from any sampler.
+
+        Each call passes ``periods=np.array([period])`` to the sampler of every
+        SKU, so samplers that carry state across periods (for example
+        autocorrelated demand) belong in ``sample``, which sees all periods at
+        once. See ``sample`` for the sampler contract.
+        """
+        samplers = self._resolve_sampler(sampler)
+        def fn(period):
+            self._validate_period(period)
+            demands = np.concatenate([
+                self._draw(s, sku, np.array([period]))
+                for sku, s in zip(self.skus, samplers)
+            ])
             return self._single_period_df(period, demands)
         return fn
 

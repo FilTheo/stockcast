@@ -17,7 +17,7 @@ notebook that uses it.
 | I want to… | Use | Read | See it in |
 |---|---|---|---|
 | start from my current stock and open orders | `InventoryStateDataFrame`, `with_open_orders` | [Inventory state](inventory-state.md) | [01](../notebooks/01_introduction_to_inventory_flow.ipynb), [05d](../notebooks/05d_open_orders_and_suppliers.ipynb) |
-| feed in sales history or simulated demand | demand table, `DemandGenerator` | [Demand and calendars](demand.md) | [02](../notebooks/02_first_engine_simulation.ipynb) |
+| feed in sales history or simulated demand | demand table, `DemandGenerator` | [Demand and calendars](demand.md) | [02](../notebooks/02_first_engine_simulation.ipynb), [02c](../notebooks/02c_synthetic_demand.ipynb) |
 | turn my forecast into a stock target | target table + `fit` | [Forecast targets](forecast-targets.md), [Connect any forecasting model](../how-to/connect-a-forecaster.md) | [04c](../notebooks/04c_cumulative_protection_target.ipynb), [04e](../notebooks/04e_cumulative_target_methods.ipynb) |
 | order up to a level at every review | `OrderUpToPolicy` | [Order-up-to](policies/order-up-to.md) | [04](../notebooks/04_forecast_to_inventory_integration.ipynb), [06](../notebooks/06_fair_forecast_and_policy_comparisons.ipynb) |
 | order only when stock falls low | `ReorderPointPolicy`, `PeriodicReviewPolicy` | [Reorder point](policies/reorder-point.md), [Periodic review](policies/periodic-review.md) | [05b](../notebooks/05b_reorder_points_and_review_frequency.ipynb), [08](../notebooks/08_callbacks_and_audit.ipynb) |

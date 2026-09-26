@@ -261,7 +261,7 @@ you get:
 | supplier behaviour | `DeliveryOutcome` | `resolve` | (delay, short, cancel: yours to define) |
 | physical flow | `InventoryProcess` | `before_demand`, `after_demand` | FIFO shelf life |
 | measure of success | any function, or `BaseInventoryMetric` | `compute` | 37 service, stock and cost metrics |
-| demand scenario | a DataFrame, or any `period -> DataFrame` function | – | generators for constant, normal, seasonal, trend, historical |
+| demand scenario | a DataFrame, any `period -> DataFrame` function, or a `sampler(rng, periods)` for `DemandGenerator` | – | generators for constant, normal, seasonal, trend, historical |
 
 **One flexible class instead of many flags.** When a new need appeared (a
 second supplier, an inspection, a supplier that delivers late), we resisted

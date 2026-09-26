@@ -1,6 +1,6 @@
 # Examples
 
-Twenty-one runnable notebooks, from a first simulation to multi-supplier,
+Twenty-two runnable notebooks, from a first simulation to multi-supplier,
 perishable, and production workflows. They go further than the rest of the
 docs: realistic scenarios, real forecasts with
 [smooth](https://openforecast.org/smooth-py/), and plenty of plots. Each page
@@ -26,6 +26,7 @@ Start here if you are new. These follow the same ideas as
 | [01 · Inventory flow](../notebooks/01_introduction_to_inventory_flow.ipynb) | how demand, an order, and the lead-time pipeline change the state | [state](../user-guide/inventory-state.md) · [order-up-to](../user-guide/policies/order-up-to.md) · [manual loop](../how-to/manual-loop.md) |
 | [02 · First engine simulation](../notebooks/02_first_engine_simulation.ipynb) | what a complete, checked run produces: ledger, windows, manifest, metrics | [engine](../user-guide/engine.md) · [ledger](../user-guide/concepts/accounting.md) · [metrics](../user-guide/metrics.md) · [plots](../user-guide/visualization.md) |
 | [02b · Decision schedules](../notebooks/02b_decision_schedules.ipynb) | periodic, delayed, one-time, and irregular ordering calendars | [schedules](../user-guide/decision-schedules.md) · [periodic review](../user-guide/policies/periodic-review.md) |
+| [02c · Synthetic demand](../notebooks/02c_synthetic_demand.ipynb) | demand from any distribution: one sampler for the panel or one per SKU | [demand](../user-guide/demand.md) · [engine](../user-guide/engine.md) |
 | [03 · Your own loop](../notebooks/03_component_loop.ipynb) | the primitives behind the engine, and what the engine adds | [manual loop](../how-to/manual-loop.md) · [engine](../user-guide/engine.md) · [metrics](../user-guide/metrics.md) |
 
 ## Forecasts to orders

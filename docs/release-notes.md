@@ -16,6 +16,10 @@ release line and a migration note.
   [before demand](user-guide/design/decide-before-demand.md), lead time may be
   zero, and a `DecisionSchedule` (periodic, one-time, explicit, or your own)
   says when a policy may order, separately from how much it orders.
+- **Synthetic demand from any distribution.** `DemandGenerator` builds
+  seeded, validated demand tables from built-in models or from your own
+  sampler function, with one sampler for the whole panel or one per SKU. See
+  [demand and calendars](user-guide/demand.md).
 - **Policies.** Order-up-to and periodic-review policies, `ReorderPointPolicy`
   for `(s,Q)` and `(s,S)` rules on any schedule, single-order (newsvendor)
   decisions, and `BasePolicy` for your own rules. Targets can come from any
@@ -34,7 +38,7 @@ release line and a migration note.
   run manifest, callback audits, order and process-flow frames, and service
   and cost metrics.
 - **Documentation.** A Quickstart, a *Learn the basics* series, a Guide to
-  every building block, recipes, design essays, 21 runnable example notebooks,
+  every building block, recipes, design essays, 22 runnable example notebooks,
   and a full API reference. Every Python example in the docs is executed in
   the test suite.
 

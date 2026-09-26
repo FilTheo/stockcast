@@ -109,6 +109,7 @@ Name: y, dtype: float64
 | `seasonal(n_periods, base, amplitude, season_length, std)` | $b + a \sin(2\pi t / m) + \varepsilon_t$ |
 | `trend(n_periods, initial, growth_rate, std)` | $y_0 + g\,t + \varepsilon_t$ |
 | `from_historical(historical_df, n_periods, sampling_method="normal_moments")` | $\hat\mu + \varepsilon_t$ with $\hat\mu, \hat\sigma$ from your history |
+| `sample(n_periods, sampler)` | whatever your sampler draws: any distribution, any pattern |
 
 with $\varepsilon_t \sim \mathcal{N}(0, \sigma^2)$ drawn from the generator's
 seeded random stream.
@@ -118,10 +119,83 @@ seeded random stream.
 `"clip_zero"` sets such values to zero and warns, and the clipping count is
 stored in the run manifest.
 
+### Any distribution: samplers
+
+For everything else, write a **sampler**: a small function
+`sampler(rng, periods)` that returns one demand value per period. `rng` is the
+generator's seeded random stream: draw from it, and the same `seed` gives the
+same demand every time. `periods` holds the period indices, so demand can
+change over time.
+
+One sampler generates the whole panel, with independent draws for each SKU:
+
+```python
+def poisson(rng, periods):
+    return rng.poisson(6.0, periods.size)
+
+panel = generator.sample(n_periods=28, sampler=poisson)
+panel.head(4)
+```
+
+```text
+    unique_id    y  period       date
+0    tea_250g  8.0       0 2026-01-06
+1  coffee_1kg  4.0       0 2026-01-06
+2    tea_250g  5.0       1 2026-01-07
+3  coffee_1kg  3.0       1 2026-01-07
+```
+
+A dict gives each SKU its own sampler, just like a dict of parameters:
+
+```python
+def busy_weekends(rng, periods):
+    rate = 6.0 + 3.0 * (periods % 7 >= 5)          # Saturdays and Sundays
+    return rng.poisson(rate)
+
+def intermittent(rng, periods):
+    sells = rng.binomial(1, 0.3, periods.size)     # sells on about 30% of days
+    return sells * rng.gamma(2.0, 2.0, periods.size).round()
+
+mixed = generator.sample(
+    n_periods=28,
+    sampler={"tea_250g": busy_weekends, "coffee_1kg": intermittent},
+)
+```
+
+Anything that draws from `rng` works, including resampling your own history
+(`rng.choice(history, periods.size)`) or a SciPy distribution:
+
+```py
+from scipy import stats
+
+def negative_binomial(rng, periods):
+    return stats.nbinom(n=5, p=0.4).rvs(periods.size, random_state=rng)
+```
+
+Because `sample` passes all periods at once, a sampler can also carry state
+from one period to the next, such as autocorrelated demand:
+
+```python
+def autocorrelated(rng, periods):
+    demand, level = [], 6.0
+    for _ in periods:
+        level = 6.0 + 0.7 * (level - 6.0) + rng.normal(0.0, 1.5)
+        demand.append(max(level, 0.0))
+    return demand
+
+smooth_swings = generator.sample(n_periods=28, sampler=autocorrelated)
+```
+
+The generator checks every sampler's output (numbers, finite, one per period)
+and applies the same negative-draw handling as the built-in methods.
+
 ## Demand as a function
 
-Each method has an `_fn` twin (`normal_fn`, `seasonal_fn`, …) that returns a
-function `period -> DataFrame`. You can also write your own:
+Each method has an `_fn` twin (`normal_fn`, `seasonal_fn`, `sample_fn`, …)
+that returns a function `period -> DataFrame`. `sample_fn` calls your sampler
+with one period at a time, so it suits samplers that draw each period on its
+own; use `sample` for samplers that carry state across periods. You can also
+write your own:
 
 ```python
 import numpy as np

@@ -1,6 +1,6 @@
 # Stockcast examples
 
-Twenty-one runnable notebooks, from a first simulation to multi-supplier,
+Twenty-two runnable notebooks, from a first simulation to multi-supplier,
 perishable, and production workflows. Each one is also rendered, with its
 outputs, on the [Examples](https://filtheo.github.io/stockcast/tutorials/)
 page of the documentation, which lists what every notebook teaches and the
@@ -24,7 +24,7 @@ targets can differ slightly between runs.
 
 | Group | Notebooks |
 |---|---|
-| Foundations | 01 inventory flow · 02 first engine simulation · 02b decision schedules · 03 your own loop |
+| Foundations | 01 inventory flow · 02 first engine simulation · 02b decision schedules · 02c synthetic demand · 03 your own loop |
 | Forecasts to orders | 04 weekly forecast to order · 04b daily newsvendor · 04c cumulative protection target · 04d rolling cumulative targets · 04e cumulative target methods · 04f scheduled forecast simulation |
 | Extending Stockcast | 05 custom policies · 05b reorder points and review frequency · 05c extension points · 05d open orders and suppliers · 05e inventory processes · 05f unreliable supplier |
 | Experiments and operations | 06 fair comparisons · 07 FIFO shelf life on M5 demand · 08 callbacks and audit · 09 full operational experiment · 10 production daily close |

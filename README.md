@@ -166,7 +166,7 @@ The reasoning behind each choice, with the literature it rests on, is in our
   steps, from inventory state to a production daily job.
 - [Guide](https://filtheo.github.io/stockcast/user-guide/): the theory and
   options of every building block, plus task recipes.
-- [Examples](https://filtheo.github.io/stockcast/tutorials/): 21 runnable
+- [Examples](https://filtheo.github.io/stockcast/tutorials/): 22 runnable
   notebooks, from a first simulation to multi-supplier, perishable, and
   production workflows. Good starting points:
   [first simulation](https://github.com/FilTheo/stockcast/blob/main/examples/notebooks/02_first_engine_simulation.ipynb),

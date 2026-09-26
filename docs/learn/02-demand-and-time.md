@@ -79,9 +79,10 @@ A normal distribution with a standard deviation of 2 can draw a negative
 value. `negative_demand_handling="clip_zero"` clips those draws to zero and
 tells you with a warning. The default, `"raise"`, stops instead.
 
-The generator also offers `constant`, `normal`, `trend`, and
+The generator also offers `constant`, `normal`, `trend`,
 `from_historical` (normal draws that match the mean and spread of your own
-history). Each has a callable `_fn` twin that produces demand period by
+history), and `sample`, which draws from any distribution you write as a small
+function. Each has a callable `_fn` twin that produces demand period by
 period.
 
 ## Use your own data

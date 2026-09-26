@@ -212,6 +212,7 @@ nav:
           - 01 · Inventory flow: notebooks/01_introduction_to_inventory_flow.ipynb
           - 02 · First engine simulation: notebooks/02_first_engine_simulation.ipynb
           - 02b · Decision schedules: notebooks/02b_decision_schedules.ipynb
+          - 02c · Synthetic demand: notebooks/02c_synthetic_demand.ipynb
           - 03 · Your own loop: notebooks/03_component_loop.ipynb
       - Forecasts to orders:
           - 04 · Weekly forecast to order: notebooks/04_forecast_to_inventory_integration.ipynb
