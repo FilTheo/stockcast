@@ -55,6 +55,8 @@ def validate_target_probability(
         if "." not in digits and len(digits) >= 3:
             # "q975", "q025" and "q995" name the 97.5%, 2.5% and 99.5% quantiles.
             readings.append(float(digits) / 10 ** len(digits))
+        # Only readings that are probabilities can name the column.
+        readings = [reading for reading in readings if 0 < reading < 1] or readings
         if not any(
             math.isclose(reading, probability, rel_tol=0.0, abs_tol=1e-12)
             for reading in readings

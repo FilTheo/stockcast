@@ -749,6 +749,15 @@ def test_quantile_labels_are_read_as_probabilities(column, probability, accepted
             fit()
 
 
+def test_quantile_label_mismatch_names_only_probability_readings():
+    with pytest.raises(ValueError, match=r"'q975' denotes probability 0\.975, not 0\.95"):
+        OrderUpToPolicy(1, 1, service_level=0.95, allow_backorders=True).fit(
+            pd.DataFrame({"unique_id": ["a"], "q975": [10.0], "end": ORIGIN + 2 * DAY}),
+            forecast_origin=ORIGIN, forecast_frequency="D", target_column="q975",
+            target_end_date_column="end", protection_horizon=2,
+            target_source="external_direct", target_probability=0.95)
+
+
 class _DatedReturns(InventoryProcess):
     name = "returns"
     flows = (Flow("returned", "inflow"),)
