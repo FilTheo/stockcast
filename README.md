@@ -22,9 +22,13 @@
   <a href="https://filtheo.github.io/stockcast/reference/">API</a>
 </p>
 
-A forecast is not a decision. Its value comes from the downstream decisions it
+A forecast is not a decision. 
+
+Its value comes from the downstream decisions it
 improves, and ultimately from the operational performance those decisions
-deliver. Stockcast brings this idea to inventory management: it is the layer
+deliver. 
+
+Stockcast brings this idea to inventory management: it is the layer
 between the forecast and the replenishment decision. It maps forecasts from
 **any model** into orders, simulates their execution against realised demand,
 and evaluates the resulting impact against business metrics such as cost,
@@ -32,10 +36,12 @@ service, and waste. It is built for **researchers**
 who judge forecasts by the decisions they drive, and for **engineers** who run
 those decisions every day, with the same objects.
 
-It is built like PyTorch and assembled like Lego: policies, schedules,
+It is inspired by PyTorch and assembled like Lego: policies, schedules,
 constraints, callbacks, suppliers, physical processes, and metrics are bricks
-that snap onto one engine with explicit timing and checked accounting. Use the
-built-in bricks, reshape any of them by subclassing, and build the inventory
+that snap onto one engine with explicit timing and checked accounting. 
+
+Use the
+built-in bricks, reshape any of them by subclassing, and build any inventory
 system you need.
 
 ## Install
