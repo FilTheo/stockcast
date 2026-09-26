@@ -44,7 +44,7 @@ inventory.initialize_from_observed(
 #    Six days, because an order takes 2 days to arrive and the next one is 4 days away.
 target = pd.DataFrame({
     "unique_id": [sku],
-    "target": [46.0],
+    "y": [46.0],
     "end": [opening + pd.Timedelta(days=6)],
 })
 
@@ -56,7 +56,7 @@ policy = OrderUpToPolicy(
     allow_backorders=False,           # a customer who finds no tea leaves
 ).fit(
     target,
-    target_column="target",
+    target_column="y",
     target_probability=0.95,          # the target is a 95% quantile...
     protection_horizon=6,             # ...of total demand over 6 days
     target_end_date_column="end",
