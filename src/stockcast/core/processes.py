@@ -155,8 +155,9 @@ class ProcessFlows:
     declaration, never from the sign of the quantity.
 
     ``received_dates`` optionally gives inflows a lot date, per flow, as one
-    timestamp or a per-SKU mapping. Processes that track lot ages (such as
-    ``ShelfLife``) require it for every inflow they observe.
+    timestamp or per SKU (a mapping or a ``pd.Series`` indexed by SKU).
+    Processes that track lot ages (such as ``ShelfLife``) require it for every
+    inflow they observe.
     """
 
     def __init__(
@@ -179,7 +180,15 @@ class ProcessFlows:
             self._quantities[flow] = values
         if received_dates is not None and not isinstance(received_dates, Mapping):
             raise TypeError("ProcessFlows received_dates must be a mapping of flow name to dates")
-        self._received_dates = dict(received_dates or {})
+        for flow, dates in (received_dates or {}).items():
+            if isinstance(dates, pd.Series) and dates.index.duplicated().any():
+                raise ValueError(
+                    f"ProcessFlows received_dates for flow {flow!r} list a SKU more than once"
+                )
+        self._received_dates = {
+            flow: dates.copy(deep=True) if isinstance(dates, pd.Series) else dates
+            for flow, dates in (received_dates or {}).items()
+        }
 
     @property
     def quantities(self) -> dict:
@@ -548,7 +557,7 @@ class ProcessRunner:
             if dates is not None:
                 if flow.direction != "inflow":
                     raise ValueError(f"{label}: received_dates apply only to inflows")
-                raw = dates.get(sku, pd.NaT) if isinstance(dates, Mapping) else dates
+                raw = dates.get(sku, pd.NaT) if isinstance(dates, (Mapping, pd.Series)) else dates
                 received_date = pd.to_datetime(raw, errors="coerce")
                 if pd.isna(received_date) and not pd.isna(raw):
                     raise ValueError(f"{label} received_dates must be valid timestamps")

@@ -357,6 +357,57 @@ def _sum_in_transit(value) -> float:
     return 0.0
 
 
+def _order_arrival_flags(event_frame: pd.DataFrame, order_frame: pd.DataFrame) -> np.ndarray:
+    """Flag the ledger rows in which a replenishment order first arrives.
+
+    An order is one SKU's decision in one period, with all of its supplier
+    lines and partial or delayed deliveries. Opening orders follow the same
+    rule when their order period is declared; an opening order line without
+    one is its own order. A row is flagged when stock of an order arrives
+    there and none of that order arrived earlier. With one delivery per order
+    (every run without a supply model) the flag equals ``received_units > 0``.
+    """
+    flags = np.zeros(len(event_frame), dtype=bool)
+    if event_frame.empty or order_frame.empty:
+        return flags
+    quantity = order_frame['delivery_quantity'].to_numpy(dtype=float)
+    if 'received_quantity' in order_frame.columns:
+        arrived = order_frame['received_quantity'].to_numpy(dtype=float)
+        due = (order_frame['status'] != 'open').to_numpy()
+    else:
+        arrived = quantity
+        due = (order_frame['status'] == 'received').to_numpy()
+    # Rounding dust left by a short delivery is not an arrival.
+    real = due & (arrived > 0) & (arrived > 1e-9 * quantity)
+    rows = order_frame.loc[real, ['order_id', 'unique_id', 'order_period', 'due_period']]
+    if rows.empty:
+        return flags
+    # One key per order: (SKU, decision period), or the order line when the
+    # order period is unknown. Order ids are unique within a run.
+    known = rows['order_period'].notna().to_numpy()
+    keys = pd.DataFrame({
+        'known': known,
+        'sku': rows['unique_id'].to_numpy(dtype=object),
+        'order': np.where(
+            known, rows['order_period'].to_numpy(dtype=float),
+            rows['order_id'].to_numpy(dtype=float),
+        ),
+        'due': rows['due_period'].to_numpy(dtype=np.int64),
+    })
+    first = (
+        keys.sort_values('due', kind='stable')
+        .drop_duplicates(['known', 'sku', 'order'])
+    )
+    arrivals = pd.MultiIndex.from_arrays([first['sku'], first['due']])
+    ledger = pd.MultiIndex.from_arrays([
+        event_frame['unique_id'].to_numpy(dtype=object),
+        event_frame['period'].to_numpy(dtype=np.int64),
+    ])
+    period_rows = (event_frame['event_type'] == 'period').to_numpy()
+    received = event_frame['received_units'].to_numpy(dtype=float) > 0
+    return ledger.isin(arrivals) & period_rows & received
+
+
 def _build_period_event_frame(
     inventory_before: InventoryStateDataFrame,
     inventory_after_demand: InventoryStateDataFrame,
@@ -1171,7 +1222,8 @@ class SimulationEngine:
                 ``period -> DataFrame`` (called once per period before the run).
             inventory: The opening ``InventoryStateDataFrame``. Its
                 ``max_lead_time`` must cover the policy's lead time and the supply
-                model's longest delivery.
+                model's longest delivery. Its ``allow_backorders`` must match the
+                policy's, or be unset to take the policy's.
             n_periods: Number of demand periods.
             period_frequency: Length of one period, a pandas frequency such as
                 ``"D"``. Period ``p`` is dated opening date + ``(p + 1)`` periods.
@@ -1277,6 +1329,15 @@ class SimulationEngine:
         # untouched, while result.history contains snapshots from this run.
         inventory = copy.deepcopy(inventory)
         inventory.clear_history()
+        if (
+            inventory.allow_backorders is not None
+            and inventory.allow_backorders != policy.allow_backorders
+        ):
+            raise ValueError(
+                f"inventory allow_backorders={inventory.allow_backorders} conflicts with "
+                f"policy allow_backorders={policy.allow_backorders}; choose one shortage mode "
+                "(or leave the state's allow_backorders unset to take the policy's)"
+            )
         inventory.allow_backorders = policy.allow_backorders
         inventory._validate_ready_state()
         if inventory.max_lead_time < policy.lead_time:
@@ -1445,6 +1506,28 @@ class SimulationEngine:
             run_settings=run_settings,
             opening_inventory=opening_inventory_fingerprint,
         )
+        order_frame = self._order_frame(
+            inventory,
+            opening_book=opening_book,
+            placements=placements,
+            opening_period=opening_period,
+            opening_date=opening_date,
+            period_offset=period_offset,
+            resolutions=self._run_resolutions,
+            outcome_suppliers=self._run_outcome_suppliers,
+        )
+        # Optional process and supplier columns stay last in the ledger.
+        optional = [
+            position for position, column in enumerate(event_frame.columns)
+            if column in (
+                'process_inflow_units', 'process_outflow_units', 'supplier_shortfall_units',
+            )
+        ]
+        event_frame.insert(
+            optional[0] if optional else len(event_frame.columns),
+            'order_arrival_flag',
+            _order_arrival_flags(event_frame, order_frame),
+        )
         result = SimulationResult(
             history=history,
             inventory=inventory,
@@ -1454,16 +1537,7 @@ class SimulationEngine:
             run_settings=run_settings,
             run_manifest=run_manifest,
             callback_audit=pd.DataFrame(self._callback_audit_rows),
-            order_frame=self._order_frame(
-                inventory,
-                opening_book=opening_book,
-                placements=placements,
-                opening_period=opening_period,
-                opening_date=opening_date,
-                period_offset=period_offset,
-                resolutions=self._run_resolutions,
-                outcome_suppliers=self._run_outcome_suppliers,
-            ),
+            order_frame=order_frame,
             process_flows=(
                 self._process_runner.flow_frame()
                 if self._process_runner is not None else None
@@ -2781,7 +2855,9 @@ class SimulationEngine:
         ``inventory``. Constraints, callbacks, supply and processes apply to every
         branch (callbacks and processes are reset between branches), and random
         supplier lead times are drawn once and shared, so branches differ only by
-        the policy. Arguments not listed below are those of ``run``.
+        the policy. Arguments not listed below are those of ``run``. To compare
+        policies with different ``allow_backorders``, leave the inventory's
+        ``allow_backorders`` unset.
 
         Args:
             policies: Fitted policies.
@@ -2845,6 +2921,17 @@ class SimulationEngine:
                 f"policy_schedules length ({len(policy_schedules)}) != policies length "
                 f"({len(policies)})"
             )
+        # Fail before any branch runs, not partway through the comparison.
+        state_mode = getattr(inventory, 'allow_backorders', None)
+        if state_mode is not None:
+            for label, policy in zip(labels, policies):
+                policy_mode = getattr(policy, 'allow_backorders', state_mode)
+                if policy_mode != state_mode:
+                    raise ValueError(
+                        f"inventory allow_backorders={state_mode} conflicts with policy "
+                        f"'{label}' allow_backorders={policy_mode}; to compare shortage "
+                        "modes, leave the inventory's allow_backorders unset"
+                    )
 
         self._log(f"[SimEngine] Comparing {len(policies)} policies: {labels}")
 

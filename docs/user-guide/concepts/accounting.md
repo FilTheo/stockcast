@@ -105,8 +105,15 @@ The engine checks the identities for every row as it is written. The tolerance
 is $10^{-9}$ plus $10^{-12}$ times the size of the row's flows, so ledgers in
 grams or millilitres balance just as well as ledgers in units.
 
-`validate_event_frame` applies the same checks, and more (types, flags, window
-labels), to any ledger:
+`validate_event_frame` applies the same checks to any ledger, and more:
+
+- **Rows chain.** For each SKU, a period starts with the on-hand, backorders,
+  and pipeline the previous period ended with.
+- **Demand uses the shelf first.** A row cannot record a shortage while stock
+  was still available for that demand.
+- **Stock or backorders, not both.** No row ends with both.
+- **Types and labels.** Flags are booleans, window labels are known, and
+  `order_arrival_flag` is set only on rows that received stock.
 
 ??? example "Setup: the tea shop from Learn the basics"
 

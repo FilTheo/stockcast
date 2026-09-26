@@ -59,8 +59,9 @@ $$
 \frac{\#\{t : \text{demand}_t > 0,\ \text{shortage}_t = 0\}}{\#\{t : \text{demand}_t > 0\}}
 $$
 
-**Cycle service level**: the share of replenishment cycles (from one delivery
-to the next) with no shortage at all. Because the first and last cycles of a
+**Cycle service level**: the share of replenishment cycles (from the arrival
+of one order to the arrival of the next) with no shortage at all. An order that
+arrives in several deliveries counts once. Because the first and last cycles of a
 run are cut short, you choose whether to include them:
 
 ```python

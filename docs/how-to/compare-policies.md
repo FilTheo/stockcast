@@ -164,6 +164,9 @@ find out. (The numbers come from `sku_order_line_count`, `ordering_cost`, and
   what they do to stock and cost, not only by accuracy.
 - **Rolling refits.** Pass `policy_schedules=[...]` with one snapshot
   dictionary per policy ([Refresh targets as forecasts roll](rolling-targets.md)).
+- **Lost sales against backorders.** Fit one policy with
+  `allow_backorders=False` and one with `True`, and create the inventory
+  without `allow_backorders`; each branch then runs in its policy's mode.
 - **Many demand paths.** Loop over several seeds and average the metrics. One
   path is one possible future; several give you a distribution.
 - **Plots.** `plot_summary_comparison(comparison)` and

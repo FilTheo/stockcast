@@ -144,8 +144,9 @@ fewer pack expires.
 
 :   Maps each declared flow name to non-negative per-SKU quantities (a dict or
     a Series indexed by SKU). The direction comes from the declaration, never
-    from the sign. `received_dates` gives inflows a lot date, which
-    `ShelfLife` needs to know the age of returned goods.
+    from the sign. `received_dates` gives inflows a lot date (one date per
+    flow, or per SKU as a dict or Series), which `ShelfLife` needs to know the
+    age of returned goods.
 
 ### Hooks
 

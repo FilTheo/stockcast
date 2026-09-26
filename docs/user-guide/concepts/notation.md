@@ -98,8 +98,8 @@ Fill rate
 :   Share of demand served from stock in the period it occurred.
 
 Cycle service level
-:   Share of replenishment cycles, from one delivery to the next, with no
-    shortage.
+:   Share of replenishment cycles, from the arrival of one order to the
+    arrival of the next, with no shortage.
 
 Run manifest
 :   The record attached to every result that describes the inputs, settings,

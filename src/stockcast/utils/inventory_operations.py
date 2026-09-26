@@ -28,7 +28,6 @@ def update_inventory_with_orders(
         - 'in_transit': Orders added to array at appropriate period offset
         - 'latest_order': Records the order quantity placed
         - 'target_level': Stores the target level (S) from the policy
-        - 'allow_backorders': Transferred from policy (if provided)
 
     Positive-lead-time orders enter the future pipeline. Zero-lead-time orders
     are received immediately, clear prior backlog first, and can serve demand
@@ -36,7 +35,7 @@ def update_inventory_with_orders(
 
     Inventory Management Logic:
         - Lead time is automatically inferred from orders.lead_time (set by policy)
-        - Backorder mode is automatically transferred from policy.allow_backorders
+        - The state's backorder mode applies; a supplied policy must use the same mode
         - Positive-lead-time orders enter pipeline index lead_time - 1; zero-lead orders are received.
         - 'latest_order' and 'target_level' are updated for tracking
         - The 'inventory_position' increases immediately: IP = on_hand + sum(in_transit) - backorders
@@ -45,15 +44,14 @@ def update_inventory_with_orders(
     Args:
         inventory_state: Current multi-SKU inventory state
         orders: Order decisions to execute (must include 'order_quantity', 'target_level', 'lead_time')
-        policy: Optional policy object whose explicit allow_backorders setting is
-            transferred to the returned state
+        policy: Optional policy object; its allow_backorders must match the state's
 
     Returns:
-        New InventoryStateDataFrame with updated 'in_transit', 'latest_order', 'target_level',
-        and 'allow_backorders'
+        New InventoryStateDataFrame with updated 'in_transit', 'latest_order' and 'target_level'
 
     Raises:
-        ValueError: If orders.lead_time is None or if max_lead_time is insufficient
+        ValueError: If orders.lead_time is None, max_lead_time is insufficient, or the
+            policy's allow_backorders differs from the state's
 
     Example:
         ```python
@@ -66,14 +64,28 @@ def update_inventory_with_orders(
         # Generate orders from policy (automatically includes lead_time)
         orders = policy.predict(inventory, current_period=10)
 
-        # Place orders (lead_time and allow_backorders inferred automatically)
+        # Place orders (lead_time inferred automatically)
         new_inventory = update_inventory_with_orders(inventory, orders, policy=policy)
         # → in_transit updated, latest_order and target_level recorded
-        # → allow_backorders transferred from policy
         ```
     """
     allow_backorders, lead_time = _validate_order_decision(inventory_state, orders, policy)
     return _apply_orders(inventory_state, orders, allow_backorders, lead_time=lead_time)
+
+
+def _backorder_mode(inventory_state: InventoryStateDataFrame, policy: object | None) -> bool:
+    """The state's shortage mode; a supplied policy must use the same one."""
+    allow_backorders = inventory_state.allow_backorders
+    if (
+        policy is not None
+        and hasattr(policy, 'allow_backorders')
+        and policy.allow_backorders != allow_backorders
+    ):
+        raise ValueError(
+            f"policy allow_backorders={policy.allow_backorders} conflicts with "
+            f"inventory_state allow_backorders={allow_backorders}"
+        )
+    return allow_backorders
 
 
 def _validate_order_decision(
@@ -97,10 +109,7 @@ def _validate_order_decision(
     if not isinstance(lead_time, int) or isinstance(lead_time, bool) or lead_time < 0:
         raise ValueError("orders.lead_time must be an integer >= 0")
 
-    # Preserve the state's explicit setting unless an explicit policy is supplied.
-    allow_backorders = inventory_state.allow_backorders
-    if policy is not None and hasattr(policy, 'allow_backorders'):
-        allow_backorders = policy.allow_backorders
+    allow_backorders = _backorder_mode(inventory_state, policy)
 
     # Validate that inventory_state has sufficient max_lead_time
     if inventory_state.max_lead_time < lead_time:
@@ -280,7 +289,7 @@ def _apply_orders(
         merged,
         sku_column=inventory_state.sku_column,
         max_lead_time=inventory_state.max_lead_time,
-        allow_backorders=allow_backorders,  # Transfer allow_backorders from policy
+        allow_backorders=allow_backorders,
         _history=inventory_state._history,  # Preserve accumulated history
         _open_orders=book,
     )
@@ -315,8 +324,7 @@ def place_order_lines(
         order_lines: Order lines; every positive row must have
             ``order_period`` equal to the state period and
             ``due_period <= period + max_lead_time``
-        policy: Optional policy whose ``allow_backorders`` setting is
-            transferred to the returned state
+        policy: Optional policy; its ``allow_backorders`` must match the state's
 
     Returns:
         New InventoryStateDataFrame with updated pipeline, receipts and book
@@ -336,9 +344,7 @@ def place_order_lines(
     if not isinstance(order_lines, OrderLines):
         raise TypeError("order_lines must be an OrderLines instance")
     inventory_state._validate_ready_state()
-    allow_backorders = inventory_state.allow_backorders
-    if policy is not None and hasattr(policy, 'allow_backorders'):
-        allow_backorders = policy.allow_backorders
+    allow_backorders = _backorder_mode(inventory_state, policy)
     lines = _state_order_lines(inventory_state, order_lines)
     sku_column = inventory_state.sku_column
     positive = lines[lines['order_quantity'] > 0]

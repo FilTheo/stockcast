@@ -326,8 +326,12 @@ def test_system_inventory_metrics_aggregate_skus_by_period():
         "demand_period": [0, 0, 1, 1],
         "ending_on_hand": [10.0, 0.0, 0.0, 10.0],
         "fulfilled_units": [2.0, 2.0, 2.0, 2.0],
+        "backorders_fulfilled": [0.0, 0.0, 0.0, 0.0],
     })
 
     assert ending_on_hand_variance(events) == 0.0
     assert peak_ending_on_hand(events) == 10.0
     assert inventory_turns(events, {"periods_per_year": 2}) == 0.8
+    # Backorders served later also leave the shelf: (8 + 2) / 2 periods * 2 / 10.
+    events["backorders_fulfilled"] = [1.0, 0.0, 0.0, 1.0]
+    assert inventory_turns(events, {"periods_per_year": 2}) == 1.0

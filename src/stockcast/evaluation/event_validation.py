@@ -42,6 +42,10 @@ PROCESS_EVENT_COLUMNS = ("process_inflow_units", "process_outflow_units")
 # DeliveryOutcome. Units due that never arrive leave stock on order.
 SUPPLY_EVENT_COLUMNS = ("supplier_shortfall_units",)
 
+# Optional column, written by every run: the first delivery of a replenishment
+# order arrived in this row. Used by cycle_service_level.
+ARRIVAL_EVENT_COLUMN = "order_arrival_flag"
+
 _BOOLEAN_COLUMNS = (
     "allow_backorders", "is_review_period", "decision_flag", "stockout_flag",
     "backorder_flag", "constraint_binding_flag", "capacity_violation_flag",
@@ -65,12 +69,20 @@ def _require_close(frame: pd.DataFrame, expected, actual, name: str) -> None:
 def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     """Return a defensive copy after strict structural and physical validation.
 
+    Every row must satisfy the demand, on-hand, backlog, pipeline and
+    inventory-position identities; stock cannot be short while the shelf still
+    holds units, and a SKU cannot hold stock and backorders at once. Rows of
+    consecutive periods of one SKU and policy must chain: each row starts with
+    the previous row's ending on-hand, backorders and pipeline.
+
     Ledgers from runs with general process flows also carry
     ``process_inflow_units`` and ``process_outflow_units``; when present
     (both are required together) they are validated as nonnegative flows and
     enter the physical inventory balance. Ledgers from runs with supplier
     delivery outcomes carry ``supplier_shortfall_units``; when present it is
-    validated as a nonnegative flow and leaves the pipeline balance.
+    validated as a nonnegative flow and leaves the pipeline balance. When
+    ``order_arrival_flag`` is present it must be boolean and set only on
+    period rows that received stock.
     """
     if not isinstance(event_frame, pd.DataFrame) or event_frame.empty:
         raise ValueError("event_frame must be a non-empty pandas DataFrame")
@@ -151,7 +163,8 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     for column in ("order_event_count", "sku_order_line_count"):
         if not np.equal(frame[column], np.floor(frame[column])).all():
             raise ValueError(f"event_frame.{column} must contain integers")
-    for column in _BOOLEAN_COLUMNS:
+    arrival_columns = (ARRIVAL_EVENT_COLUMN,) if ARRIVAL_EVENT_COLUMN in frame else ()
+    for column in _BOOLEAN_COLUMNS + arrival_columns:
         if not frame[column].map(lambda value: isinstance(value, (bool, np.bool_))).all():
             raise ValueError(f"event_frame.{column} must contain boolean values")
     if not frame["binding_constraints"].map(lambda value: isinstance(value, str)).all():
@@ -259,4 +272,66 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("event_frame.stockout_flag is inconsistent with shortage_units")
     if not frame["backorder_flag"].eq(frame["backorders_end"] > 1e-9).all():
         raise ValueError("event_frame.backorder_flag is inconsistent with backorders_end")
+
+    both = (frame["ending_on_hand"] > 1e-9) & (frame["backorders_end"] > 1e-9)
+    if both.any():
+        row = frame.loc[both].iloc[0]
+        raise ValueError(
+            f"event_frame holds positive ending_on_hand and backorders_end for SKU "
+            f"{row['unique_id']} at period {row['period']}"
+        )
+    # Demand is served from stock first. Every outflow that could have acted
+    # before demand is subtracted, so this lower bound on the stock available
+    # at demand time holds for any run: a short row must have used all of it.
+    available_at_least = (
+        frame["starting_on_hand"] + frame["received_units"]
+        - frame["backorders_fulfilled"] - frame["expired_units"]
+    )
+    if process_columns:
+        available_at_least = available_at_least - frame["process_outflow_units"]
+    short = frame["shortage_units"] > 1e-9
+    unused = frame["fulfilled_units"] < (
+        available_at_least - (1e-9 + 1e-12 * frame["_flow_magnitude"])
+    )
+    if (short & unused).any():
+        row = frame.loc[short & unused].iloc[0]
+        raise ValueError(
+            f"event_frame records a shortage while stock remained for SKU "
+            f"{row['unique_id']} at period {row['period']}"
+        )
+    _require_period_continuity(frame.loc[period_rows])
+
+    if arrival_columns:
+        arrivals = frame[ARRIVAL_EVENT_COLUMN].astype(bool)
+        if (arrivals & ~(period_rows & (frame["received_units"] > 0))).any():
+            raise ValueError(
+                f"event_frame.{ARRIVAL_EVENT_COLUMN} may be set only on period rows "
+                "that received stock"
+            )
+        frame[ARRIVAL_EVENT_COLUMN] = arrivals
     return frame.drop(columns="_flow_magnitude")
+
+
+def _require_period_continuity(frame: pd.DataFrame) -> None:
+    """Rows of consecutive periods start where the previous row ended."""
+    ordered = frame.sort_values("period", kind="stable")
+    groups = ordered.groupby(["unique_id", "policy"], sort=False)
+    consecutive = groups["period"].shift() == ordered["period"] - 1
+    if not consecutive.any():
+        return
+    for start, end in (
+        ("starting_on_hand", "ending_on_hand"),
+        ("starting_backorders", "backorders_end"),
+        ("starting_on_order", "on_order_end"),
+    ):
+        previous = groups[end].shift()
+        difference = (ordered[start] - previous).abs()
+        broken = consecutive & (
+            difference > 1e-9 + 1e-12 * ordered["_flow_magnitude"]
+        )
+        if broken.any():
+            row = ordered.loc[broken].iloc[0]
+            raise ValueError(
+                f"event_frame breaks {start} continuity for SKU {row['unique_id']} "
+                f"at period {row['period']}: it does not equal the previous period's {end}"
+            )

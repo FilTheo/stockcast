@@ -95,7 +95,7 @@ it is used.
 | `data` | A list of SKUs, or a DataFrame with a SKU column |
 | `max_lead_time` | Length of the pipeline. Must be at least the longest lead time (and, with suppliers, the longest delivery offset) |
 | `sku_column` | Name of the SKU column, default `"unique_id"` |
-| `allow_backorders` | `True` (backorders) or `False` (lost sales). During a simulation the engine applies the policy's setting |
+| `allow_backorders` | `True` (backorders) or `False` (lost sales). Must match the policy's setting; leave it unset to take the policy's |
 | `start_date` | Opening date, if not supplied later by an initializer |
 
 ## Open orders

@@ -103,8 +103,9 @@ shelf yet, but they already count in the inventory position: $30 + 12 - 0 = 42$.
   delivery. Typical of business-to-business supply.
 
 With backorders, owed demand lowers the inventory position, so the next order
-automatically replaces it. Policies declare the same choice, and during a
-simulation the engine runs the state with the policy's setting.
+automatically replaces it. Policies declare the same choice, and the state
+and the policy must agree. Leave the state's `allow_backorders` unset and it
+takes the policy's setting.
 
 ## Every value is explicit
 

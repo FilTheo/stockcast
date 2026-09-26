@@ -326,7 +326,8 @@ class InventoryStateDataFrame:
             sku_column: Name of the SKU column (default ``"unique_id"``).
             start_date: Opening date, if not given later to an initializer.
             allow_backorders: ``True`` (backorders) or ``False`` (lost sales). May
-                stay unset until the engine applies the policy's setting.
+                stay unset until the engine applies the policy's setting; an
+                explicit value must match the policy's.
         """
         if not isinstance(max_lead_time, int) or isinstance(max_lead_time, bool) or max_lead_time < 0:
             raise ValueError("max_lead_time must be an integer >= 0")

@@ -37,7 +37,7 @@ Q_\alpha\!\left(\sum_h D_{t+h}\right) \;\ne\; \sum_h Q_\alpha(D_{t+h})
 \quad\text{in general.}
 $$
 
-Equality holds only when all periods move in perfect lockstep (what
+Equality holds when all periods move in perfect lockstep (what
 probabilists call *comonotonic*). For upper quantiles of ordinary demand, the
 sum of daily quantiles is too high, because high days and low days partly
 cancel over a window. With six days of Poisson(6) demand, the 95% quantile of
@@ -218,8 +218,9 @@ frequency, and end date. The fitting modes differ in what you supply.
 | `forecast_frequency` | Period length of the forecast | Must equal the simulation's `period_frequency` |
 | `target_end_date_column` | Last date the target covers | Must equal origin $+ H \Delta$ |
 
-Column names that look like quantiles, such as `q95`, `p90`, or `up_95`, are
-read as probabilities and must agree with `target_probability`. A column
+Column names that look like quantiles, such as `q95`, `p90`, `up_95`, or
+`q975` (97.5%), are read as probabilities and must agree with
+`target_probability`. A column
 called `q90` cannot be passed as a 95% target by accident.
 
 ## Targets over time

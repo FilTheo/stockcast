@@ -47,18 +47,22 @@ def validate_target_probability(
 
     match = _QUANTILE_COLUMN.match(str(target_column))
     if match:
-        labelled_probability = float(match.group(1))
-        if labelled_probability > 1:
-            labelled_probability /= 100.0
-        if not math.isclose(
-            labelled_probability,
-            probability,
-            rel_tol=0.0,
-            abs_tol=1e-12,
+        digits = match.group(1)
+        percent = float(digits)
+        if percent > 1:
+            percent /= 100.0
+        readings = [percent]
+        if "." not in digits and len(digits) >= 3:
+            # "q975", "q025" and "q995" name the 97.5%, 2.5% and 99.5% quantiles.
+            readings.append(float(digits) / 10 ** len(digits))
+        if not any(
+            math.isclose(reading, probability, rel_tol=0.0, abs_tol=1e-12)
+            for reading in readings
         ):
+            denoted = " or ".join(str(reading) for reading in readings)
             raise ValueError(
                 f"target column '{target_column}' denotes probability "
-                f"{labelled_probability}, not {probability}"
+                f"{denoted}, not {probability}"
             )
     return probability
 

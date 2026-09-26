@@ -54,7 +54,7 @@ pipeline, and backorders.
 |---|---|
 | `fill_rate` | $\dfrac{\sum F}{\sum D}$: share of demand served from stock in its own period (1 if there is no demand) |
 | `demand_period_service_level` | share of rows with $D > 0$ and $U = 0$ |
-| `cycle_service_level` | share of replenishment cycles with no shortage. A cycle runs from one receipt to the next. Requires `context["include_partial_cycles"]` to say whether the first and last, incomplete, cycles count |
+| `cycle_service_level` | share of replenishment cycles with no shortage. A cycle runs from the arrival of one order to the arrival of the next (rows with `order_arrival_flag`); an order split across suppliers or delivered in parts starts one cycle. A ledger without that column (for example one you built yourself) uses every receipt. Requires `context["include_partial_cycles"]` to say whether the first and last, incomplete, cycles count |
 | `sku_period_stockout_rate` | share of SKU-period rows with a shortage |
 | `stockout_period_rate` | share of periods in which **any** SKU in the slice was short |
 | `backorder_period_rate` | share of periods in which any SKU ended with backorders |
@@ -82,7 +82,7 @@ backorders served later are recorded separately in `backorders_fulfilled`.
 | `avg_on_hand`, `avg_on_order`, `avg_inventory_position` | mean of $\mathit{OH}$, $P$, $\mathit{IP}$ over SKU-period rows |
 | `peak_ending_on_hand` | $\max_t \sum_i \mathit{OH}_{i,t}$: the largest total stock in any period |
 | `ending_on_hand_variance` | variance over periods of $\sum_i \mathit{OH}_{i,t}$ |
-| `inventory_turns` | $\dfrac{\sum F / n \times \text{periods per year}}{\text{mean}_t \sum_i \mathit{OH}_{i,t}}$; needs `context["periods_per_year"]` |
+| `inventory_turns` | $\dfrac{\sum (F + \text{backorders served}) / n \times \text{periods per year}}{\text{mean}_t \sum_i \mathit{OH}_{i,t}}$: units shipped, including backorders served late; needs `context["periods_per_year"]` |
 | `CoverageMetric("forward")` | mean of $\mathit{OH} / \text{expected demand rate}$, from an `expected_demand_rate` column or `context["forward_demand_rate"]` |
 | `CoverageMetric("trailing")` | mean of $\mathit{OH} / \text{average realised demand}$ per SKU |
 

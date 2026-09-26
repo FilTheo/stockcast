@@ -388,9 +388,13 @@ def demand_period_service_level(
 def cycle_service_level(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
     """Share of replenishment cycles without any shortage.
 
-    A cycle runs from one receipt to the next, per SKU. The cycle before the
-    first receipt and the one after the last receipt are incomplete; the
-    context says whether they count.
+    A cycle runs from the arrival of one replenishment order to the arrival of
+    the next, per SKU. An order that arrives in several deliveries (supplier
+    lines, partial or delayed deliveries) starts one cycle, at its first
+    delivery; the ledger marks these rows in ``order_arrival_flag``. Ledgers
+    without that column use every receipt, which is the same when each order
+    arrives in one delivery. The cycle before the first arrival and the one
+    after the last arrival are incomplete; the context says whether they count.
 
     Args:
         event_frame: Event ledger, or a slice of it (for example one window or group).
@@ -406,16 +410,21 @@ def cycle_service_level(event_frame: pd.DataFrame, context: Optional[dict] = Non
         raise ValueError("cycle_service_level requires boolean include_partial_cycles")
     include_partial = context["include_partial_cycles"]
     period_events = _period_events(event_frame)
+    use_arrivals = "order_arrival_flag" in period_events.columns
     _require_columns(
         period_events,
-        ["unique_id", "period", "received_units", "shortage_units"],
+        ["unique_id", "period", "shortage_units"]
+        + (["order_arrival_flag"] if use_arrivals else ["received_units"]),
     )
     cycle_outcomes = []
     for _, rows in period_events.groupby("unique_id", sort=False):
         rows = rows.sort_values("period").copy()
-        receipts = _numeric_series(rows, "received_units")
+        if use_arrivals:
+            starts = _boolean_series(rows, "order_arrival_flag")
+        else:
+            starts = _numeric_series(rows, "received_units") > 0
         shortages = _numeric_series(rows, "shortage_units")
-        rows["_cycle"] = (receipts > 0).cumsum()
+        rows["_cycle"] = starts.cumsum()
         rows["_shortage"] = shortages
         last_cycle = rows["_cycle"].max()
         for cycle_id, cycle_rows in rows.groupby("_cycle", sort=False):
@@ -574,7 +583,10 @@ def peak_ending_on_hand(event_frame: pd.DataFrame, context: Optional[dict] = Non
 def inventory_turns(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
     """Annualised throughput divided by average total stock.
 
-    ``(sum(fulfilled_units) / n_periods * periods_per_year) / mean_t(total ending stock)``.
+    ``(sum(fulfilled_units + backorders_fulfilled) / n_periods * periods_per_year)
+    / mean_t(total ending stock)``. Throughput counts every unit that left the
+    shelf for a customer: demand served in its own period and backorders served
+    later.
 
     Args:
         event_frame: Event ledger, or a slice of it (for example one window or group).
@@ -598,7 +610,8 @@ def inventory_turns(event_frame: pd.DataFrame, context: Optional[dict] = None) -
     )
     if n_periods == 0 or np.isnan(average_inventory) or average_inventory <= 0:
         return np.nan
-    annual_throughput = fulfilled_units(period_events, context) / n_periods * periods_per_year
+    shipped = fulfilled_units(period_events, context) + _sum(period_events, "backorders_fulfilled")
+    annual_throughput = shipped / n_periods * periods_per_year
     return annual_throughput / average_inventory
 
 

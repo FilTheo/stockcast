@@ -299,6 +299,10 @@ See [Run your own simulation loop](../how-to/manual-loop.md).
   order split between two suppliers counts two. `ordering_cost` then charges
   its fixed cost per supplier line, which is usually what a delivery fee
   means. For a fixed cost per decision, use `order_event_count`.
+- `order_arrival_flag` marks the period in which each order's first units
+  arrive, however many suppliers, parts, or delays it has. `cycle_service_level`
+  starts one replenishment cycle there, so splitting an order does not add
+  cycles.
 - `run_settings["supply"]` in the manifest records every supplier, lead-time
   distribution, allocation, and the seed.
 
