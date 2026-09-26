@@ -46,8 +46,6 @@ example Zhu, 2022, Section 3). Zero lead time is a well-studied case too
 
 Ordering after demand, or at the end of a period, are also valid models;
 Stockpyl and SimOpt use such conventions. Stockcast chose one clear sequence
-and applies it everywhere, which is what makes experiments comparable. Earlier
-pre-release versions of Stockcast decided after demand; the
-[upgrade guide](../../how-to/timing-migration.md) explains the change.
+and applies it everywhere, which is what makes experiments comparable.
 
 **References:** see [Timing](../concepts/timing.md#references).

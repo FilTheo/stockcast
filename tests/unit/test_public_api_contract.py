@@ -22,7 +22,7 @@ def test_public_export_sets_are_frozen_for_0_1():
         "SimulationCallback", "SimulationEngine", "SimulationResult",
         "DecisionSchedule", "PeriodicSchedule", "OneTimeSchedule", "ExplicitSchedule",
         "SingleOrderPolicy", "newsvendor_critical_fractile",
-        # Additive order-level API (knowledge 93.7).
+        # Additive order-level API.
         "OrderLines", "Supplier", "SupplierAllocation", "SupplierShares", "SupplyModel",
     ]
     assert core.__all__ == [
@@ -35,13 +35,13 @@ def test_public_export_sets_are_frozen_for_0_1():
         "RUN_MANIFEST_REQUIRED_SECTIONS", "ShelfLifeEngine", "ShelfSpaceLimit",
         "SimulationCallback", "SimulationEngine", "SimulationResult",
         "DecisionSchedule", "PeriodicSchedule", "OneTimeSchedule", "ExplicitSchedule",
-        # Additive order-level API (knowledge 93.7).
+        # Additive order-level API.
         "AllocationContext", "ORDER_FRAME_COLUMNS", "OrderLines", "Supplier",
         "SupplierAllocation", "SupplierShares", "SupplyModel",
-        # Additive inventory-process API (knowledge 93.8).
+        # Additive inventory-process API.
         "Flow", "InventoryProcess", "PROCESS_FLOW_COLUMNS", "ProcessContext",
         "ProcessFlows", "ShelfLife", "StockChange",
-        # Additive supplier delivery outcomes (knowledge 93.9).
+        # Additive supplier delivery outcomes.
         "DeliveryContext", "DeliveryOutcome",
     ]
     assert policies.__all__ == [

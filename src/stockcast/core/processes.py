@@ -18,7 +18,7 @@ Usage:
     result = SimulationEngine().run(..., processes=[InspectionLoss()])
     result.to_process_flow_frame()
 
-Period sequence with processes (see knowledge/30):
+Period sequence with processes:
 
     before_demand   the period opens at its demand date; flows act on stock
                     before due receipts, the order decision and demand

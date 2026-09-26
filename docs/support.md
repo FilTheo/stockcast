@@ -10,9 +10,11 @@
 
 ## Citing Stockcast
 
-A citable archive record will accompany the first public release. Until then,
-please cite the Stockcast version and the repository release tag or commit you
-used, for example:
+If you use Stockcast in your work, please cite the version you used. The
+repository's
+[`CITATION.cff`](https://github.com/FilTheo/stockcast/blob/main/CITATION.cff)
+has the details, and GitHub's *Cite this repository* button formats them for
+you:
 
 ```text
 Theodosiou, F. Stockcast: forecast-driven inventory decisions, simulation, and

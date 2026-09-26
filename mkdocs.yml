@@ -206,7 +206,6 @@ nav:
           - Put costs on a run: how-to/costs.md
           - Run your own simulation loop: how-to/manual-loop.md
           - Use Stockcast in a daily job: how-to/production.md
-          - Upgrade from demand-first timing: how-to/timing-migration.md
   - Examples:
       - tutorials/index.md
       - Foundations:

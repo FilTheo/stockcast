@@ -2,8 +2,6 @@ include README.md
 include LICENSE
 graft src/stockcast
 prune src/stockcast.egg-info
-prune arxiv
-prune data
 prune docs
 prune examples
 global-exclude __pycache__

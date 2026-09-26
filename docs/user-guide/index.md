@@ -85,9 +85,8 @@ Short answers to specific jobs, with runnable code:
 [rolling targets](../how-to/rolling-targets.md),
 [compare forecasts and policies](../how-to/compare-policies.md),
 [costs](../how-to/costs.md),
-[your own simulation loop](../how-to/manual-loop.md),
-[a daily production job](../how-to/production.md), and
-[upgrading from demand-first timing](../how-to/timing-migration.md).
+[your own simulation loop](../how-to/manual-loop.md), and
+[a daily production job](../how-to/production.md).
 See [all recipes](../how-to/index.md).
 
 ## Design decisions

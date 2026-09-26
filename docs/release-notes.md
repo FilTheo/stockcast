@@ -2,138 +2,41 @@
 
 ## 0.1.0
 
-Initial public release line for Stockcast's DataFrame-first inventory decision,
-simulation, and evaluation workflow.
+The first public release of Stockcast: DataFrame-first inventory decisions,
+simulation, and evaluation for many SKUs at once.
 
-The 0.1.x public contract freezes the documented import namespaces, public
-outputs, metrics, and scientific behaviour. Future backward-compatible
-additions and corrections will be recorded here. A breaking redesign requires
-a later release line and an explicit migration note.
+The 0.1.x line keeps the documented import namespaces, public outputs,
+metrics, and scientific behaviour stable. Backward-compatible additions and
+corrections will be recorded here. A breaking redesign will come with a new
+release line and a migration note.
 
-## Pre-release timing migration (2026-09-23)
+**What's included**
 
-Decisions now precede demand, lead time may be zero, and decision schedules are
-separate from policy rules. This is an explicitly approved numerical behavior
-change. See [migration details](how-to/timing-migration.md). Older release
-audits do not establish readiness of the migrated engine.
+- **Timing you can reason about.** Decisions are made
+  [before demand](user-guide/design/decide-before-demand.md), lead time may be
+  zero, and a `DecisionSchedule` (periodic, one-time, explicit, or your own)
+  says when a policy may order, separately from how much it orders.
+- **Policies.** Order-up-to and periodic-review policies, `ReorderPointPolicy`
+  for `(s,Q)` and `(s,S)` rules on any schedule, single-order (newsvendor)
+  decisions, and `BasePolicy` for your own rules. Targets can come from any
+  forecaster or from a planner.
+- **Open orders and suppliers.** Declare an opening pipeline with
+  `with_open_orders(...)`, and split orders across `Supplier` objects with
+  fixed or random lead times, partial deliveries, and custom allocations. See
+  [suppliers and open orders](user-guide/suppliers.md).
+- **Unreliable deliveries.** A `DeliveryOutcome` decides how much of a due
+  delivery arrives, is delayed, or never arrives. See
+  [unreliable deliveries](user-guide/unreliable-deliveries.md).
+- **Inventory processes.** Add physical stock flows such as damage or
+  inspection loss at defined phases, with FIFO shelf life built in. See
+  [shelf life and inventory processes](user-guide/processes.md).
+- **Evidence you can check.** Every run produces a validated event ledger, a
+  run manifest, callback audits, order and process-flow frames, and service
+  and cost metrics.
+- **Documentation.** A Quickstart, a *Learn the basics* series, a Guide to
+  every building block, recipes, design essays, 21 runnable example notebooks,
+  and a full API reference. Every Python example in the docs is executed in
+  the test suite.
 
-## Pre-release fixes (2026-09-24)
-
-- `ShelfLifeEngine.run_comparison(...)` previously failed with a `TypeError`
-  because it could not receive opening lots. It now accepts `opening_lots` and
-  `opening_expiry_handling`, like `run`.
-- Stock, backlog, and pipeline balance checks in the engine and in
-  `validate_event_frame` used a fixed `1e-9` absolute tolerance. Valid runs
-  with quantities around `1e7` (for example grams or millilitres) could fail
-  on floating-point rounding. The tolerance now also allows `1e-12` times the
-  magnitude of the flows in the row. Accounting results are unchanged.
-- **Breaking, approved:** `ContinuousReviewPolicy` is replaced by
-  `ReorderPointPolicy`. The old policy checked every period before demand but
-  sized `s` over the lead time `L` only, and forced `s=0` when `L=0`. Under
-  the current timing that under-protects. `ReorderPointPolicy(lead_time,
-  review_period=... | schedule=..., policy_type="sQ"|"sS", ...)` takes its
-  review timing from any `DecisionSchedule`.
-  - Its `reorder_horizon` must equal `L+R` for periodic schedules (`L+1` for
-    every-period review), or `(next opportunity - t) + L` for irregular
-    schedules.
-  - `service_level=None` selects planner mode for externally chosen `s`/`S`
-    pairs.
-  - `S` is a policy level with no probability or horizon of its own:
-    `order_up_to_horizon`, `order_up_to_end_date_column` and
-    `review_period_for_S` are removed.
-  - Migration: construct with `review_period=1`, and recompute `s` over `L+1`
-    periods and set `reorder_horizon=L+1`.
-
-  Notebook 05b demonstrates the change.
-
-## Order-level pipeline and suppliers (2026-09-24, additive)
-
-Backward-compatible addition. Existing runs, primitives and outputs are
-unchanged.
-
-- `InventoryStateDataFrame.open_orders()` and `scheduled_receipts()` show the
-  pipeline as open orders; `with_open_orders(...)` declares an opening
-  pipeline with supplier, order period and partial deliveries.
-- `OrderLines` and `stockcast.utils.place_order_lines` place order lines with
-  their own supplier and due period in a manual loop.
-- `SimulationEngine.run(..., supply=SupplyModel(...))` (also `run_comparison`
-  and `ShelfLifeEngine`) splits accepted orders across `Supplier` objects with
-  fixed or seeded random lead times and partial deliveries, using
-  `SupplierShares` or a custom `SupplierAllocation`.
-- `SimulationResult.to_order_frame()` lists every scheduled delivery
-  (`ORDER_FRAME_COLUMNS`).
-
-See [suppliers and open orders](user-guide/suppliers.md) and
-Notebook 05d.
-
-## Inventory processes (2026-09-24, additive)
-
-Backward-compatible addition. Existing runs, including `ShelfLifeEngine`
-runs, produce the same event ledger, history, final state, callback audit,
-run settings and manifest as before.
-
-- `SimulationEngine.run(..., processes=[...])` (also `run_comparison`, and
-  `ShelfLifeEngine` for extra processes) adds physical on-hand flows at
-  defined phases: `before_demand`, `on_receipt` and `after_demand`.
-  Processes subclass `InventoryProcess`, declare named `Flow`s and return
-  `ProcessFlows`.
-- `ShelfLife(shelf_life_days, opening_lots, ...)` is the FIFO shelf-life
-  process. `ShelfLifeEngine` now runs it internally, and both forms give the
-  same results.
-- Ledgers from runs with general (non-expiry) process flows gain
-  `process_inflow_units` and `process_outflow_units`, and these enter the
-  physical-inventory identity in the engine and in `validate_event_frame`.
-  Expiry flows add into `expired_units`.
-- `SimulationResult.to_process_flow_frame()` lists every flow
-  (`PROCESS_FLOW_COLUMNS`); `run_settings["processes"]` records each process.
-
-See [shelf life and inventory processes](user-guide/processes.md) and Notebook 05e.
-
-## Supplier delivery outcomes (2026-09-25, additive)
-
-Backward-compatible addition. Runs without a delivery outcome produce the same
-event ledger, history, final state, callback audit, order frame, run settings
-and manifest as before.
-
-- `Supplier(..., delivery=DeliveryOutcome)` decides, when a supplier's
-  delivery falls due, how much arrives now, how much is delayed and how much
-  never arrives. Subclass `DeliveryOutcome` and implement `resolve(due,
-  context)`; `DeliveryContext` carries a copy of the state, the date and a
-  seeded generator. The base class lets everything arrive, which reproduces
-  the run without an outcome.
-- Ledgers from such runs gain `supplier_shortfall_units`, which leaves the
-  pipeline balance in the engine and in `validate_event_frame`. Their order
-  frames gain `scheduled_due_period`, `received_quantity`,
-  `delayed_quantity` and `undelivered_quantity`, and the status `disrupted`.
-- `AllocationContext.decision` passes the policy's accepted order decision to
-  supplier allocations, so an allocation can follow a supplier the policy
-  chose.
-- A `UserWarning` is issued once per run when deliveries arrive at a time
-  other than the policy's `lead_time` (different, random or partial supplier
-  lead times, or delays). Results are unchanged; the policy's target keeps its
-  fixed-lead-time window.
-
-See [unreliable deliveries](user-guide/unreliable-deliveries.md) and
-Notebook 05f.
-
-## Compatibility fixes for pandas 1.5 (2026-09-25)
-
-- The NumPy period kernel used `Timestamp.unit`, which exists only from pandas
-  2.0, so simulations failed on the declared minimum pandas 1.5. It now falls
-  back to nanoseconds there.
-- On pandas 1.5 the reference (DataFrame) path returned the final state with
-  an `Int64Index` instead of a `RangeIndex`; placing orders now keeps a
-  `RangeIndex` on every pandas version, as pandas 2 and later already did.
-- `OrderLines` no longer emits a pandas 1.5 `FutureWarning`.
-
-Results on pandas 2 and later are unchanged.
-
-## Documentation (2026-09-25)
-
-A new documentation site: Quickstart, a nine-step *Learn the basics*
-series (from the first state to a production daily job), a Guide with the theory behind every building block, recipes, and design
-decision essays, the notebooks rendered as Examples, and a
-per-object API reference generated from expanded docstrings. Every Python
-example in the docs is executed by `tests/docs`, and the site is published from
-`main` with GitHub Actions. Docstring changes are text only; behaviour is
-unchanged.
+Stockcast supports Python 3.10 to 3.13, NumPy 1.23 or later, pandas 1.5 or
+later, and Matplotlib 3.6 or later.

@@ -1,73 +1,37 @@
 # Stockcast examples
 
-The notebooks in `notebooks/` are runnable examples for a repository clone.
-Run them from the repository root after installing Stockcast and any
-notebook-specific optional dependencies.
+Twenty-one runnable notebooks, from a first simulation to multi-supplier,
+perishable, and production workflows. Each one is also rendered, with its
+outputs, on the [Examples](https://filtheo.github.io/stockcast/tutorials/)
+page of the documentation, which lists what every notebook teaches and the
+building blocks it uses.
 
-`notebooks/data/m5/` contains the small M5-derived assets used by Notebooks 07,
-09, and 10. They are versioned for reproducible GitHub examples but are
-intentionally excluded from PyPI source distributions and wheels. See the
-nearby data README for attribution and scope.
+## Running them
 
-Notebook `02b_decision_schedules.ipynb` is a compact visual tour of periodic,
-delayed, one-time, and irregular decisions. It also demonstrates using
-`review_period` without constructing a scheduler object.
+Clone the repository, install Stockcast, then install the notebook extras and
+open `examples/notebooks` from the repository root:
 
-The six Notebook 04 tutorials progress from one-week Smooth forecasts and
-weekly orders (`04`) to a daily economic newsvendor (`04b`), then to a fixed
-cumulative protection target (`04c`), rolling cumulative updates (`04d`),
-three cumulative uncertainty methods (`04e`), and an end-to-end scheduled
-forecast-to-order simulation (`04f`). Each lesson keeps forecast inputs,
-inventory decisions, and held-out outcomes visible.
+```bash
+pip install -e .
+pip install jupyterlab smooth
+jupyter lab examples/notebooks
+```
 
-Notebook `05_custom_policies.ipynb` writes a familiar `(s,Q)` rule to teach the
-`BasePolicy` contract, tunes its fixed quantity against explicit costs, then
-shows a small change to the rule and checks both on held-out demand. The
-ordinary `(s,Q)` rule is also available as `ReorderPointPolicy`.
+Notebooks 04e and 09 use smooth's simulated intervals, so their simulated
+targets can differ slightly between runs.
 
-Notebook `05b_reorder_points_and_review_frequency.ipynb` starts with one SKU
-to show a built-in `(s,Q)` decision, its receipt, and its event evidence. It
-then compares four review frequencies for 100 SKUs on a shared demand path,
-including the `L+R` target window, the error from copying an `L`-only threshold,
-an explicit operating-cost choice, and the built-in `(s,S)` sizing option.
+## Contents
 
-Notebook `05c_extension_points.ipynb` starts with one dairy SKU, then extends
-the same dated simulation to three. It shows a custom Monday/Thursday
-`DecisionSchedule` and its changing target windows, a custom
-`OrderingConstraint` for whole cases within chiller space, and the built-in
-`ScheduledOrderHold` and `ScheduledInventoryAdjustment` callbacks. Cumulative
-runs and their event/audit records show what each addition changes.
+| Group | Notebooks |
+|---|---|
+| Foundations | 01 inventory flow · 02 first engine simulation · 02b decision schedules · 03 your own loop |
+| Forecasts to orders | 04 weekly forecast to order · 04b daily newsvendor · 04c cumulative protection target · 04d rolling cumulative targets · 04e cumulative target methods · 04f scheduled forecast simulation |
+| Extending Stockcast | 05 custom policies · 05b reorder points and review frequency · 05c extension points · 05d open orders and suppliers · 05e inventory processes · 05f unreliable supplier |
+| Experiments and operations | 06 fair comparisons · 07 FIFO shelf life on M5 demand · 08 callbacks and audit · 09 full operational experiment · 10 production daily close |
 
-Notebook `05d_open_orders_and_suppliers.ipynb` follows a café chain buying
-coffee beans. It starts with the familiar per-SKU run and the local roaster,
-reads the same run order by order, and writes it again with the order-level
-API with identical results. It then places one day by hand with two suppliers,
-adds an importer with fixed and then seeded random lead times (deliveries that
-overtake each other), compares planning lead times on shared draws, and ends
-with dual sourcing, partial deliveries and a custom allocation rule. Purchase
-costs per supplier come from the order frame at declared prices.
+## Data
 
-Notebook `05f_unreliable_supplier.ipynb` follows a garden centre whose
-wholesaler is sometimes late, sometimes short, and limited in what it can ship.
-It starts from the ordinary one-supplier run, writes it with `SupplyModel` and
-a pass-through `DeliveryOutcome` with identical results, then adds late
-deliveries (and explains the lead-time warning), short deliveries and the
-`supplier_shortfall_units` ledger column, capacity as an ordering constraint,
-and a backup distributor that takes the excess or is chosen by the policy.
-Supplier fill rate and purchase cost at declared prices come from custom
-metrics and the order frame.
-
-Notebook `05e_inventory_processes.ipynb` stocks two chilled products. It runs
-shelf life with `ShelfLifeEngine`, repeats the identical run with
-`processes=[ShelfLife(...)]`, then writes a Monday-inspection process and a
-customer-returns process and combines them with shelf life. The event ledger,
-flow table and lot ledger show where every unit went, and an undated return
-is rejected rather than given an invented lot age.
-
-Notebook `06_fair_forecast_and_policy_comparisons.ipynb` compares direct
-cumulative Smooth upper-quantile targets and two built-in inventory policies
-on the same five-SKU demand replay. It separates ETS-model and quantile-level
-changes, checks the first protection-window totals, then crosses ANN/AAN 95%
-targets with `(R,S)` and `(s,Q)`. A declared per-SKU service floor and cost
-screen show how to read an operating choice without treating one replay as a
-general winner.
+`notebooks/data/m5/` holds the small M5-derived inputs used by Notebooks 07,
+09, and 10. They live in the repository for reproducible examples and are not
+part of the installed package. See the [data README](notebooks/data/m5/README.md)
+for attribution and scope.

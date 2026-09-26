@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/FilTheo/stockcast/main/stockcast_logo.png" width="170" alt="Stockcast logo">
+  <img src="https://raw.githubusercontent.com/FilTheo/stockcast/main/docs/assets/logo.png" width="170" alt="Stockcast logo">
 </p>
 
 <h1 align="center">Stockcast</h1>

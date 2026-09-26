@@ -4,9 +4,6 @@ Core data structures for the DataFrame-based multi-SKU inventory management syst
 This module provides:
     - InventoryStateDataFrame: Multi-SKU inventory state container
     - OrderDecision: Multi-SKU order decision container
-
-The supported staging import boundary is the ``stockcast`` package. Legacy
-duplicate top-level source trees are not part of that boundary.
 """
 import copy
 import warnings

@@ -77,7 +77,7 @@ To execute the notebook collection against an installed wheel, use Python
 3.11+ with `smooth`, `nbclient`, and `ipykernel` installed:
 
 ```bash
-python tests/release/run_notebooks.py /tmp/stockcast-notebook-review
+python tests/release/run_notebooks.py ../stockcast-notebook-review
 ```
 
 Use a new output directory for each run. The runner keeps executed copies,

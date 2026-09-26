@@ -13,4 +13,3 @@ Each one assumes you know the basics from
 | [Put costs on a run](costs.md) | set cost rates, per-SKU prices, and the right accounting window |
 | [Run your own simulation loop](manual-loop.md) | step the state yourself, period by period |
 | [Use Stockcast in a daily job](production.md) | compute today's orders from today's stock and forecast |
-| [Upgrade from demand-first timing](timing-migration.md) | move code written for earlier pre-release versions |
