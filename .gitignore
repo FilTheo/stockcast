@@ -1,22 +1,38 @@
 # Python
 __pycache__/
 *.py[cod]
-*.egg-info/
+*.so
+
+# Packaging
 build/
 dist/
+*.egg-info/
+*.egg
+.eggs/
+wheels/
+pip-wheel-metadata/
 
 # Environments
 .venv/
 venv/
+env/
 .env
+.python-version
 
-# Tests and tooling
+# Tests, coverage, and tooling
 .pytest_cache/
+.hypothesis/
+.tox/
+.nox/
 .coverage
 .coverage.*
+coverage.xml
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+.dmypy.json
+
+# Notebooks
 .ipynb_checkpoints/
 
 # Documentation build
@@ -26,15 +42,6 @@ site/
 # Editors and OS
 .vscode/
 .idea/
+*.swp
 .DS_Store
-
-# Local maintainer and agent material (never published)
-/AGENTS.md
-/CLAUDE.md
-/ENGINE_TIMING_CHANGES.md
-/RELEASE_READINESS.md
-/knowledge/
-/ignored_docs/
-/.agents/
-/.claude/
-/.codex/
+Thumbs.db

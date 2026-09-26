@@ -220,8 +220,11 @@ path.
 ## Recording where demand came from
 
 `SimulationEngine.run` asks for `demand_source_name` and `random_seed`. They,
-a fingerprint of the demand table, and any generator settings are stored in
-the run manifest, so a result always says which demand produced it.
+a fingerprint of the demand table, and the generator's negative-demand
+handling (with the number of clipped values) are stored in the run manifest,
+so a result always says which demand produced it. The generator's own seed,
+model, and parameters are not recorded; pass its seed as `random_seed` and
+keep the call that built the demand with your experiment.
 
 **Go deeper:** [Learn step 2](../learn/02-demand-and-time.md) ·
 [API: utilities](../reference/utils.md)
