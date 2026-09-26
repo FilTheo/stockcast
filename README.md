@@ -55,44 +55,70 @@ for deliveries. Turn a forecast into an ordering policy and replay four weeks
 of sales:
 
 ```python
-import numpy as np
 import pandas as pd
 
 from stockcast.core import InventoryStateDataFrame, SimulationEngine
 from stockcast.evaluation import InventoryEvaluator, avg_on_hand, fill_rate
 from stockcast.policies import OrderUpToPolicy
 
-sku, opening = "tea_250g", pd.Timestamp("2026-01-05")
-lead_time, review_period = 2, 4                 # deliveries take 2 days; order every 4
-horizon = lead_time + review_period             # each order must cover 6 days
+sku = "tea_250g"
+opening = pd.Timestamp("2026-01-05")
 
-# Four weeks of daily sales from the till, and 30 packs on the shelf to start with.
+# 1. Four weeks of daily sales from the till, starting the day after opening.
 sales = [6, 7, 8, 6, 2, 3, 8, 6, 8, 4, 9, 5, 6, 5,
          2, 10, 3, 5, 7, 9, 8, 10, 4, 9, 5, 6, 2, 3]
-demand = pd.DataFrame({"unique_id": sku, "period": range(28), "y": sales,
-                       "date": pd.date_range(opening + pd.Timedelta(days=1), periods=28)})
-inventory = InventoryStateDataFrame([sku], max_lead_time=lead_time, allow_backorders=False)
-inventory.initialize_from_observed(pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-                                   on_hand_column="on_hand", start_date=opening)
+demand = pd.DataFrame({
+    "unique_id": sku,
+    "period": range(28),
+    "date": pd.date_range("2026-01-06", periods=28),
+    "y": sales,
+})
 
-# Your forecasting model's sample paths -> the 95% quantile of 6-day total demand.
-paths = np.random.default_rng(42).poisson(6.0, size=(10_000, horizon))  # stand-in model
-target = pd.DataFrame({"unique_id": [sku],
-                       "target": [np.quantile(paths.sum(axis=1), 0.95)],
-                       "end": [opening + pd.Timedelta(days=horizon)]})
+# 2. The shelf on the opening day: 30 packs, nothing on order yet.
+inventory = InventoryStateDataFrame([sku], max_lead_time=2)
+inventory.initialize_from_observed(
+    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
+    on_hand_column="on_hand",
+    start_date=opening,
+)
 
-# Order up to that target every 4 days.
-policy = OrderUpToPolicy(lead_time=lead_time, review_period=review_period,
-                         service_level=0.95, allow_backorders=False).fit(
-    target, target_column="target", target_probability=0.95,
-    protection_horizon=horizon, target_source="external_direct",
-    forecast_origin=opening, forecast_frequency="D", target_end_date_column="end")
+# 3. Your forecast: a 95% chance that the next 6 days sell at most 46 packs.
+#    Six days, because an order takes 2 days to arrive and the next one is 4 days away.
+target = pd.DataFrame({
+    "unique_id": [sku],
+    "target": [46.0],
+    "end": [opening + pd.Timedelta(days=6)],
+})
 
-# Replay the four weeks with that policy, then measure what happened.
+# 4. The policy: every 4 days, order enough to bring stock up to that target.
+policy = OrderUpToPolicy(
+    lead_time=2,
+    review_period=4,
+    service_level=0.95,
+    allow_backorders=False,           # a customer who finds no tea leaves
+).fit(
+    target,
+    target_column="target",
+    target_probability=0.95,          # the target is a 95% quantile...
+    protection_horizon=6,             # ...of total demand over 6 days
+    target_end_date_column="end",
+    target_source="external_direct",  # computed by your model, not by Stockcast
+    forecast_origin=opening,
+    forecast_frequency="D",
+)
+
+# 5. Replay the four weeks with that policy, then measure what happened.
 result = SimulationEngine().run(
-    policy=policy, demand_source=demand, inventory=inventory, n_periods=28,
-    period_frequency="D", warmup_periods=0, scoring_periods=28, settlement_periods=0,
-    order_during_settlement=False, demand_source_name="till_sales", random_seed=None)
+    policy=policy,
+    demand_source=demand,
+    inventory=inventory,
+    n_periods=28,
+    period_frequency="D",
+    warmup_periods=0, scoring_periods=28, settlement_periods=0,  # score all 28 days
+    order_during_settlement=False,
+    demand_source_name="till_sales",
+    random_seed=None,                 # nothing random here
+)
 
 print(InventoryEvaluator().fit(result, window="scoring").evaluate(
     [fill_rate, avg_on_hand], groupby=[]).round(2))
@@ -105,8 +131,8 @@ print(InventoryEvaluator().fit(result, window="scoring").evaluate(
 
 `result.to_event_frame()` holds the full record: one balanced row per SKU and
 day with every receipt, order, sale, and shortage. The
-[Quickstart](https://filtheo.github.io/stockcast/get-started/quickstart/) walks
-through each line.
+[Quickstart](https://filtheo.github.io/stockcast/get-started/quickstart/)
+explains each step in more depth.
 
 ## Research and production
 
