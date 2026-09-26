@@ -22,9 +22,7 @@
   <a href="https://filtheo.github.io/stockcast/reference/">API</a>
 </p>
 
-A forecast is not a decision. 
-
-Its value comes from the downstream decisions it
+A forecast is not a decision. Its value comes from the downstream decisions it
 improves, and ultimately from the operational performance those decisions
 deliver. 
 
