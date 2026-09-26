@@ -64,7 +64,7 @@ from stockcast.policies import OrderUpToPolicy
 sku = "tea_250g"
 opening = pd.Timestamp("2026-01-05")
 
-# 1. Four weeks of daily sales from the till, starting the day after opening.
+# 1. Four weeks of the shop's daily sales, starting the day after opening.
 sales = [6, 7, 8, 6, 2, 3, 8, 6, 8, 4, 9, 5, 6, 5,
          2, 10, 3, 5, 7, 9, 8, 10, 4, 9, 5, 6, 2, 3]
 demand = pd.DataFrame({
@@ -116,7 +116,7 @@ result = SimulationEngine().run(
     period_frequency="D",
     warmup_periods=0, scoring_periods=28, settlement_periods=0,  # score all 28 days
     order_during_settlement=False,
-    demand_source_name="till_sales",
+    demand_source_name="tea_shop_sales",  # a label saved with the results
     random_seed=None,                 # nothing random here
 )
 
