@@ -54,79 +54,107 @@ Stockcast needs Python 3.10+ and only NumPy, pandas, and Matplotlib.
 import pandas as pd
 
 from stockcast.core import InventoryStateDataFrame, SimulationEngine
-from stockcast.evaluation import InventoryEvaluator, avg_on_hand, fill_rate
+from stockcast.evaluation import InventoryEvaluator, fill_rate, total_cost
 from stockcast.policies import OrderUpToPolicy
 
-sku = "tea_250g"
-opening = pd.Timestamp("2026-01-05")
+# The setting: a store orders coffee every Monday, deliveries take 2 weeks,
+# and a customer who finds an empty shelf buys elsewhere.
+lead_time = 2              # weeks
+review_period = 1          # weeks
+holding_cost = 0.2         # per pack per week on the shelf
+lost_sale_cost = 1.0       # per pack of demand not served
+today = pd.Timestamp("2026-03-23")   # a Monday
 
-# 1. Four weeks of the shop's daily sales, starting the day after opening.
-sales = [6, 7, 8, 6, 2, 3, 8, 6, 8, 4, 9, 5, 6, 5,
-         2, 10, 3, 5, 7, 9, 8, 10, 4, 9, 5, 6, 2, 3]
-demand = pd.DataFrame({
-    "unique_id": sku,
-    "period": range(28),
-    "date": pd.date_range("2026-01-06", periods=28),
-    "y": sales,
-})
+# Past sales: the last 12 weeks.
+past_sales = pd.Series([21, 18, 25, 19, 23, 30, 17, 22, 26, 20, 24, 19])
 
-# 2. The shelf on the opening day: 30 packs, nothing on order yet.
-inventory = InventoryStateDataFrame([sku], max_lead_time=2)
-inventory.initialize_from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-    on_hand_column="on_hand",
-    start_date=opening,
-)
+# What each order must cover: the lead time plus the review period (3 weeks),
+# at the service level the costs imply (the critical ratio, 0.83).
+coverage = lead_time + review_period
+service_level = lost_sale_cost / (lost_sale_cost + holding_cost)
 
-# 3. Your forecast: a 95% chance that the next 6 days sell at most 46 packs.
-#    Six days, because an order takes 2 days to arrive and the next one is 4 days away.
+# The forecast: the 83% quantile of demand over the next 3 weeks.
+# Here from past 3-week totals; in practice, from your forecasting model.
+three_week_totals = past_sales.rolling(coverage).sum()
+forecast = three_week_totals.quantile(service_level)
+
+# The link: the forecast becomes the policy's order-up-to level.
 target = pd.DataFrame({
-    "unique_id": [sku],
-    "y": [46.0],
-    "end": [opening + pd.Timedelta(days=6)],
+    "unique_id": ["coffee"],
+    "order_up_to": [forecast],
+    "covers_until": [today + pd.Timedelta(weeks=coverage)],
 })
-
-# 4. The policy: every 4 days, order enough to bring stock up to that target.
 policy = OrderUpToPolicy(
-    lead_time=2,
-    review_period=4,
-    service_level=0.95,
-    allow_backorders=False,           # a customer who finds no tea leaves
-).fit(
+    lead_time=lead_time,
+    review_period=review_period,
+    service_level=service_level,
+    allow_backorders=False,
+)
+policy.fit(
     target,
-    target_column="y",
-    target_probability=0.95,          # the target is a 95% quantile...
-    protection_horizon=6,             # ...of total demand over 6 days
-    target_end_date_column="end",
-    target_source="external_direct",  # computed by your model, not by Stockcast
-    forecast_origin=opening,
-    forecast_frequency="D",
+    target_column="order_up_to",
+    target_end_date_column="covers_until",
+    target_probability=service_level,
+    protection_horizon=coverage,
+    target_source="external_direct",
+    forecast_origin=today,
+    forecast_frequency="W-MON",
 )
 
-# 5. Replay the four weeks with that policy, then measure what happened.
-result = SimulationEngine().run(
+# The shelf today: 40 packs.
+shelf = InventoryStateDataFrame(["coffee"], max_lead_time=lead_time)
+shelf.initialize_from_observed(
+    pd.DataFrame({"unique_id": ["coffee"], "on_hand": [40]}),
+    on_hand_column="on_hand",
+    start_date=today,
+)
+
+# Demand over the next 8 weeks: the sales the store will face.
+demand = pd.DataFrame({
+    "unique_id": "coffee",
+    "period": range(8),
+    "date": pd.date_range(today + pd.Timedelta(weeks=1), periods=8, freq="W-MON"),
+    "y": [23, 28, 18, 21, 25, 22, 31, 20],
+})
+
+# Simulate: order every Monday, receive two weeks later, sell from the shelf.
+engine = SimulationEngine()
+result = engine.run(
     policy=policy,
     demand_source=demand,
-    inventory=inventory,
-    n_periods=28,
-    period_frequency="D",
-    warmup_periods=0, scoring_periods=28, settlement_periods=0,  # score all 28 days
+    inventory=shelf,
+    n_periods=8,
+    period_frequency="W-MON",
+    warmup_periods=0,
+    scoring_periods=8,
+    settlement_periods=0,
     order_during_settlement=False,
-    demand_source_name="tea_shop_sales",  # a label saved with the results
-    random_seed=None,                 # nothing random here
+    demand_source_name="coffee_sales",
+    random_seed=None,
 )
 
-print(InventoryEvaluator().fit(result, window="scoring").evaluate(
-    [fill_rate, avg_on_hand], groupby=[]).round(2))
+# Score the decisions: service and cost.
+evaluator = InventoryEvaluator()
+evaluator.fit(result, window="scoring")
+scores = evaluator.evaluate(
+    [fill_rate, total_cost],
+    groupby=[],
+    context={
+        "cost_components": ["holding", "shortage"],
+        "holding_cost_per_unit_period": holding_cost,
+        "shortage_cost_per_unit": lost_sale_cost,
+    },
+)
+print(scores.round(2))
 ```
 
 ```text
-   fill_rate  avg_on_hand
-0        1.0        19.86
+   fill_rate  total_cost
+0        0.9        30.2
 ```
 
 `result.to_event_frame()` holds the full record: one balanced row per SKU and
-day with every receipt, order, sale, and shortage. The
+period with every receipt, order, sale, and shortage. The
 [Quickstart](https://filtheo.github.io/stockcast/get-started/quickstart/)
 explains each step in more depth.
 
