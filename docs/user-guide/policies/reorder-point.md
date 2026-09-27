@@ -67,7 +67,8 @@ forecast, a formula your team trusts. `fit` takes exactly one source:
 | your own rule | a table with `target_provider=YourProvider()` |
 
 Every source goes through the same checks: finite values, $s \ge 0$, and
-$S \ge s$.
+$S \ge s$. [Notebook 05g](../../notebooks/05g_reorder_point_sources.ipynb)
+runs all of them on the same demand and compares them.
 
 ### Fixed values
 
@@ -290,6 +291,7 @@ The window arguments (`reorder_horizon`, `reorder_end_date_column`,
   shortage rule, which is exactly what a simulation measures.
 
 **Notebooks:** [05b: reorder points and review frequency](../../notebooks/05b_reorder_points_and_review_frequency.ipynb) ·
+[05g: reorder points from any source](../../notebooks/05g_reorder_point_sources.ipynb) ·
 [02b: decision schedules](../../notebooks/02b_decision_schedules.ipynb) ·
 [08: callbacks and audit](../../notebooks/08_callbacks_and_audit.ipynb) ·
 [05: custom policies](../../notebooks/05_custom_policies.ipynb) ·

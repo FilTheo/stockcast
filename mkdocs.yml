@@ -227,6 +227,7 @@ nav:
           - 05d · Open orders and suppliers: notebooks/05d_open_orders_and_suppliers.ipynb
           - 05e · Inventory processes: notebooks/05e_inventory_processes.ipynb
           - 05f · Unreliable supplier: notebooks/05f_unreliable_supplier.ipynb
+          - 05g · Reorder points from any source: notebooks/05g_reorder_point_sources.ipynb
       - Experiments and operations:
           - 06 · Fair comparisons: notebooks/06_fair_forecast_and_policy_comparisons.ipynb
           - 07 · FIFO shelf life on M5 demand: notebooks/07_m5_fifo_perishable_scenario.ipynb

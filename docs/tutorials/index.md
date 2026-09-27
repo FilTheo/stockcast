@@ -1,6 +1,6 @@
 # Examples
 
-Twenty-two runnable notebooks, from a first simulation to multi-supplier,
+Twenty-three runnable notebooks, from a first simulation to multi-supplier,
 perishable, and production workflows. They go further than the rest of the
 docs: realistic scenarios, real forecasts with
 [smooth](https://openforecast.org/smooth-py/), and plenty of plots. Each page
@@ -54,6 +54,7 @@ Custom rules and richer operations, one building block at a time.
 | [05d · Open orders and suppliers](../notebooks/05d_open_orders_and_suppliers.ipynb) | named orders, two suppliers, split deliveries, and allocation for a café chain | [suppliers](../user-guide/suppliers.md) · [state](../user-guide/inventory-state.md) · [manual loop](../how-to/manual-loop.md) · [comparisons](../how-to/compare-policies.md) |
 | [05e · Inventory processes](../notebooks/05e_inventory_processes.ipynb) | shelf life as a process, plus an inspection and a dated return | [shelf life & processes](../user-guide/processes.md) · [callbacks](../user-guide/callbacks.md) |
 | [05f · Unreliable supplier](../notebooks/05f_unreliable_supplier.ipynb) | late and short deliveries, supplier capacity, and a backup supplier | [unreliable deliveries](../user-guide/unreliable-deliveries.md) · [suppliers](../user-guide/suppliers.md) · [constraints](../user-guide/constraints.md) |
+| [05g · Reorder points from any source](../notebooks/05g_reorder_point_sources.ipynb) | one reorder-point policy with levels from a house rule, a planning table, a forecast, and your own rule, compared on shared demand | [reorder point](../user-guide/policies/reorder-point.md) · [comparisons](../how-to/compare-policies.md) · [costs](../how-to/costs.md) |
 
 ## Experiments and operations
 

@@ -62,7 +62,7 @@ The docs have four parts. Pick the one that matches what you want right now:
 
     ---
 
-    *"Show me a complete project."* Twenty-two runnable notebooks with real
+    *"Show me a complete project."* Twenty-three runnable notebooks with real
     forecasts, multiple suppliers, perishable stock, and a production
     workflow.
 
