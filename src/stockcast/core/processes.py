@@ -56,7 +56,6 @@ PROCESS_FLOW_COLUMNS = (
 
 FLOW_DIRECTIONS = ("inflow", "outflow")
 FLOW_CATEGORIES = ("general", "expiry")
-PROCESS_PHASES = ("before_demand", "on_receipt", "after_demand")
 # Event-ledger columns carrying non-expiry process flows. They appear only in
 # runs whose processes declare at least one ``general`` flow.
 PROCESS_EVENT_COLUMNS = ("process_inflow_units", "process_outflow_units")
