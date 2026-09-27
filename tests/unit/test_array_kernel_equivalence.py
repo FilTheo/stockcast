@@ -17,7 +17,7 @@ import pandas as pd
 import pytest
 
 import stockcast as sc
-from stockcast.core import ShelfLifeEngine, SimulationEngine
+from stockcast.core import ShelfLife, SimulationEngine
 
 ORIGIN = pd.Timestamp("2026-03-02")
 DAY = pd.Timedelta(days=1)
@@ -268,8 +268,8 @@ def test_shelf_life_matches_dataframe_path(monkeypatch, backorders, lead):
         "source": ["test", "test"],
     }))
     _run_both(monkeypatch, lambda: _run(
-        ShelfLifeEngine(shelf_life_days=3), copy.deepcopy(policy), _demand(matrix, skus),
-        state, opening_lots=lots, callbacks=[adjustment],
+        SimulationEngine(), copy.deepcopy(policy), _demand(matrix, skus),
+        state, processes=[ShelfLife(3, lots)], callbacks=[adjustment],
     ))
 
 

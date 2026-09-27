@@ -20,6 +20,8 @@ from stockcast.core import (
     PeriodicSchedule,
     ScheduledInventoryAdjustment,
     ScheduledOrderMultiplier,
+    ShelfLife,
+    SimulationEngine,
     Supplier,
     SupplyModel,
 )
@@ -27,6 +29,39 @@ from stockcast.policies import OrderUpToPolicy
 
 ORIGIN = pd.Timestamp("2026-03-02")
 DAY = pd.Timedelta(days=1)
+
+# run_settings keys the removed ShelfLifeEngine added; the ShelfLife process
+# records the same values under run_settings["processes"].
+SHELF_SETTINGS = (
+    "processes", "shelf_life", "shelf_life_unit", "opening_lot_count",
+    "opening_lots", "opening_expiry_handling", "opening_expired_units",
+)
+
+
+def run_with_shelf_life(shelf_life_days, *args, opening_lots,
+                        opening_expiry_handling="reject", processes=(),
+                        engine=None, **kwargs):
+    """``SimulationEngine.run`` with a ``ShelfLife`` process placed first."""
+    shelf = ShelfLife(shelf_life_days, opening_lots, opening_expiry_handling)
+    return (engine or SimulationEngine()).run(
+        *args, processes=[shelf, *processes], **kwargs,
+    )
+
+
+def compare_with_shelf_life(shelf_life_days, *args, opening_lots,
+                            opening_expiry_handling="reject", processes=(), **kwargs):
+    """``SimulationEngine.run_comparison`` with a ``ShelfLife`` process first."""
+    shelf = ShelfLife(shelf_life_days, opening_lots, opening_expiry_handling)
+    return SimulationEngine().run_comparison(
+        *args, processes=[shelf, *processes], **kwargs,
+    )
+
+
+def shelf_settings(result) -> dict:
+    """The ShelfLife process configuration recorded in a run's settings."""
+    entries = [p for p in result.run_settings["processes"] if p["class"] == "ShelfLife"]
+    assert len(entries) == 1
+    return entries[0]["config"]
 
 
 def demand_frame(matrix: np.ndarray, skus: list) -> pd.DataFrame:

@@ -1154,8 +1154,6 @@ class SimulationEngine:
         ```
     """
 
-    # Processes an engine subclass contributes to every run (ShelfLifeEngine).
-    _engine_processes: tuple = ()
     _process_runner: Optional[ProcessRunner] = None
 
     def __init__(self, verbose: int = 0):
@@ -1295,13 +1293,7 @@ class SimulationEngine:
             )
         if supply is not None and not isinstance(supply, SupplyModel):
             raise TypeError("supply must be a SupplyModel instance or None")
-        # Engine-owned processes (ShelfLifeEngine) come first; they are
-        # prepared by the subclass and are not listed as user processes.
-        engine_processes = list(self._engine_processes)
-        user_processes = prepare_processes(
-            processes, reserved=[process.name for process in engine_processes],
-        )
-        all_processes = engine_processes + user_processes
+        all_processes = prepare_processes(processes)
         if all_processes and self._lifecycle_hooks_overridden():
             raise ValueError(
                 f"processes= is not supported by {type(self).__name__}, which "
@@ -1364,14 +1356,14 @@ class SimulationEngine:
             )
         if supply is not None:
             supply._check_outcome_timing()
-        for process in user_processes:
+        for process in all_processes:
             # Engine-private opening preparation (ShelfLife: validate and
             # seed opening lots, write off stock expired at the opening).
             prepare_opening = getattr(process, "_prepare_opening", None)
             if callable(prepare_opening):
                 prepare_opening(inventory)
         process_manifests = (
-            process_manifest(all_processes) if user_processes else None
+            process_manifest(all_processes) if all_processes else None
         )
         # The run tracks stock on order at order level. A pipeline given only
         # as in_transit arrays is attributed to opening orders; values are

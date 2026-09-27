@@ -168,13 +168,11 @@ policy
 `comparison[label]` is a normal `SimulationResult`; iterate over `comparison`
 for the labels.
 
-## `ShelfLifeEngine`
+## Shelf life
 
-`ShelfLifeEngine(shelf_life_days)` is a `SimulationEngine` with FIFO shelf
-life built in. Its `run` and `run_comparison` take the same arguments plus
-`opening_lots`. It gives the same results as
-`SimulationEngine().run(..., processes=[ShelfLife(...)])`. See
-[Shelf life and inventory processes](processes.md).
+FIFO shelf life is an inventory process:
+`SimulationEngine().run(..., processes=[ShelfLife(shelf_life_days, opening_lots)])`.
+See [Shelf life and inventory processes](processes.md).
 
 ## Logging
 

@@ -1,4 +1,4 @@
-"""Wall-clock benchmark for ``SimulationEngine`` and ``ShelfLifeEngine``.
+"""Wall-clock benchmark for ``SimulationEngine``, with and without shelf life.
 
 Not a pytest module and not an acceptance gate: timings depend on the machine
 and its load. Run from the repository root:
@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 
 import stockcast as sc
-from stockcast.core import ShelfLifeEngine
+from stockcast.core import ShelfLife
 
 ORIGIN = pd.Timestamp("2026-01-05")
 DAY = pd.Timedelta(days=1)
@@ -128,8 +128,8 @@ def shelf_life(skus, n_periods, seed):
     state = _state(skus, max_lead_time=1, backorders=False, on_hand=20)
     lots = pd.DataFrame({"unique_id": skus, "received_date": ORIGIN, "quantity": 20.0})
     return _run(
-        ShelfLifeEngine(shelf_life_days=5), policy, _demand(skus, n_periods, seed), state,
-        n_periods, opening_lots=lots,
+        sc.SimulationEngine(), policy, _demand(skus, n_periods, seed), state,
+        n_periods, processes=[ShelfLife(5, lots)],
     )
 
 

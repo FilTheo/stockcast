@@ -20,7 +20,7 @@ from stockcast import (
 )
 from stockcast.core.base_policy import BasePolicy
 from stockcast.core.data_structures import OrderDecision
-from stockcast.core.shelf_life import ShelfLifeEngine
+from stockcast.core.shelf_life import ShelfLife
 
 
 class FixedPolicy(BasePolicy):
@@ -288,11 +288,11 @@ def test_shelf_life_adjustments_keep_fifo_ledger_in_sync():
         received_date=pd.Timestamp("2025-01-02"),
     )
     result = _run(
-        ShelfLifeEngine(shelf_life_days=3),
+        SimulationEngine(),
         [ScheduledInventoryAdjustment(schedule)],
         inventory=_inventory(),
         values=(0.0, 0.0, 0.0, 0.0),
-        opening_lots=pd.DataFrame(columns=["unique_id", "received_date", "quantity"]),
+        processes=[ShelfLife(3, pd.DataFrame(columns=["unique_id", "received_date", "quantity"]))],
     )
     events = result.to_event_frame().set_index("period")
     assert events.loc[1, "inventory_adjustment_units"] == 3.0
@@ -421,14 +421,14 @@ def test_builtin_schedule_both_coordinates_must_agree():
 def test_shelf_life_adjustment_failures(schedule, message):
     with pytest.raises(CallbackError, match=message):
         _run(
-            ShelfLifeEngine(shelf_life_days=3),
+            SimulationEngine(),
             [ScheduledInventoryAdjustment(schedule)],
             inventory=_inventory(5.0),
-            opening_lots=pd.DataFrame({
+            processes=[ShelfLife(3, pd.DataFrame({
                 "unique_id": ["A"],
                 "received_date": [pd.Timestamp("2025-01-01")],
                 "quantity": [5.0],
-            }),
+            }))],
         )
 
 
@@ -440,11 +440,11 @@ def test_fifo_removal_records_oldest_lot_evidence():
         "quantity": [2.0, 3.0],
     })
     result = _run(
-        ShelfLifeEngine(shelf_life_days=30),
+        SimulationEngine(),
         [ScheduledInventoryAdjustment(_schedule(quantity_delta=-3.0))],
         inventory=inventory,
         policy=_policy(0.0),
-        opening_lots=lots,
+        processes=[ShelfLife(30, lots)],
     )
     evidence = json.loads(result.to_callback_audit_frame().iloc[0]["lot_evidence"])
     assert evidence == [

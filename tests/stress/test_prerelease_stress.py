@@ -23,7 +23,7 @@ import pandas as pd
 import pytest
 
 import stockcast as sc
-from stockcast.core import ShelfLifeEngine
+from stockcast.core import ShelfLife
 from stockcast.evaluation import (
     InventoryEvaluator,
     fill_rate,
@@ -113,7 +113,7 @@ class StandingOrderPolicy(sc.BasePolicy):
 
 
 def run_engine(engine, policy, demand, state, windows, *, constraints=None, callbacks=None,
-               opening_lots=None, policy_schedule=None, name="stress"):
+               processes=None, policy_schedule=None, name="stress"):
     warmup, scoring, settlement, during = windows
     kwargs = dict(
         period_frequency="D", warmup_periods=warmup, scoring_periods=scoring,
@@ -121,8 +121,8 @@ def run_engine(engine, policy, demand, state, windows, *, constraints=None, call
         demand_source_name=name, random_seed=None, order_constraints=constraints,
         callbacks=callbacks, policy_schedule=policy_schedule,
     )
-    if opening_lots is not None:
-        kwargs["opening_lots"] = opening_lots
+    if processes is not None:
+        kwargs["processes"] = processes
     n_periods = warmup + scoring + settlement
     return engine.run(policy, demand, state, n_periods, **kwargs)
 
@@ -419,17 +419,17 @@ def test_randomized_engine_matches_independent_oracle(seed):
                           on_hand=case["on_hand"], backlog=case["backlog"], pipeline=case["pipeline"])
     caller_state = copy.deepcopy(state.get_dataframe())
     caller_policy = copy.deepcopy(case["policy"])
-    opening_lots = None
+    processes = None
     engine = sc.SimulationEngine()
     if case["shelf_life"] is not None:
-        engine = ShelfLifeEngine(case["shelf_life"])
         opening_lots = pd.DataFrame(
             [(sku, date, qty) for sku, sku_lots in zip(skus, case["lots"]) for date, qty in sku_lots],
             columns=["unique_id", "received_date", "quantity"],
         )
+        processes = [ShelfLife(case["shelf_life"], opening_lots)]
     result = run_engine(engine, case["policy"], demand_frame(case["demand"], skus), state,
                         case["windows"], constraints=_constraint_objects(case["constraints"]),
-                        opening_lots=opening_lots)
+                        processes=processes)
     events = assert_ledger_invariants(result, state, case["lead"])
     expected = oracle(
         skus=skus, demand=case["demand"], lead=case["lead"], backorders=case["backorders"],
@@ -780,13 +780,12 @@ def test_retailer_weekly_rolling_forecast_workflow_with_perishables():
             "reason": ["shrink"], "source": ["store_audit"],
         })),
     ]
-    engine = ShelfLifeEngine(shelf)
-    result = engine.run(
+    result = sc.SimulationEngine().run(
         policy, demand_frame(future, skus), state, n_periods, period_frequency="D",
         warmup_periods=warmup, scoring_periods=scoring, settlement_periods=settlement,
         order_during_settlement=False, demand_source_name="retailer_fresh", random_seed=2026,
-        opening_lots=lots, policy_schedule=schedule, order_constraints=constraints,
-        callbacks=callbacks,
+        processes=[ShelfLife(shelf, lots)], policy_schedule=schedule,
+        order_constraints=constraints, callbacks=callbacks,
     )
     events = assert_ledger_invariants(result, state, lead)
     assert result.run_settings["policy_update_periods"] == decision_periods
@@ -824,11 +823,12 @@ def test_retailer_weekly_rolling_forecast_workflow_with_perishables():
     # Same scenario, two policies, one shared demand path and identical opening lots.
     fixed = fit_out(sc.OrderUpToPolicy(lead, review, allow_backorders=False), skus,
                     list(np.round(level * horizon * 1.2)), horizon=horizon)
-    comparison = engine.run_comparison(
+    comparison = sc.SimulationEngine().run_comparison(
         [fixed, copy.deepcopy(fixed)], demand_frame(future, skus), state, n_periods,
         period_frequency="D", warmup_periods=warmup, scoring_periods=scoring,
         settlement_periods=settlement, order_during_settlement=False,
-        demand_source_name="retailer_fresh", random_seed=2026, opening_lots=lots,
+        demand_source_name="retailer_fresh", random_seed=2026,
+        processes=[ShelfLife(shelf, lots)],
         labels=["static_A", "static_B"], order_constraints=constraints,
     )
     a, b = comparison["static_A"].to_event_frame(), comparison["static_B"].to_event_frame()

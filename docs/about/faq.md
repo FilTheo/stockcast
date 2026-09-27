@@ -74,7 +74,7 @@ fixed or random lead time, partial deliveries, and
 
 **Can I model perishable products?**
 
-Yes: FIFO shelf life with `ShelfLifeEngine` or the `ShelfLife` process, and
+Yes: FIFO shelf life with the `ShelfLife` process, and
 any other physical flow with your own
 [inventory process](../user-guide/processes.md).
 

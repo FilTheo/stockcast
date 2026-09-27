@@ -32,7 +32,7 @@ def test_public_export_sets_are_frozen_for_0_1():
         "MinimumOrderQuantity", "OrderAdjustmentResult", "OrderDecision", "OrderMultiple",
         "OrderingConstraint", "OrderingConstraints", "ScheduledInventoryAdjustment",
         "ScheduledOrderHold", "ScheduledOrderMultiplier", "ScheduledOrderOverride",
-        "RUN_MANIFEST_REQUIRED_SECTIONS", "ShelfLifeEngine", "ShelfSpaceLimit",
+        "RUN_MANIFEST_REQUIRED_SECTIONS", "ShelfSpaceLimit",
         "SimulationCallback", "SimulationEngine", "SimulationResult",
         "DecisionSchedule", "PeriodicSchedule", "OneTimeSchedule", "ExplicitSchedule",
         # Additive order-level API.

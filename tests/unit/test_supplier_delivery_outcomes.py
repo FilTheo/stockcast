@@ -28,7 +28,7 @@ import stockcast as sc
 from stockcast.core import (
     ORDER_FRAME_COLUMNS,
     DeliveryOutcome,
-    ShelfLifeEngine,
+    ShelfLife,
     SimulationEngine,
     Supplier,
     SupplierAllocation,
@@ -400,12 +400,12 @@ def test_only_suppliers_with_an_outcome_are_resolved():
 
 def test_shelf_life_lots_receive_only_what_arrived():
     half = Returns(lambda due: due.assign(received_quantity=0.5 * due["quantity"]))
-    result = _run(n_periods=15, engine=ShelfLifeEngine(shelf_life_days=4),
+    result = _run(n_periods=15,
                   supply=SupplyModel([Supplier("w", lead_time=2, delivery=half)]),
-                  opening_lots=pd.DataFrame({
+                  processes=[ShelfLife(4, pd.DataFrame({
                       "unique_id": SKUS, "received_date": [ORIGIN, ORIGIN],
                       "quantity": [10.0, 8.0],
-                  }))
+                  }))])
     events = validate_event_frame(result.to_event_frame())
     assert events["supplier_shortfall_units"].sum() > 0
     assert events["expired_units"].sum() >= 0

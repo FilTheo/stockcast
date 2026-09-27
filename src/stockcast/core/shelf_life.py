@@ -7,31 +7,23 @@ This module provides:
     - ShelfLife: the FIFO shelf-life ``InventoryProcess``. Expired stock
       leaves on_hand before receipts, ordering and demand, and is recorded in
       the event ledger's ``expired_units`` column.
-    - ShelfLifeEngine: the original convenience engine. It runs one
-      ``ShelfLife`` process and produces exactly the outputs it always has.
 
 Expiry semantics: a lot received on day D with shelf life S serves demand on
 days D through D+S-1 and expires at the start of day D+S, before that day's
 demand is processed.
 
-Usage (the simple engine):
-    engine = ShelfLifeEngine(shelf_life_days=3)
-    result = engine.run(
+Usage:
+    shelf_life = ShelfLife(shelf_life_days=3, opening_lots=opening_lots)
+    result = SimulationEngine().run(
         policy=policy,
         demand_source=demand_df,
         inventory=inventory,
-        opening_lots=opening_lots,
+        processes=[shelf_life],
     )
     result.to_event_frame()["expired_units"]
-
-Usage (the same run as a process, combinable with other processes):
-    result = SimulationEngine().run(
-        ...,  # the same arguments, without opening_lots
-        processes=[ShelfLife(shelf_life_days=3, opening_lots=opening_lots)],
-    )
+    shelf_life.ledger  # the lots left after the run
 """
 
-import copy
 import json
 import warnings
 from typing import Dict, List
@@ -318,17 +310,6 @@ class ShelfLife(InventoryProcess):
             )
         ]
 
-    def _engine_settings(self) -> dict:
-        """The ``run_settings`` keys ShelfLifeEngine has always recorded."""
-        return {
-            "shelf_life": self.shelf_life_days,
-            "shelf_life_unit": "calendar_days",
-            "opening_lot_count": len(self.opening_lots),
-            "opening_lots": self._opening_lot_fingerprint(),
-            "opening_expiry_handling": self.opening_expiry_handling,
-            "opening_expired_units": self._opening_expired_rows(),
-        }
-
     def get_config(self) -> dict:
         return {
             "shelf_life_days": self.shelf_life_days,
@@ -386,7 +367,7 @@ class ShelfLife(InventoryProcess):
         if pd.isna(change.received_date):
             if change.origin == "callback":
                 raise ValueError(
-                    "positive ShelfLifeEngine inventory adjustments require received_date"
+                    "positive inventory adjustments under shelf life require received_date"
                 )
             raise ValueError(
                 f"shelf life needs a received_date for inflow {change.source!r}; "
@@ -420,161 +401,3 @@ class ShelfLife(InventoryProcess):
                 separators=(",", ":"),
             )
         return "[]"
-
-
-class ShelfLifeEngine(SimulationEngine):
-    """
-    SimulationEngine with FIFO shelf-life expiry.
-
-    The simple way to run shelf life: one engine, one shelf life, dated
-    opening lots. Each run uses a ``ShelfLife`` process, so
-
-        ShelfLifeEngine(shelf_life_days=3).run(..., opening_lots=lots)
-
-    gives exactly the same results as
-
-        SimulationEngine().run(..., processes=[ShelfLife(3, lots)])
-
-    (apart from the manifest keys each form records). Each period, before
-    demand is processed:
-        1. Expired lots are removed from the ledger and deducted from on_hand.
-        2. Stock arriving this period (in_transit[0]) is recorded as a new lot.
-           With several suppliers, all of a SKU's deliveries due in the same
-           period form one lot dated that period.
-
-    After demand, fulfilled units are consumed from the oldest lots before
-    typed physical callbacks run. The ledger is asserted to match Stockcast
-    on_hand after demand and after every accepted callback batch.
-
-    Opening lot ages are mandatory run inputs. Backorder clearances consume the
-    same FIFO lots as current-period fulfilled demand. Further processes can
-    be added with ``processes=[...]``; they run after shelf life.
-    """
-
-    def __init__(self, shelf_life_days: int, verbose: int = 0):
-        super().__init__(verbose=verbose)
-        _require_shelf_life_days(shelf_life_days)
-        self.shelf_life_days = shelf_life_days
-        self.ledger = FIFOLotLedger(self.shelf_life_days)
-        self.expired_this_period: Dict[object, float] = {}
-
-    def run(
-        self,
-        policy,
-        demand_source,
-        inventory,
-        n_periods=None,
-        *,
-        opening_lots,
-        period_frequency=None,
-        warmup_periods=0,
-        scoring_periods=None,
-        settlement_periods=0,
-        order_during_settlement=None,
-        demand_source_name=None,
-        random_seed=None,
-        opening_expiry_handling="reject",
-        policy_schedule=None,
-        order_constraints=None,
-        callbacks=None,
-        supply=None,
-        processes=None,
-    ):
-        """Simulate a policy with FIFO shelf life.
-
-        Takes the arguments of ``SimulationEngine.run`` plus the dated opening
-        lots. The run uses a ``ShelfLife`` process with this engine's
-        ``shelf_life_days``; after it, ``ledger`` holds the remaining lots.
-
-        Args:
-            opening_lots: DataFrame with ``unique_id``, ``received_date`` and
-                ``quantity``; lot quantities must add up to opening on_hand for
-                every SKU.
-            opening_expiry_handling: ``"reject"`` (default) fails if an opening
-                lot is already expired at the opening date;
-                ``"write_off"`` writes that stock off before
-                the run (recorded in the manifest, not as a period flow).
-
-        Returns:
-            A ``SimulationResult``.
-        """
-        shelf = ShelfLife(self.shelf_life_days, opening_lots, opening_expiry_handling)
-        inventory = copy.deepcopy(inventory)
-        shelf._prepare_opening(inventory)
-        self._engine_processes = (shelf,)
-        try:
-            result = super().run(
-                policy,
-                demand_source,
-                inventory,
-                n_periods,
-                period_frequency=period_frequency,
-                warmup_periods=warmup_periods,
-                scoring_periods=scoring_periods,
-                settlement_periods=settlement_periods,
-                order_during_settlement=order_during_settlement,
-                demand_source_name=demand_source_name,
-                random_seed=random_seed,
-                policy_schedule=policy_schedule,
-                order_constraints=order_constraints,
-                callbacks=callbacks,
-                supply=supply,
-                processes=processes,
-            )
-        finally:
-            del self._engine_processes
-            self.ledger = shelf.ledger
-            self.expired_this_period = shelf.expired_this_period
-        shelf_settings = shelf._engine_settings()
-        result.run_settings.update(shelf_settings)
-        result.run_manifest["run_settings"].update(shelf_settings)
-        return result
-
-    def run_comparison(
-        self,
-        policies,
-        demand_source,
-        inventory,
-        n_periods=None,
-        *,
-        opening_lots,
-        period_frequency=None,
-        warmup_periods=0,
-        scoring_periods=None,
-        settlement_periods=0,
-        order_during_settlement=None,
-        demand_source_name=None,
-        random_seed=None,
-        opening_expiry_handling="reject",
-        labels=None,
-        policy_schedules=None,
-        order_constraints=None,
-        callbacks=None,
-        supply=None,
-        processes=None,
-    ):
-        """Compare policies with identical demand and identical opening lots.
-
-        Each branch reseeds a fresh FIFO ledger from ``opening_lots``; after
-        the call, ``self.ledger`` reflects the last branch.
-        """
-        return self._run_comparison(
-            policies, demand_source, inventory, n_periods,
-            period_frequency=period_frequency,
-            warmup_periods=warmup_periods,
-            scoring_periods=scoring_periods,
-            settlement_periods=settlement_periods,
-            order_during_settlement=order_during_settlement,
-            demand_source_name=demand_source_name,
-            random_seed=random_seed,
-            labels=labels,
-            policy_schedules=policy_schedules,
-            order_constraints=order_constraints,
-            callbacks=callbacks,
-            branch_run_options={
-                "opening_lots": opening_lots,
-                "opening_expiry_handling": opening_expiry_handling,
-                "supply": supply,
-                "processes": processes,
-            },
-        )

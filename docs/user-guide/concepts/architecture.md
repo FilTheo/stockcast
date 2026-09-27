@@ -18,7 +18,7 @@ owns, and how the engine puts them together.
 | **Ordering constraint** | Turn a requested order into a feasible one | `MinimumOrderQuantity`, `OrderMultiple`, `MaximumOrderQuantity`, `ShelfSpaceLimit` | `OrderingConstraint` |
 | **Supply model** | Decide which supplier delivers, when, and in how many parts | `SupplyModel`, `Supplier`, `SupplierShares` | `SupplierAllocation`, `DeliveryOutcome` |
 | **Inventory process** | Physical flows such as expiry, inspections, returns | `ShelfLife` | `InventoryProcess` |
-| **Engine** | Run the clock and apply every change to stock | `SimulationEngine`, `ShelfLifeEngine` | – |
+| **Engine** | Run the clock and apply every change to stock | `SimulationEngine` | – |
 | **Metric** | Summarise the ledger | 37 metric functions, `CoverageMetric` | any function, `BaseInventoryMetric` |
 
 ## Who owns what

@@ -20,7 +20,7 @@ import stockcast as sc
 from stockcast.core import (
     ORDER_FRAME_COLUMNS,
     AllocationContext,
-    ShelfLifeEngine,
+    ShelfLife,
     SimulationEngine,
 )
 from stockcast.evaluation import validate_event_frame
@@ -406,11 +406,11 @@ def test_supply_mapping_holds_with_constraints_callbacks_and_shelf_life():
         "unique_id": ["beans"], "period": [3], "reason": ["supplier closed"], "source": ["test"],
     }))
     lots = pd.DataFrame({"unique_id": SKUS, "received_date": [ORIGIN, ORIGIN], "quantity": [10.0, 8.0]})
-    options = dict(order_constraints=constraints, callbacks=[hold], opening_lots=lots)
-    default = _run(_state(), policy, engine=ShelfLifeEngine(shelf_life_days=4), **options)
+    options = dict(order_constraints=constraints, callbacks=[hold])
+    default = _run(_state(), policy, processes=[ShelfLife(4, lots)], **options)
     hold.reset(None)
     mapped = _run(
-        _state(), policy, engine=ShelfLifeEngine(shelf_life_days=4),
+        _state(), policy, processes=[ShelfLife(4, lots)],
         supply=sc.SupplyModel([sc.Supplier("main", lead_time=2)]), **options,
     )
     _assert_same_run(mapped, default)
@@ -583,13 +583,13 @@ def test_supply_runs_identically_on_the_array_and_dataframe_paths(monkeypatch):
 
 def test_shelf_life_turns_every_supplier_receipt_into_a_lot():
     lots = pd.DataFrame({"unique_id": SKUS, "received_date": [ORIGIN, ORIGIN], "quantity": [10.0, 8.0]})
-    engine = ShelfLifeEngine(shelf_life_days=3)
-    result = _run(_state(), engine=engine, supply=_two_suppliers(), opening_lots=lots)
+    shelf = ShelfLife(3, lots)
+    result = _run(_state(), supply=_two_suppliers(), processes=[shelf])
     events = result.to_event_frame()
     validate_event_frame(events)
     assert events["expired_units"].sum() > 0
     final = result.inventory.data.set_index("unique_id")["on_hand"]
-    assert engine.ledger.balances().reindex(final.index).to_numpy() == pytest.approx(final.to_numpy())
+    assert shelf.ledger.balances().reindex(final.index).to_numpy() == pytest.approx(final.to_numpy())
 
 
 def test_custom_allocation_sees_open_orders_and_routes_orders():

@@ -31,7 +31,7 @@ package, and `stockcast.__version__` gives the installed version.
 | [Ordering constraints](constraints.md) | `OrderingConstraints`, `OrderingConstraint`, `MinimumOrderQuantity`, `OrderMultiple`, `MaximumOrderQuantity`, `ShelfSpaceLimit`, `ConstraintContext`, `ConstraintResult` |
 | [Callbacks](callbacks.md) | `SimulationCallback`, `CallbackContext`, adjustment results, scheduled callbacks, `CallbackError` |
 | [Suppliers](supply.md) | `SupplyModel`, `Supplier`, `SupplierAllocation`, `SupplierShares`, `AllocationContext`, `DeliveryOutcome`, `DeliveryContext` |
-| [Processes and shelf life](processes.md) | `ShelfLifeEngine`, `ShelfLife`, `InventoryProcess`, `Flow`, `ProcessFlows`, `ProcessContext`, `StockChange`, `FIFOLotLedger` |
+| [Processes and shelf life](processes.md) | `ShelfLife`, `InventoryProcess`, `Flow`, `ProcessFlows`, `ProcessContext`, `StockChange`, `FIFOLotLedger` |
 | [Evaluation](evaluation.md) | `InventoryEvaluator`, `validate_event_frame`, `BaseInventoryMetric`, `CoverageMetric` |
 | [Metrics](metrics.md) | all 37 metric functions |
 | [Utilities](utils.md) | `DemandGenerator`, `update_inventory_with_orders`, `place_order_lines`, `process_demand` |

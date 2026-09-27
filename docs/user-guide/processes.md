@@ -9,8 +9,8 @@ Most perishable studies need only shelf life, so we start there.
 
 ## Shelf life with FIFO
 
-`ShelfLifeEngine` is a `SimulationEngine` that tracks stock in dated **lots**
-and sells the oldest first (FIFO).
+The `ShelfLife` process tracks stock in dated **lots** and sells the oldest
+first (FIFO). Pass it to any run with `processes=[...]`.
 
 A lot received on date $d$ with shelf life $S$ days can be sold on dates
 $d, \dots, d + S - 1$ and expires at the start of $d + S$, before that day's
@@ -34,17 +34,18 @@ For this example, suppose each pack stays sellable for 6 days, and the 30
 opening packs arrived two days before the run:
 
 ```python
-from stockcast.core import ShelfLifeEngine
+from stockcast.core import ShelfLife, SimulationEngine
 
 opening_lots = pd.DataFrame({
     "unique_id": [sku],
     "received_date": [opening_date - pd.Timedelta(days=2)],
     "quantity": [30.0],                  # must equal opening on-hand stock
 })
+shelf_life = ShelfLife(shelf_life_days=6, opening_lots=opening_lots)
 
-fresh = ShelfLifeEngine(shelf_life_days=6).run(
+fresh = SimulationEngine().run(
     policy=policy, demand_source=demand, inventory=inventory,
-    opening_lots=opening_lots, **run_settings,
+    processes=[shelf_life], **run_settings,
 )
 fresh.to_event_frame()["expired_units"].sum()
 ```
@@ -62,27 +63,10 @@ Opening lots must add up to each SKU's opening on-hand stock.
 at the start: `"reject"` (default) stops with an error, and `"write_off"`
 removes that stock before the run and records it in the manifest.
 
-## The same model, as a process
-
-`ShelfLifeEngine` runs one `ShelfLife` process on the standard engine. You can
-write the same run as:
-
-```python
-from stockcast.core import ShelfLife, SimulationEngine
-
-as_process = SimulationEngine().run(
-    policy=policy, demand_source=demand, inventory=inventory,
-    processes=[ShelfLife(shelf_life_days=6, opening_lots=opening_lots)],
-    **run_settings,
-)
-as_process.to_event_frame().equals(fresh.to_event_frame())
-```
-
-```text
-True
-```
-
-The process form lets you combine shelf life with other physical flows.
+After the run, `shelf_life.ledger` holds the lots still on the shelf, and the
+manifest records the shelf-life settings under `run_settings["processes"]`.
+Shelf life combines with any other physical flow: list the processes in the
+order they should act.
 
 ## Write a process
 

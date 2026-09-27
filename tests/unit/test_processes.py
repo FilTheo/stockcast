@@ -1,9 +1,10 @@
 """Inventory processes: ShelfLife migration, user processes and composition.
 
-The migration tests compare against ``LegacyShelfLifeEngine``, a frozen copy
-of the hook-based engine that existed before processes. Every durable output
-(event ledger, history, final state, callback audit, order frame, run
-settings and manifest) must be identical.
+The migration tests compare ``processes=[ShelfLife(...)]`` against
+``LegacyShelfLifeEngine``, a frozen copy of the hook-based engine that existed
+before processes. Every durable output (event ledger, history, final state,
+callback audit, order frame, run settings and manifest) must be identical,
+apart from where the shelf-life settings are recorded.
 """
 
 from __future__ import annotations
@@ -24,7 +25,11 @@ from shelf_life_scenarios import (
     order_up_to,
     outputs,
     random_scenario,
+    SHELF_SETTINGS,
+    compare_with_shelf_life,
     run_kwargs,
+    run_with_shelf_life,
+    shelf_settings,
     state_frame,
 )
 
@@ -35,15 +40,9 @@ from stockcast.core import (
     ProcessFlows,
     ScheduledInventoryAdjustment,
     ShelfLife,
-    ShelfLifeEngine,
     SimulationEngine,
 )
 from stockcast.evaluation import validate_event_frame
-
-SHELF_SETTINGS = (
-    "processes", "shelf_life", "shelf_life_unit", "opening_lot_count",
-    "opening_lots", "opening_expiry_handling", "opening_expired_units",
-)
 
 
 def _outcome(run):
@@ -75,20 +74,6 @@ def _paths(monkeypatch):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("seed", MIGRATION_SEEDS)
-def test_shelf_life_engine_reproduces_the_legacy_engine(monkeypatch, seed):
-    shelf, scenario = random_scenario(seed)
-    for arrays in _paths(monkeypatch):
-        expected = _outcome(
-            lambda: LegacyShelfLifeEngine(shelf).run(**run_kwargs(scenario, legacy=True))
-        )
-        actual = _outcome(lambda: ShelfLifeEngine(shelf).run(**run_kwargs(scenario)))
-        _assert_same_outcome(
-            actual, expected, f"seed {seed}, arrays={arrays}",
-            ignore_manifest_keys=("opening_expiry_handling",),
-        )
-
-
-@pytest.mark.parametrize("seed", MIGRATION_SEEDS)
 def test_shelf_life_process_reproduces_the_legacy_engine(monkeypatch, seed):
     """The old simple case, expressed with the new ``processes=`` API."""
     shelf, scenario = random_scenario(seed)
@@ -110,41 +95,44 @@ def test_shelf_life_process_reproduces_the_legacy_engine(monkeypatch, seed):
         )
 
 
-def test_shelf_life_engine_comparison_reproduces_the_legacy_engine():
+def test_shelf_life_comparison_reproduces_the_legacy_engine():
     shelf, scenario = random_scenario(3)
-    outcomes = []
-    for engine in (LegacyShelfLifeEngine(shelf), ShelfLifeEngine(shelf)):
-        kwargs = run_kwargs(scenario, legacy=isinstance(engine, LegacyShelfLifeEngine))
-        policy = kwargs.pop("policy")
-        comparison = engine.run_comparison(
-            [policy, copy.deepcopy(policy)], labels=["a", "b"], **kwargs,
-        )
-        outcomes.append({label: outputs(comparison[label]) for label in ("a", "b")})
+    kwargs = run_kwargs(scenario, legacy=True)
+    policy = kwargs.pop("policy")
+    legacy = LegacyShelfLifeEngine(shelf).run_comparison(
+        [policy, copy.deepcopy(policy)], labels=["a", "b"], **kwargs,
+    )
+    kwargs = run_kwargs(scenario)
+    policy = kwargs.pop("policy")
+    current = compare_with_shelf_life(
+        shelf, [policy, copy.deepcopy(policy)], labels=["a", "b"], **kwargs,
+    )
     for label in ("a", "b"):
         assert_same_outputs(
-            outcomes[1][label], outcomes[0][label], label,
-            ignore_manifest_keys=("opening_expiry_handling",),
+            outputs(current[label]), outputs(legacy[label]), label,
+            ignore_manifest_keys=SHELF_SETTINGS,
         )
 
 
-def test_shelf_life_engine_keeps_its_ledger_attributes_and_settings():
-    shelf, scenario = random_scenario(5)
-    engine = ShelfLifeEngine(shelf)
-    result = engine.run(**run_kwargs(scenario))
+def test_shelf_life_process_keeps_its_ledger_attributes_and_settings():
+    shelf_days, scenario = random_scenario(5)
+    kwargs = run_kwargs(scenario)
+    shelf = ShelfLife(
+        shelf_days, kwargs.pop("opening_lots"), kwargs.pop("opening_expiry_handling"),
+    )
+    result = SimulationEngine().run(**kwargs, processes=[shelf])
     final = result.inventory.get_dataframe().set_index("unique_id")["on_hand"]
-    balances = engine.ledger.balances().reindex(final.index).fillna(0.0)
+    balances = shelf.ledger.balances().reindex(final.index).fillna(0.0)
     assert balances.to_numpy() == pytest.approx(final.to_numpy())
-    assert isinstance(engine.expired_this_period, dict)
-    # No general flows and no user processes: the ledger and settings keep
-    # exactly their previous shape.
-    assert "processes" not in result.run_settings
+    assert isinstance(shelf.expired_this_period, dict)
+    # Expiry has its own ledger column, not the general process columns.
     assert "process_inflow_units" not in result.to_event_frame()
-    assert result.run_settings["shelf_life"] == shelf
+    assert shelf_settings(result)["shelf_life_days"] == shelf_days
 
 
 def test_shelf_life_flow_frame_reconciles_with_expired_units():
     shelf, scenario = random_scenario(1)
-    result = ShelfLifeEngine(shelf).run(**run_kwargs(scenario))
+    result = run_with_shelf_life(shelf, **run_kwargs(scenario))
     events = result.to_event_frame()
     flows = result.to_process_flow_frame()
     assert tuple(flows.columns) == PROCESS_FLOW_COLUMNS
@@ -358,20 +346,20 @@ def test_shelf_life_rejects_an_inflow_without_a_lot_date():
         ])
 
 
-def test_shelf_life_engine_combines_with_user_processes():
+def test_shelf_life_combines_with_user_processes():
     policy, demand, state = _setup()
-    engine = ShelfLifeEngine(shelf_life_days=3)
-    result = _run(engine, policy, demand, state, opening_lots=_fresh_lots(state),
-                  processes=[InspectionLoss()])
+    shelf = ShelfLife(3, _fresh_lots(state))
+    result = _run(SimulationEngine(), policy, demand, state,
+                  processes=[shelf, InspectionLoss()])
     events = result.to_event_frame()
     assert events["process_outflow_units"].sum() > 0
     validate_event_frame(events)
     assert [entry["name"] for entry in result.run_settings["processes"]] == [
         "shelf_life", "inspection",
     ]
-    assert result.run_settings["shelf_life"] == 3
+    assert shelf_settings(result)["shelf_life_days"] == 3
     final = result.inventory.get_dataframe().set_index("unique_id")["on_hand"]
-    balances = engine.ledger.balances().reindex(final.index).fillna(0.0)
+    balances = shelf.ledger.balances().reindex(final.index).fillna(0.0)
     assert balances.to_numpy() == pytest.approx(final.to_numpy())
 
 

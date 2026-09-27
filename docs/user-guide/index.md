@@ -29,7 +29,7 @@ notebook that uses it.
 | add holidays, promotions, or stock corrections | `SimulationCallback`, scheduled callbacks | [Callbacks](callbacks.md) | [08](../notebooks/08_callbacks_and_audit.ipynb), [05c](../notebooks/05c_extension_points.ipynb) |
 | use several suppliers or random lead times | `SupplyModel`, `Supplier`, `SupplierAllocation` | [Suppliers and open orders](suppliers.md) | [05d](../notebooks/05d_open_orders_and_suppliers.ipynb) |
 | model late or short deliveries | `DeliveryOutcome` | [Unreliable deliveries](unreliable-deliveries.md) | [05f](../notebooks/05f_unreliable_supplier.ipynb) |
-| model products that expire, inspections, returns | `ShelfLife`, `ShelfLifeEngine`, `InventoryProcess` | [Shelf life and processes](processes.md) | [05e](../notebooks/05e_inventory_processes.ipynb), [07](../notebooks/07_m5_fifo_perishable_scenario.ipynb) |
+| model products that expire, inspections, returns | `ShelfLife`, `InventoryProcess` | [Shelf life and processes](processes.md) | [05e](../notebooks/05e_inventory_processes.ipynb), [07](../notebooks/07_m5_fifo_perishable_scenario.ipynb) |
 | simulate a policy over time | `SimulationEngine.run` | [The simulation engine](engine.md) | [02](../notebooks/02_first_engine_simulation.ipynb) |
 | compare forecasts or policies fairly | `run_comparison` | [Compare forecasts and policies](../how-to/compare-policies.md) | [06](../notebooks/06_fair_forecast_and_policy_comparisons.ipynb), [09](../notebooks/09_full_operational_experiment.ipynb) |
 | measure service, stock, and cost | `InventoryEvaluator`, metrics | [Evaluation and metrics](metrics.md), [Put costs on a run](../how-to/costs.md) | [07](../notebooks/07_m5_fifo_perishable_scenario.ipynb), [09](../notebooks/09_full_operational_experiment.ipynb) |
@@ -73,7 +73,7 @@ Read these first. Everything else builds on them.
 | [Callbacks](callbacks.md) | Planned interventions with an audit trail | `SimulationCallback`, scheduled callbacks |
 | [Suppliers and open orders](suppliers.md) | Several suppliers, random lead times, split deliveries | `SupplyModel`, `Supplier`, `OrderLines` |
 | [Unreliable deliveries](unreliable-deliveries.md) | Late, short, or missing deliveries | `DeliveryOutcome` |
-| [Shelf life and inventory processes](processes.md) | Expiry, inspections, returns | `ShelfLife`, `ShelfLifeEngine`, `InventoryProcess` |
+| [Shelf life and inventory processes](processes.md) | Expiry, inspections, returns | `ShelfLife`, `InventoryProcess` |
 | [Evaluation and metrics](metrics.md) | Service, stock, and cost metrics | `InventoryEvaluator`, metric functions |
 | [Plots](visualization.md) | Ready-made charts of a run | `plot_inventory`, dashboards |
 

@@ -16,7 +16,7 @@ from stockcast import (
     SingleOrderPolicy,
     newsvendor_critical_fractile,
 )
-from stockcast.core import ShelfLifeEngine
+from stockcast.core import ShelfLife
 from stockcast.evaluation import validate_event_frame
 
 ORIGIN = pd.Timestamp("2026-01-01")
@@ -233,21 +233,19 @@ def test_irregular_windows_require_matching_refitted_targets():
 
 def test_zero_lead_shelf_life_and_backlog_clearance_accounting():
     policy = target_policy(0, target=10.0, backorders=True)
-    engine = ShelfLifeEngine(shelf_life_days=1)
-    lots = pd.DataFrame(columns=["unique_id", "quantity", "received_date"])
+    shelf = ShelfLife(1, pd.DataFrame(columns=["unique_id", "quantity", "received_date"]))
     result = run(
         policy,
         [2.0, 2.0, 2.0, 0.0, 0.0],
-        engine=engine,
         stock=0.0,
         backlog=4.0,
-        opening_lots=lots,
+        processes=[shelf],
     )
     events = validate_event_frame(result.to_event_frame())
     assert events.backorders_fulfilled.iloc[0] == 4
     assert events.received_units.iloc[0] == 14
     assert events.expired_units.iloc[1] == 8
-    assert engine.ledger.balances().iloc[0] == result.inventory.data.on_hand.iloc[0]
+    assert shelf.ledger.balances().iloc[0] == result.inventory.data.on_hand.iloc[0]
 
 
 @pytest.mark.parametrize("lead", [0, 1])

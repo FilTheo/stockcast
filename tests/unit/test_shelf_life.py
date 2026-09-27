@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
 import pytest
+from shelf_life_scenarios import compare_with_shelf_life, run_with_shelf_life, shelf_settings
 from test_data_structures import NoOrderPolicy
 
 from stockcast import InventoryStateDataFrame
-from stockcast.core import FIFOLotLedger, ShelfLifeEngine
+from stockcast.core import FIFOLotLedger, ShelfLife, SimulationEngine
 from stockcast.core.base_policy import BasePolicy
 from stockcast.core.data_structures import OrderDecision
 
@@ -85,7 +86,7 @@ def test_ledger_rejects_invalid_shelf_life():
 
     for value in [True, 3.5, "4"]:
         with pytest.raises(ValueError, match="integer >= 1"):
-            ShelfLifeEngine(shelf_life_days=value)
+            ShelfLife(value, pd.DataFrame())
 
 
 def test_ledger_receive_requires_finite_nonnegative_quantity():
@@ -127,7 +128,8 @@ def test_engine_expires_opening_stock_before_demand():
     )
     demand = _daily_demand([2.0, 2.0, 2.0, 2.0])
 
-    result = ShelfLifeEngine(shelf_life_days=2).run(
+    result = run_with_shelf_life(
+        2,
         policy,
         demand,
         inventory,
@@ -142,7 +144,7 @@ def test_engine_expires_opening_stock_before_demand():
         opening_lots=_opening_lots(10.0),
     )
     events = result.to_event_frame().set_index("period")
-    opening_lot_manifest = result.run_manifest["run_settings"]["opening_lots"]
+    opening_lot_manifest = shelf_settings(result)["opening_lots"]
     assert opening_lot_manifest["rows"] == 1
     assert len(opening_lot_manifest["sha256"]) == 64
 
@@ -171,7 +173,8 @@ def test_engine_tracks_arriving_lot_dates():
     )
     demand = _daily_demand([0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
 
-    result = ShelfLifeEngine(shelf_life_days=3).run(
+    result = run_with_shelf_life(
+        3,
         policy,
         demand,
         inventory,
@@ -209,7 +212,8 @@ def test_engine_shelf_life_changes_outcomes():
             allow_backorders=False,
         )
         demand = _daily_demand([1.0] * 6)
-        result = ShelfLifeEngine(shelf_life_days=shelf_life_days).run(
+        result = run_with_shelf_life(
+            shelf_life_days,
             policy,
             demand,
             inventory,
@@ -232,8 +236,8 @@ def test_engine_shelf_life_changes_outcomes():
     assert short["shortage_units"].sum() > long["shortage_units"].sum()
 
 
-def test_reused_engine_resets_fifo_ledger_between_runs():
-    engine = ShelfLifeEngine(shelf_life_days=2)
+def test_reused_shelf_life_process_resets_fifo_ledger_between_runs():
+    shelf = ShelfLife(2, _opening_lots(5.0))
     policy = NoOrderPolicy(
         lead_time=1,
         review_period=1,
@@ -247,7 +251,7 @@ def test_reused_engine_resets_fifo_ledger_between_runs():
             start_date=pd.Timestamp("2025-01-01")
         )
         inventory.data["on_hand"] = 5.0
-        return engine.run(
+        return SimulationEngine().run(
             policy,
             demand,
             inventory,
@@ -259,7 +263,7 @@ def test_reused_engine_resets_fifo_ledger_between_runs():
             order_during_settlement=False,
             demand_source_name="unit_test",
             random_seed=None,
-            opening_lots=_opening_lots(5.0),
+            processes=[shelf],
         ).to_event_frame()
 
     pd.testing.assert_frame_equal(run_once(), run_once())
@@ -277,7 +281,8 @@ def test_engine_fifo_accounts_for_backorder_clearance():
         service_level=0.95,
         allow_backorders=True,
     )
-    result = ShelfLifeEngine(shelf_life_days=3).run(
+    result = run_with_shelf_life(
+        3,
         policy,
         _daily_demand([3.0, 1.0]),
         inventory,
@@ -303,7 +308,8 @@ def test_opening_lots_must_balance_opening_inventory():
     )
     inventory.data["on_hand"] = 5.0
     with pytest.raises(ValueError, match="exactly equal opening on_hand"):
-        ShelfLifeEngine(shelf_life_days=3).run(
+        run_with_shelf_life(
+            3,
             NoOrderPolicy(
                 lead_time=1,
                 review_period=1,
@@ -352,18 +358,20 @@ def test_expired_opening_lots_reject_by_default_or_write_off_explicitly():
         "opening_lots": stale_lots,
     }
     with pytest.raises(ValueError, match="already expired.*'write_off'"):
-        ShelfLifeEngine(shelf_life_days=3).run(**kwargs)
+        run_with_shelf_life(3, **kwargs)
     with pytest.raises(ValueError, match="must be 'reject' or 'write_off'"):
-        ShelfLifeEngine(shelf_life_days=3).run(
+        run_with_shelf_life(
+            3,
             **kwargs,
             opening_expiry_handling="preprocessed",
         )
 
-    result = ShelfLifeEngine(shelf_life_days=3).run(
+    result = run_with_shelf_life(
+        3,
         **kwargs,
         opening_expiry_handling="write_off",
     )
-    assert result.run_manifest["run_settings"]["opening_expired_units"] == [
+    assert shelf_settings(result)["opening_expired_units"] == [
         {"unique_id": "A", "quantity": 5.0}
     ]
     assert result.to_event_frame().iloc[0]["starting_on_hand"] == 0.0
@@ -375,15 +383,16 @@ def test_expired_opening_lots_reject_by_default_or_write_off_explicitly():
     clean_inventory.data["on_hand"] = 5.0
     clean_lots = stale_lots.copy()
     clean_lots["received_date"] = pd.Timestamp("2024-12-31")
-    verified = ShelfLifeEngine(shelf_life_days=3).run(
+    verified = run_with_shelf_life(
+        3,
         **{
             **kwargs,
             "inventory": clean_inventory,
             "opening_lots": clean_lots,
         }
     )
-    assert verified.run_manifest["run_settings"]["opening_expiry_handling"] == "reject"
-    assert verified.run_manifest["run_settings"]["opening_expired_units"] == []
+    assert shelf_settings(verified)["opening_expiry_handling"] == "reject"
+    assert shelf_settings(verified)["opening_expired_units"] == []
 
 
 def _comparison_inputs(scale=1.0):
@@ -407,16 +416,15 @@ def _comparison_inputs(scale=1.0):
 
 def test_run_comparison_forwards_opening_lots_to_every_branch():
     policies, demand, inventory, common = _comparison_inputs()
-    engine = ShelfLifeEngine(shelf_life_days=3)
-    comparison = engine.run_comparison(
-        policies, demand, inventory, 5, labels=["early", "late"], **common
+    comparison = compare_with_shelf_life(
+        3, policies, demand, inventory, 5, labels=["early", "late"], **common
     )
     for label, policy in zip(["early", "late"], policies):
-        expected = ShelfLifeEngine(shelf_life_days=3).run(policy, demand, inventory, 5, **common)
+        expected = run_with_shelf_life(3, policy, demand, inventory, 5, **common)
         pd.testing.assert_frame_equal(
             comparison[label].to_event_frame(), expected.to_event_frame()
         )
-        assert comparison[label].run_settings["opening_lots"]["rows"] == 1
+        assert shelf_settings(comparison[label])["opening_lots"]["rows"] == 1
     assert comparison["early"].to_event_frame()["expired_units"].sum() > 0
 
 
@@ -438,7 +446,8 @@ def test_ledger_balances_tolerate_rounding_at_gram_scale():
     policy = OrderOncePolicy(order_period=1, order_qty=11328874.838, lead_time=1,
                              review_period=1, allow_backorders=False)
     demand = _daily_demand([9350724.238, 8158535.541, 27385.002, 8574042.766, 335855.753])
-    result = ShelfLifeEngine(shelf_life_days=3).run(
+    result = run_with_shelf_life(
+        3,
         policy, demand, inventory, 5, period_frequency="D", warmup_periods=0,
         scoring_periods=5, settlement_periods=0, order_during_settlement=False,
         demand_source_name="gram_scale", random_seed=None, opening_lots=lots,

@@ -44,7 +44,7 @@ from .processes import (
     ProcessFlows,
     StockChange,
 )
-from .shelf_life import FIFOLotLedger, ShelfLife, ShelfLifeEngine
+from .shelf_life import FIFOLotLedger, ShelfLife
 from .simulation_engine import (
     CALLBACK_AUDIT_COLUMNS,
     RUN_MANIFEST_REQUIRED_SECTIONS,
@@ -85,7 +85,6 @@ __all__ = [
     "ScheduledOrderMultiplier",
     "ScheduledOrderOverride",
     "RUN_MANIFEST_REQUIRED_SECTIONS",
-    "ShelfLifeEngine",
     "ShelfSpaceLimit",
     "SimulationCallback",
     "SimulationEngine",

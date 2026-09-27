@@ -2,8 +2,6 @@
 
 Physical flows such as expiry, inspections, and returns. Guide: [Shelf life and inventory processes](../user-guide/processes.md).
 
-::: stockcast.core.ShelfLifeEngine
-
 ::: stockcast.core.ShelfLife
 
 ::: stockcast.core.InventoryProcess
