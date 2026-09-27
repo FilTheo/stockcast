@@ -150,8 +150,9 @@ result.run_manifest["run_settings"]["decision_schedule"]
 
     - Each period: **receive → decide → meet demand**, then record.
     - An order placed at $t$ arrives at the start of $t + L$.
-    - `run` takes every experimental choice explicitly and never changes your
-      input objects.
+    - `run` needs only the policy, the demand, and the opening state; it reads
+      the run length and period length from them and never changes your input
+      objects.
 
 **Go deeper:** [The simulation engine](../user-guide/engine.md) ·
 [Timing: receive, decide, demand](../user-guide/concepts/timing.md) ·

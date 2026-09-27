@@ -1279,7 +1279,7 @@ class SimulationEngine:
         if random_seed is not None and (
             not isinstance(random_seed, int) or isinstance(random_seed, bool)
         ):
-            raise ValueError("random_seed must be an integer or explicit None")
+            raise ValueError("random_seed must be an integer or None")
         if isinstance(order_constraints, (list, tuple)):
             order_constraints = OrderingConstraints(order_constraints)
         if order_constraints is not None and not isinstance(order_constraints, OrderingConstraints):

@@ -9,3 +9,5 @@ The evaluator, ledger validation, and metric base classes. Guide: [Evaluation an
 ::: stockcast.evaluation.BaseInventoryMetric
 
 ::: stockcast.evaluation.CoverageMetric
+
+::: stockcast.evaluation.TotalCost

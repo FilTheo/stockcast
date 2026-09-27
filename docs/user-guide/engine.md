@@ -52,8 +52,9 @@ SimulationEngine().run(policy=policy, demand_source=demand_fn, inventory=invento
 `run` checks the whole experiment up front, so a run either starts on solid
 ground or explains what is missing:
 
-- the policy is fitted, and the state's `max_lead_time` covers the policy's
-  lead time (and the supply model's longest delivery);
+- the policy is fitted, and the state's pipeline covers the policy's lead
+  time and the supply model's longest delivery (a state created without
+  `max_lead_time` is sized to them; an explicit one must be long enough);
 - the demand table is a complete, dated grid ([details](demand.md#what-the-engine-checks));
 - the policy's forecast origin and frequency match the simulation calendar,
   and every scheduled decision has a target for its own window;

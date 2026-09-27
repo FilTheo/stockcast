@@ -82,13 +82,12 @@ tells you with a warning. The default, `"raise"`, stops instead.
 The generator also offers `constant`, `normal`, `trend`,
 `from_historical` (normal draws that match the mean and spread of your own
 history), and `sample`, which draws from any distribution you write as a small
-function. Each has a callable `_fn` twin that produces demand period by
-period.
+function.
 
 ## Use your own data
 
 Real sales history usually arrives wide or unlabelled. Reshape it into the
-long format and number the periods:
+long format; the dates are enough, and the engine numbers the periods for you:
 
 ```python
 sales = pd.DataFrame({
@@ -98,17 +97,15 @@ sales = pd.DataFrame({
 })
 
 my_demand = sales.melt(id_vars="date", var_name="unique_id", value_name="y")
-my_demand = my_demand.sort_values(["unique_id", "date"])
-my_demand["period"] = my_demand.groupby("unique_id").cumcount()
 my_demand.head(4)
 ```
 
 ```text
-        date   unique_id  y  period
-4 2026-01-06  coffee_1kg  3       0
-5 2026-01-07  coffee_1kg  4       1
-6 2026-01-08  coffee_1kg  2       2
-7 2026-01-09  coffee_1kg  5       3
+        date unique_id   y
+0 2026-01-06  tea_250g  10
+1 2026-01-07  tea_250g   2
+2 2026-01-08  tea_250g   9
+3 2026-01-09  tea_250g   6
 ```
 
 ## A complete grid
@@ -121,7 +118,7 @@ complete demand history.
 
 !!! summary "Recap"
 
-    - Demand is a long table: `unique_id`, `period`, `date`, `y`.
+    - Demand is a long table: `unique_id`, `date` (or a `period` number), `y`.
     - Period 0 is one frequency step after the opening state.
     - Lead times and review periods count periods, at the frequency you
       declare.

@@ -524,8 +524,10 @@ class SupplyModel:
     ``run_comparison`` therefore see the same lead-time realization for an
     order placed by the same SKU in the same period from the same supplier.
 
-    The engine requires ``inventory.max_lead_time`` to cover the longest
-    delivery offset of every supplier (see ``max_delivery_offset``).
+    The state's pipeline must cover the longest delivery offset of every
+    supplier (see ``max_delivery_offset``): a state created without
+    ``max_lead_time`` is sized to it by the engine; an explicit
+    ``max_lead_time`` must be at least that long.
     """
 
     def __init__(

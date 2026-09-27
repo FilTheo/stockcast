@@ -262,7 +262,7 @@ you get:
 | sourcing logic | `SupplierAllocation` | `allocate` | fixed shares |
 | supplier behaviour | `DeliveryOutcome` | `resolve` | (delay, short, cancel: yours to define) |
 | physical flow | `InventoryProcess` | `before_demand`, `after_demand` | FIFO shelf life |
-| measure of success | any function, or `BaseInventoryMetric` | `compute` | 37 service, stock and cost metrics |
+| measure of success | any function, or `BaseInventoryMetric` | `compute` | 39 service, stock and cost metrics |
 | demand scenario | a DataFrame, any `period -> DataFrame` function, or a `sampler(rng, periods)` for `DemandGenerator` | – | generators for constant, normal, seasonal, trend, historical |
 
 **One flexible class instead of many flags.** When a new need appeared (a
@@ -276,14 +276,13 @@ on Mondays is a process. The engine did not grow a switch for any of them.
 **Simple things stay simple.** A first simulation needs a state, a demand
 table, and a policy. Every extension point is an optional argument, and a run
 that does not use one executes none of its code: its results are identical,
-value for value, to a run on an engine that never had the feature. The shelf-life
-engine is literally the standard engine plus one process, and both forms give
-the same ledger.
+value for value, to a run on an engine that never had the feature. Shelf life
+is not a separate engine either: it is one process added to a standard run.
 
 **Everything records itself.** Every component of a run (policy, schedule,
 constraint, callback, supplier, process) reports its settings (`get_config`
 or `to_manifest`) into the run manifest, and every intervention
-lands in an audit table with its reason and source. A result can always be
+lands in an audit table, with the reason and source you give it. A result can always be
 traced back to the objects that produced it.
 
 The deep dives: [How Stockcast fits together](../user-guide/concepts/architecture.md) ·

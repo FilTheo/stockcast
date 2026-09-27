@@ -280,7 +280,6 @@ def test_non_canonical_opening_state_matches_dataframe_path(monkeypatch):
         pd.DataFrame({
             "unique_id": skus,
             "on_hand": [7, 0],
-            "safety_stock": [1, 2],
             "backorders": [0, 3],
             "period": [0, 0],
             "date": [ORIGIN, ORIGIN],

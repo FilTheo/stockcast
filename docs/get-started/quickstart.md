@@ -12,7 +12,7 @@ lost. How much should it order, and how well does that work?
 ## 1. Demand
 
 Stockcast reads demand as a long table: one row per SKU and period, with the
-columns `unique_id`, `period`, `date`, and `y`. Here we generate eight weeks of
+columns `unique_id`, `date` (or a `period` number, or both), and `y`. Here we generate eight weeks of
 seasonal daily demand with the built-in `DemandGenerator`. In your own work
 this is your sales history or a demand scenario.
 
@@ -61,8 +61,9 @@ inventory = InventoryStateDataFrame.from_observed(
 )
 ```
 
-`max_lead_time` sizes the pipeline that tracks goods on their way.
-`allow_backorders=False` means unserved demand is lost, as in a shop.
+The opening date is the day the shelf was counted. Nothing is on order yet;
+the pipeline that tracks goods on their way is sized for the lead time when the
+simulation runs.
 
 ## 3. A forecast target
 

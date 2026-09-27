@@ -203,7 +203,6 @@ def test_opening_backlog_and_pipeline_are_not_silently_invented():
         pd.DataFrame({
             "unique_id": ["A"],
             "on_hand": [1.0],
-            "safety_stock": [0.0],
             "period": [0],
             "date": [pd.Timestamp("2025-01-01")],
         }),

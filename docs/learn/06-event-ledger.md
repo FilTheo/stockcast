@@ -62,6 +62,7 @@ fulfilled_units                 4.0
 ending_on_hand                 15.0
 on_order_end                   27.0
 inventory_position_end         42.0
+Name: 4, dtype: object
 ```
 
 Following the three moves:

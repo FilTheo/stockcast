@@ -152,7 +152,7 @@ base class and plug in your own.
 | Callbacks | planned interventions, with an audit trail | order override, multiplier, hold, stock adjustment | `SimulationCallback` |
 | Suppliers | who delivers, when, in how many parts | fixed or random lead times, split deliveries, shares | `SupplierAllocation`, `DeliveryOutcome` |
 | Processes | physical flows besides sales | FIFO shelf life | `InventoryProcess` |
-| Metrics | what success means | 37 service, stock, and cost metrics | any function |
+| Metrics | what success means | 39 service, stock, and cost metrics | any function |
 
 Forecasts enter as a dated target for the protection window, so any forecasting
 model and any uncertainty method works: sample paths, quantile forecasts,
