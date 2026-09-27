@@ -5,7 +5,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from stockcast.core.data_structures import _require_identifiers, _require_unique
+from stockcast.core.data_structures import (
+    _FLAG_TOLERANCE,
+    _require_identifiers,
+    _require_unique,
+)
 
 CANONICAL_EVENT_COLUMNS = (
     "unique_id", "event_type", "demand_period", "period", "date", "policy",
@@ -263,9 +267,9 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
         frame.loc[lost_sales, "lost_sales_units"],
         "lost-sales shortage identity",
     )
-    if not frame["stockout_flag"].eq(frame["shortage_units"] > 1e-9).all():
+    if not frame["stockout_flag"].eq(frame["shortage_units"] > _FLAG_TOLERANCE).all():
         raise ValueError("event_frame.stockout_flag is inconsistent with shortage_units")
-    if not frame["backorder_flag"].eq(frame["backorders_end"] > 1e-9).all():
+    if not frame["backorder_flag"].eq(frame["backorders_end"] > _FLAG_TOLERANCE).all():
         raise ValueError("event_frame.backorder_flag is inconsistent with backorders_end")
 
     both = (frame["ending_on_hand"] > 1e-9) & (frame["backorders_end"] > 1e-9)

@@ -269,6 +269,11 @@ for _name in (
 del _name
 
 
+# Quantities at or below this are float residue, not stock or shortage. The
+# engine's stockout/backorder flags and validate_event_frame share it.
+_FLAG_TOLERANCE = 1e-9
+
+
 def _pipeline_length(data) -> int:
     """Pipeline length of a complete state table, or 0 for a SKU list."""
     if not isinstance(data, pd.DataFrame) or 'in_transit' not in data.columns:
@@ -1180,8 +1185,8 @@ class InventoryStateDataFrame:
             allow_backorders=self.allow_backorders, history=self._history,
             open_orders=self._open_orders, auto_pipeline=self._auto_pipeline,
         )
-        result.has_stockout = bool((shortage > 0).any())
-        result.has_backorder = bool((data["backorders"] > 0).any())
+        result.has_stockout = bool((shortage > _FLAG_TOLERANCE).any())
+        result.has_backorder = bool((data["backorders"] > _FLAG_TOLERANCE).any())
         result._history.append(result.data.copy())
         return result
 

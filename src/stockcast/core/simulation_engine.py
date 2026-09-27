@@ -53,6 +53,7 @@ from stockcast.core.callbacks import (
     _normalize_audit_labels,
 )
 from stockcast.core.data_structures import (
+    _FLAG_TOLERANCE,
     InventoryStateDataFrame,
     OrderDecision,
     _identifier_sample,
@@ -509,8 +510,8 @@ def _build_period_event_frame(
         + event_df['on_order_end'].fillna(0.0)
         - event_df['backorders_end'].fillna(0.0)
     )
-    event_df['stockout_flag'] = event_df['shortage_units'].fillna(0.0) > 0
-    event_df['backorder_flag'] = event_df['backorders_end'].fillna(0.0) > 0
+    event_df['stockout_flag'] = event_df['shortage_units'].fillna(0.0) > _FLAG_TOLERANCE
+    event_df['backorder_flag'] = event_df['backorders_end'].fillna(0.0) > _FLAG_TOLERANCE
     event_df['sku_order_line_count'] = (
         event_df['unique_id'].map(sku_order_line_counts).fillna(0).astype(int)
     )

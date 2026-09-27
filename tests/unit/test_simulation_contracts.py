@@ -782,3 +782,33 @@ def test_demand_may_give_only_dates_or_only_periods():
     with pytest.raises(ValueError, match="periods must equal 0..3"):
         SimulationEngine().run(policy=_order_up_to(), demand_source=gap, inventory=_inventory())
 
+
+
+@pytest.mark.parametrize("arrays", [True, False])
+@pytest.mark.parametrize("backorders", [False, True])
+def test_float_residue_shortage_is_not_flagged(monkeypatch, arrays, backorders):
+    """0.1 + 0.2 demand against 0.3 stock leaves a ~5.6e-17 shortage.
+
+    The engine flags must use the validator's tolerance, so the ledger of a
+    valid run is always accepted by ``validate_event_frame``.
+    """
+    from stockcast.evaluation import InventoryEvaluator, validate_event_frame
+
+    if not arrays:
+        monkeypatch.setattr(SimulationEngine, "_array_hooks_supported", lambda self: False)
+    inventory = _inventory()
+    inventory.data["on_hand"] = 0.3
+    demand = pd.DataFrame({
+        "unique_id": ["A"], "period": [0], "date": [pd.Timestamp("2025-01-02")],
+        "y": [0.1 + 0.2],
+    })
+    policy = FixedOrderPolicy(
+        lead_time=1, review_period=1, allow_backorders=backorders, order_quantity=0.0,
+    )
+    result = SimulationEngine().run(policy, demand, inventory, period_frequency="D")
+    events = result.to_event_frame()
+    assert 0 < events["shortage_units"].iloc[0] < 1e-12
+    assert not events["stockout_flag"].iloc[0]
+    assert not events["backorder_flag"].iloc[0]
+    validate_event_frame(events)
+    InventoryEvaluator().fit(result)

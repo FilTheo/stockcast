@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from stockcast.core.data_structures import (
+    _FLAG_TOLERANCE,
     InventoryStateDataFrame,
     _DeferredHistory,
     _uniform_float_pipelines,
@@ -425,8 +426,8 @@ class ArrayState:
             period=self.period,
             date=self.date,
             is_review=self.is_review,
-            has_stockout=bool((shortage > 0).any()),
-            has_backorder=bool((backorders > 0).any()),
+            has_stockout=bool((shortage > _FLAG_TOLERANCE).any()),
+            has_backorder=bool((backorders > _FLAG_TOLERANCE).any()),
             book=self.book,
         )
 
@@ -962,8 +963,8 @@ def _event_block(records: List[FastRecord]) -> pd.DataFrame:
             [record.adjustments for record in records], n
         ),
         "target_level": target_level,
-        "stockout_flag": shortage > 0,
-        "backorder_flag": backorders_end > 0,
+        "stockout_flag": shortage > _FLAG_TOLERANCE,
+        "backorder_flag": backorders_end > _FLAG_TOLERANCE,
         "run_window": _column_from_objects(windows, scalar_column_dtype(first.run_window)),
     }
     for name in AUDIT_COLUMNS:
