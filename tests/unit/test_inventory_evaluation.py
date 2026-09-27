@@ -432,3 +432,16 @@ def test_total_cost_object_rejects_ambiguous_rates():
     ledger = evaluator.event_frame_.assign(holding_cost_per_unit_period=0.2)
     with pytest.raises(ValueError, match="both a ledger column and a TotalCost"):
         InventoryEvaluator().fit(event_frame=ledger).evaluate([TotalCost(holding=0.2)])
+
+
+def test_grouping_by_one_column_is_warning_free():
+    import warnings
+
+    result = _costed_run()
+    evaluator = InventoryEvaluator().fit(result)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        by_sku = evaluator.evaluate([fill_rate], groupby=["unique_id"])
+        by_two = evaluator.evaluate([fill_rate], groupby=["unique_id", "run_window"])
+    assert by_sku["unique_id"].tolist() == ["A", "B"]
+    assert by_two[["unique_id", "run_window"]].values.tolist() == [["A", "scoring"], ["B", "scoring"]]

@@ -132,7 +132,10 @@ class InventoryEvaluator:
     def _iter_groups(self, group_columns: List[str]):
         if not group_columns:
             return [((), self.event_frame_)]
-        return self.event_frame_.groupby(group_columns, dropna=False, sort=False)
+        # One column is grouped by its name: grouping by a one-element list
+        # warns on pandas 1.5 and changes the key type between versions.
+        keys = group_columns[0] if len(group_columns) == 1 else group_columns
+        return self.event_frame_.groupby(keys, dropna=False, sort=False)
 
     @staticmethod
     def _group_key_to_row(group_columns: List[str], keys) -> dict:
