@@ -19,7 +19,7 @@ from stockcast.evaluation import (
     fill_rate, inventory_turns, order_event_count,
 )
 
-evaluator = InventoryEvaluator().fit(result, window="scoring")
+evaluator = InventoryEvaluator().fit(result)
 evaluator.evaluate(
     metrics=[fill_rate, demand_period_service_level, cycle_service_level,
              avg_on_hand, inventory_turns, order_event_count],
@@ -35,8 +35,8 @@ evaluator.evaluate(
 
 | Step | Choice |
 |---|---|
-| `fit(result, window=...)` | Which window: `"scoring"`, `"warmup"`, `"settlement"`, or `"all"`. You can also `fit(event_frame=...)` any saved ledger. |
-| `evaluate(metrics, groupby, context)` | Which metrics; the grain (`[]` for one pooled row, or any ledger columns); and the rates and options the metrics need. |
+| `fit(result, window="scoring")` | Which window: `"scoring"` (default), `"warmup"`, `"settlement"`, or `"all"`. You can also `fit(event_frame=...)` any saved ledger. |
+| `evaluate(metrics, groupby=None, context=None)` | Which metrics; the grain (one pooled row by default, or any ledger columns); and the rates and options the metrics need. |
 
 The evaluator validates the ledger when you fit it, so every metric is
 computed from balanced books.
@@ -107,8 +107,16 @@ Cost metrics multiply ledger quantities by rates. A rate can be a number in
 | `waste_cost` | $\sum w \cdot \text{expired}$ | `waste_cost_per_unit` |
 | `terminal_backlog_cost`, `terminal_pipeline_cost` | rate × final $B$ or $P$ per SKU | `terminal_backlog_cost_per_unit`, `terminal_pipeline_cost_per_unit` |
 | `salvage_credit` | final $\mathit{OH}$ and $P$ × salvage rates | `on_hand_salvage_per_unit`, `pipeline_salvage_per_unit` |
+| `TotalCost(holding=..., shortage=..., ...)` | sum of the components whose rates you pass (salvage subtracted) | the arguments themselves |
 | `total_cost` | sum of the components in `cost_components` (salvage subtracted) | `cost_components` + each component's rates |
 | `cost_per_demand_unit`, `cost_per_fulfilled_unit` | `total_cost` $/ \sum D$ or $/ \sum F$ | as for `total_cost` |
+
+`TotalCost` is the short route: `TotalCost(holding=0.2, shortage=1.0)` adds
+exactly those two components. Its arguments are `holding`, `shortage`,
+`backlog`, `order_per_line` with `order_per_unit`, `purchase`, `waste`,
+`terminal_backlog`, `terminal_pipeline`, and `salvage_on_hand` with
+`salvage_pipeline`. For per-row rates, or to use the component metrics
+alongside, use `total_cost` with `context`.
 
 `cost_components` names the parts of `total_cost`: any of `"holding"`,
 `"shortage"`, `"backlog"`, `"ordering"`, `"purchase"`, `"waste"`,

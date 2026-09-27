@@ -52,7 +52,7 @@ def test_public_export_sets_are_frozen_for_0_1():
     ]
     assert evaluation.__all__ == [
         "InventoryEvaluator", "CANONICAL_EVENT_COLUMNS", "validate_event_frame",
-        "BaseInventoryMetric", "CoverageMetric", "avg_inventory_position",
+        "BaseInventoryMetric", "CoverageMetric", "TotalCost", "avg_inventory_position",
         "avg_on_hand", "avg_on_order", "backlog_cost", "backlog_unit_periods",
         "backorder_period_rate", "capacity_violation_count", "capacity_violation_rate",
         "cost_per_demand_unit", "cost_per_fulfilled_unit", "cycle_service_level",

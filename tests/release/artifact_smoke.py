@@ -16,7 +16,7 @@ import stockcast.visualization  # noqa: F401
 import pandas as pd
 
 from stockcast.core import InventoryStateDataFrame, SimulationEngine
-from stockcast.evaluation import InventoryEvaluator, fill_rate, total_cost
+from stockcast.evaluation import InventoryEvaluator, TotalCost, fill_rate
 from stockcast.policies import OrderUpToPolicy
 
 # The setting: a store orders coffee every Monday, deliveries take 2 weeks,
@@ -63,7 +63,6 @@ shelf = InventoryStateDataFrame.from_observed(
 # Demand over the next 8 weeks: the sales the store will face.
 demand = pd.DataFrame({
     "unique_id": "coffee",
-    "period": range(8),
     "date": pd.date_range(today + pd.Timedelta(weeks=1), periods=8, freq="W-MON"),
     "y": [23, 28, 18, 21, 25, 22, 31, 20],
 })
@@ -72,16 +71,8 @@ demand = pd.DataFrame({
 result = SimulationEngine().run(policy=policy, demand_source=demand, inventory=shelf)
 
 # Score the decisions: service and cost.
-evaluator = InventoryEvaluator()
-evaluator.fit(result, window="scoring")
-scores = evaluator.evaluate(
-    [fill_rate, total_cost],
-    groupby=[],
-    context={
-        "cost_components": ["holding", "shortage"],
-        "holding_cost_per_unit_period": holding_cost,
-        "shortage_cost_per_unit": lost_sale_cost,
-    },
+scores = InventoryEvaluator().fit(result).evaluate(
+    [fill_rate, TotalCost(holding=holding_cost, shortage=lost_sale_cost)]
 )
 scores = scores.round(2)
 assert scores.loc[0, "fill_rate"] == 0.9

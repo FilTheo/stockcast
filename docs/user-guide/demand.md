@@ -9,11 +9,13 @@ from a forecast model. Stockcast reads all of them in the same simple format.
 | Column | Type | Meaning |
 |---|---|---|
 | `unique_id` | any hashable | SKU identifier, matching the inventory state |
-| `period` | int | Demand period, `0 … n_periods − 1` |
 | `date` | timestamp | Calendar date of the period |
+| `period` | int | Demand period, `0 … n_periods − 1` |
 | `y` | float $\ge 0$ | Units demanded |
 
-The table is a complete grid: every SKU in every period, exactly once.
+Give `date`, `period`, or both: each follows from the other through the
+calendar below, so the engine adds the missing one. The table is a complete
+grid: every SKU in every period, exactly once.
 
 ### The calendar
 
@@ -24,14 +26,15 @@ $$
 $$
 
 where $\Delta$ is `period_frequency`, any forward pandas frequency: `"D"`,
-`"W-MON"`, `"MS"`, `"h"`, `"15min"`, and so on. The engine checks each
-period's date against this formula before running.
+`"W-MON"`, `"MS"`, `"h"`, `"15min"`, and so on (by default the policy's
+`forecast_frequency`). The engine checks each period's date against this
+formula before running; a date off this grid is an error, never rounded.
 
 ### What the engine checks
 
 Before the first period is simulated, the whole table is validated:
 
-- the columns `unique_id`, `period`, `date`, `y` are present;
+- the columns `unique_id`, `y`, and `date` or `period` are present;
 - periods are exactly $0, \dots, n - 1$;
 - every period contains every SKU of the state, once;
 - each period's date follows the calendar formula above;
@@ -42,7 +45,7 @@ rows with `y = 0`.
 
 ## Demand from your data
 
-Most sales data needs a reshape and a period counter:
+Most sales data only needs a reshape into one row per SKU and date:
 
 ```python
 import pandas as pd
@@ -53,18 +56,18 @@ sales = pd.DataFrame({
     "unique_id": ["tea_250g", "coffee_1kg"] * 5,
     "y": [10, 3, 2, 4, 9, 2, 6, 5, 4, 1],
 })
-
-sales["period"] = (sales["date"] - opening_date).dt.days - 1   # daily data
 sales.head(4)
 ```
 
 ```text
-        date   unique_id   y  period
-0 2026-01-06    tea_250g  10       0
-1 2026-01-06  coffee_1kg   3       0
-2 2026-01-07    tea_250g   2       1
-3 2026-01-07  coffee_1kg   4       1
+        date   unique_id   y
+0 2026-01-06    tea_250g  10
+1 2026-01-06  coffee_1kg   3
+2 2026-01-07    tea_250g   2
+3 2026-01-07  coffee_1kg   4
 ```
+
+Pass it as it is: the first day after the opening date is period 0.
 
 If some SKUs have no sales row on a day, complete the grid with zeros first,
 for example with `pivot_table(..., fill_value=0)` and `melt`.

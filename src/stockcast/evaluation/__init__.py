@@ -7,6 +7,7 @@ from .event_validation import CANONICAL_EVENT_COLUMNS, validate_event_frame
 from .metrics import (
     BaseInventoryMetric,
     CoverageMetric,
+    TotalCost,
     avg_inventory_position,
     avg_on_hand,
     avg_on_order,
@@ -52,6 +53,7 @@ __all__ = [
     "validate_event_frame",
     "BaseInventoryMetric",
     "CoverageMetric",
+    "TotalCost",
     "avg_inventory_position",
     "avg_on_hand",
     "avg_on_order",

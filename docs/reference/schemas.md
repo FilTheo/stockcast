@@ -12,6 +12,8 @@ keep their names and meanings; new columns may be added.
 | `date` | timestamp | opening date $+ (\text{period} + 1)\,\Delta$ |
 | `y` | float $\ge 0$ | units demanded |
 
+`period` and `date` determine each other; a table may give either one or both.
+
 ## Event ledger
 
 `SimulationResult.to_event_frame()`. One row per SKU and period. The required

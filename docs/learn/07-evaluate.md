@@ -22,11 +22,8 @@ from stockcast.evaluation import (
     InventoryEvaluator, avg_on_hand, cycle_service_level, fill_rate, order_event_count,
 )
 
-evaluator = InventoryEvaluator().fit(result, window="scoring")
-evaluator.evaluate(
-    metrics=[fill_rate, avg_on_hand, order_event_count],
-    groupby=[],           # [] = one pooled row; ["unique_id"] = one row per SKU
-)
+evaluator = InventoryEvaluator().fit(result)   # the scoring window
+evaluator.evaluate(metrics=[fill_rate, avg_on_hand, order_event_count])
 ```
 
 ```text
@@ -34,12 +31,14 @@ evaluator.evaluate(
 0        1.0    18.607143                 14
 ```
 
-Two choices are always explicit:
+Two choices shape the answer:
 
-- **`window`**: which part of the run you are describing (`"scoring"`,
-  `"warmup"`, `"settlement"`, or `"all"`).
-- **`groupby`**: the grain of the answer. `[]` pools everything,
-  `["unique_id"]` gives one row per SKU, and any ledger column works.
+- **`window`**: which part of the run you are describing. `fit` uses the
+  scoring window, like `result.summary()`; pass `window="all"`, `"warmup"`,
+  or `"settlement"` for another part.
+- **`groupby`**: the grain of the answer. By default everything is pooled
+  into one row; `groupby=["unique_id"]` gives one row per SKU, and any ledger
+  column works.
 
 ## What the service metrics measure
 
@@ -120,6 +119,21 @@ Every rate is yours to set, including zeros. A cost that you did not specify
 is never filled in for you, so a total always means exactly the components
 you listed.
 
+When you only need the total, give the rates to `TotalCost`. Each rate you
+pass adds its component, and nothing else is added:
+
+```python
+from stockcast.evaluation import TotalCost
+
+evaluator.evaluate([TotalCost(holding=0.02, shortage=2.00,
+                              order_per_line=5.00, order_per_unit=0.0)])
+```
+
+```text
+   total_cost
+0       90.84
+```
+
 ## Your own metric
 
 A metric is any function that takes the ledger slice and the context:
@@ -138,7 +152,8 @@ evaluator.evaluate(metrics=[fill_rate, units_left_at_the_end], groupby=["unique_
 
 !!! summary "Recap"
 
-    - `InventoryEvaluator().fit(result, window=...).evaluate(metrics, groupby, context)`.
+    - `InventoryEvaluator().fit(result).evaluate(metrics)`, with optional
+      `window`, `groupby`, and `context`.
     - Fill rate, demand-period service level, and cycle service level answer
       three different questions.
     - Costs use rates you supply; custom metrics are plain functions.

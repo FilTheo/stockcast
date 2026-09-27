@@ -17,25 +17,19 @@ from .event_validation import validate_event_frame
 class InventoryEvaluator:
     """Compute metrics from a run's event ledger.
 
-    ``fit`` selects and validates the ledger rows; ``evaluate`` computes metrics
-    over an explicit grouping. The grain is always stated: pass ``groupby=[]``
-    for one pooled row, or name ledger columns such as ``["unique_id"]``.
-
-    Args:
-        default_groupby: Grouping used when ``evaluate`` is called without
-            ``groupby``. ``None`` (default) makes ``groupby`` required.
+    ``fit`` selects and validates the ledger rows (by default the run's scoring
+    window); ``evaluate`` computes metrics, pooled into one row by default or
+    grouped by ledger columns such as ``["unique_id"]``.
 
     Example:
         ```python
-        evaluator = InventoryEvaluator().fit(result, window="scoring")
-        evaluator.evaluate([fill_rate, avg_on_hand], groupby=["unique_id"])
+        evaluator = InventoryEvaluator().fit(result)          # the scoring window
+        evaluator.evaluate([fill_rate, avg_on_hand])           # one pooled row
+        evaluator.evaluate([fill_rate], groupby=["unique_id"]) # one row per SKU
         ```
     """
 
-    def __init__(self, default_groupby: Optional[Sequence[str]] = None) -> None:
-        self.default_groupby = (
-            None if default_groupby is None else list(default_groupby)
-        )
+    def __init__(self) -> None:
         self.event_frame_ = pd.DataFrame()
 
     def fit(
@@ -55,23 +49,23 @@ class InventoryEvaluator:
             event_frame: A ledger DataFrame, for example one you saved or enriched
                 with per-row cost rates.
             window: ``"scoring"``, ``"warmup"``, ``"settlement"``, or ``"all"``.
-                Required with ``simulation_result``; optional with ``event_frame``.
+                With ``simulation_result`` it defaults to ``"scoring"``, the
+                window ``summary()`` uses; with ``event_frame`` the default keeps
+                every row given.
 
         Returns:
             The fitted evaluator (``self``).
 
         Raises:
-            ValueError: If both or neither inputs are given, the window is missing or
-                unknown, or the ledger fails validation.
+            ValueError: If both or neither inputs are given, the window is unknown,
+                or the ledger fails validation.
         """
         if (simulation_result is None) == (event_frame is None):
             raise ValueError("Provide either simulation_result or event_frame")
 
         if simulation_result is not None:
             if window is None:
-                raise ValueError(
-                    "window is required with simulation_result: choose 'scoring' or 'all'"
-                )
+                window = "scoring"
             self.event_frame_ = validate_event_frame(
                 simulation_result.to_event_frame(window=window)
             )
@@ -103,7 +97,8 @@ class InventoryEvaluator:
             metrics: Metric functions (``metric(event_frame, context)``) or objects
                 with ``name`` and ``compute``, such as ``BaseInventoryMetric``
                 subclasses. A function's ``__name__`` becomes its column name.
-            groupby: Ledger columns to group by; ``[]`` for one pooled row.
+            groupby: Ledger columns to group by, such as ``["unique_id"]``;
+                ``None`` or ``[]`` (default) gives one pooled row.
             context: Options and rates for the metrics, for example cost rates,
                 ``cost_components``, ``include_partial_cycles``, or
                 ``periods_per_year``.
@@ -113,18 +108,14 @@ class InventoryEvaluator:
             metric.
 
         Raises:
-            ValueError: If the evaluator is not fitted or ``groupby`` is missing.
+            ValueError: If the evaluator is not fitted.
         """
         if self.event_frame_.empty:
             raise ValueError("Evaluator is not fitted or event_frame is empty")
 
         context = context or {}
         metric_specs = [self._normalize_metric(metric) for metric in metrics]
-        if groupby is None and self.default_groupby is None:
-            raise ValueError(
-                "groupby must be explicit; use [] for a pooled result or provide dimensions"
-            )
-        group_columns = self.default_groupby if groupby is None else list(groupby)
+        group_columns = [] if groupby is None else list(groupby)
 
         rows = []
         for keys, group in self._iter_groups(group_columns):

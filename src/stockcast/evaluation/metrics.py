@@ -862,6 +862,133 @@ def cost_per_fulfilled_unit(event_frame: pd.DataFrame, context: Optional[dict] =
     return total_cost(event_frame, context) / fulfilled
 
 
+# TotalCost argument -> (component, rate key). Components with two rates need
+# both, zeros included, exactly as with ``context``.
+_TOTAL_COST_RATES = {
+    "holding": ("holding", "holding_cost_per_unit_period"),
+    "shortage": ("shortage", "shortage_cost_per_unit"),
+    "backlog": ("backlog", "backlog_cost_per_unit_period"),
+    "order_per_line": ("ordering", "order_cost_per_sku_line"),
+    "order_per_unit": ("ordering", "order_cost_per_unit"),
+    "purchase": ("purchase", "purchase_cost_per_unit"),
+    "waste": ("waste", "waste_cost_per_unit"),
+    "terminal_backlog": ("terminal_backlog", "terminal_backlog_cost_per_unit"),
+    "terminal_pipeline": ("terminal_pipeline", "terminal_pipeline_cost_per_unit"),
+    "salvage_on_hand": ("salvage", "on_hand_salvage_per_unit"),
+    "salvage_pipeline": ("salvage", "pipeline_salvage_per_unit"),
+}
+
+
+class TotalCost(BaseInventoryMetric):
+    """Total cost of the components whose rates you give.
+
+    Each rate names a component and its value: ``TotalCost(holding=0.2,
+    shortage=1.0)`` adds holding and shortage cost and nothing else. It gives
+    the same number as ``total_cost`` with ``cost_components`` and the rates in
+    ``context``, which remains the way to use per-row rate columns.
+
+    Args:
+        holding: Per unit on hand and per period.
+        shortage: Per unit of demand not served.
+        backlog: Per unit owed and per period.
+        order_per_line: Fee per SKU order line; give with ``order_per_unit``.
+        order_per_unit: Cost per unit ordered; give with ``order_per_line``.
+        purchase: Per unit ordered.
+        waste: Per unit expired or written off.
+        terminal_backlog: Per unit still owed at the end.
+        terminal_pipeline: Per unit still on order at the end.
+        salvage_on_hand: Credit per unit on hand at the end; give with
+            ``salvage_pipeline``. Salvage is subtracted.
+        salvage_pipeline: Credit per unit on order at the end.
+        name: Output column name (default ``"total_cost"``).
+
+    Raises:
+        ValueError: If no rate is given, a rate is negative or not finite, or
+            only one rate of a two-rate component is given.
+
+    Example:
+        ```python
+        evaluator.evaluate([fill_rate, TotalCost(holding=0.2, shortage=1.0)])
+        ```
+    """
+
+    def __init__(
+        self,
+        *,
+        holding: Optional[float] = None,
+        shortage: Optional[float] = None,
+        backlog: Optional[float] = None,
+        order_per_line: Optional[float] = None,
+        order_per_unit: Optional[float] = None,
+        purchase: Optional[float] = None,
+        waste: Optional[float] = None,
+        terminal_backlog: Optional[float] = None,
+        terminal_pipeline: Optional[float] = None,
+        salvage_on_hand: Optional[float] = None,
+        salvage_pipeline: Optional[float] = None,
+        name: str = "total_cost",
+    ) -> None:
+        given = {
+            argument: value
+            for argument, value in {
+                "holding": holding, "shortage": shortage, "backlog": backlog,
+                "order_per_line": order_per_line, "order_per_unit": order_per_unit,
+                "purchase": purchase, "waste": waste,
+                "terminal_backlog": terminal_backlog,
+                "terminal_pipeline": terminal_pipeline,
+                "salvage_on_hand": salvage_on_hand, "salvage_pipeline": salvage_pipeline,
+            }.items()
+            if value is not None
+        }
+        if not given:
+            raise ValueError("TotalCost needs at least one cost rate")
+        rates = {}
+        for argument, value in given.items():
+            if isinstance(value, bool):
+                raise ValueError(f"TotalCost {argument} must be a finite non-negative number")
+            try:
+                number = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"TotalCost {argument} must be a finite non-negative number"
+                ) from exc
+            if not np.isfinite(number) or number < 0:
+                raise ValueError(f"TotalCost {argument} must be a finite non-negative number")
+            rates[_TOTAL_COST_RATES[argument][1]] = number
+        for first, second in (("order_per_line", "order_per_unit"),
+                              ("salvage_on_hand", "salvage_pipeline")):
+            if (first in given) != (second in given):
+                raise ValueError(
+                    f"TotalCost needs both {first} and {second} (zeros included)"
+                )
+        components = []
+        for argument in _TOTAL_COST_RATES:
+            component = _TOTAL_COST_RATES[argument][0]
+            if argument in given and component not in components:
+                components.append(component)
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("TotalCost name must be a non-empty string")
+        self.name = name
+        self.components = components
+        self.rates = rates
+
+    def compute(self, event_frame: pd.DataFrame, context: dict) -> float:
+        context = dict(context or {})
+        for key, value in self.rates.items():
+            if key in event_frame.columns:
+                raise ValueError(
+                    f"cost rate '{key}' is both a ledger column and a TotalCost "
+                    "argument; use one"
+                )
+            if key in context and float(context[key]) != value:
+                raise ValueError(
+                    f"cost rate '{key}' differs between context and TotalCost"
+                )
+        context.update(self.rates)
+        context["cost_components"] = list(self.components)
+        return total_cost(event_frame, context)
+
+
 class CoverageMetric(BaseInventoryMetric):
     """Mean inventory coverage in periods: stock divided by a demand rate.
 

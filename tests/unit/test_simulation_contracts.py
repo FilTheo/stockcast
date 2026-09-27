@@ -122,17 +122,14 @@ def test_missing_calendar_period_is_rejected():
         )
 
 
-def test_missing_dates_are_rejected_instead_of_assuming_daily_frequency():
+def test_missing_dates_are_never_derived_from_an_assumed_frequency():
     demand = pd.DataFrame({"unique_id": ["A"], "period": [0], "y": [1.0]})
-    with pytest.raises(ValueError, match=r"missing required columns: \['date'\]"):
-        SimulationEngine().run(
-            _policy(),
-            demand,
-            _inventory(),
-            n_periods=1,
-            period_frequency="D",
-            **_run_contract(1),
-        )
+    # No frequency given and none recorded by the (custom) policy: rejected.
+    with pytest.raises(ValueError, match="period_frequency is required"):
+        SimulationEngine().run(_policy(), demand, _inventory())
+    # A declared frequency dates period p as opening date + (p + 1) periods.
+    result = SimulationEngine().run(_policy(), demand, _inventory(), period_frequency="D")
+    assert result.to_event_frame()["date"].tolist() == [pd.Timestamp("2025-01-02")]
 
 
 def test_weekly_frequency_validates_calendar_and_is_recorded():
@@ -758,3 +755,30 @@ def test_unsized_pipeline_matches_an_explicitly_sized_one():
         assert runs[0].run_settings == runs[1].run_settings
         assert _stable(runs[0])[2] == _stable(runs[1])[2]
         assert unsized.max_lead_time == 0  # the caller's state is unchanged
+
+
+def test_demand_may_give_only_dates_or_only_periods():
+    full = _daily_demand([3, 5, 2, 4], skus=("A",))
+    reference = SimulationEngine().run(policy=_order_up_to(), demand_source=full, inventory=_inventory())
+    for frame in (full.drop(columns="period"), full.drop(columns="date")):
+        result = SimulationEngine().run(policy=_order_up_to(), demand_source=frame, inventory=_inventory())
+        pd.testing.assert_frame_equal(result.to_event_frame(), reference.to_event_frame())
+        assert (
+            result.run_manifest["demand_source"]["sha256"]
+            == reference.run_manifest["demand_source"]["sha256"]
+        )
+    by_period = SimulationEngine().run(
+        policy=_order_up_to(),
+        demand_source=lambda period: full.loc[full["period"] == period, ["unique_id", "y"]],
+        inventory=_inventory(), n_periods=4,
+    )
+    pd.testing.assert_frame_equal(by_period.to_event_frame(), reference.to_event_frame())
+    off_grid = full.drop(columns="period").assign(
+        date=lambda frame: frame["date"] + pd.Timedelta(hours=12)
+    )
+    with pytest.raises(ValueError, match="not on the period grid"):
+        SimulationEngine().run(policy=_order_up_to(), demand_source=off_grid, inventory=_inventory())
+    gap = full.drop(columns="period").iloc[[0, 2, 3]]
+    with pytest.raises(ValueError, match="periods must equal 0..3"):
+        SimulationEngine().run(policy=_order_up_to(), demand_source=gap, inventory=_inventory())
+

@@ -1244,6 +1244,9 @@ class SimulationEngine:
                 unfitted policy, a demand calendar with gaps, a target for the wrong
                 window, or windows that do not add up.
         """
+        demand_source = self._complete_frame_calendar(
+            demand_source, inventory, [policy], period_frequency,
+        )
         n_periods = self._resolve_n_periods(demand_source, n_periods)
         if not isinstance(n_periods, int) or isinstance(n_periods, bool) or n_periods < 0:
             raise ValueError("n_periods must be a non-negative integer")
@@ -1426,6 +1429,7 @@ class SimulationEngine:
 
         demand_source_type = "dataframe" if isinstance(demand_source, pd.DataFrame) else "callable"
         demand_data = self._materialize_demand_source(demand_source, n_periods)
+        demand_data = self._complete_demand_calendar(demand_data, opening_date, period_offset)
         demand_data = self._validate_demand_calendar(
             demand_data,
             inventory,
@@ -2632,7 +2636,11 @@ class SimulationEngine:
             frame = demand_source(period)
             if not isinstance(frame, pd.DataFrame):
                 raise TypeError("demand_source callable must return a pandas DataFrame")
-            frames.append(frame.copy())
+            frame = frame.copy()
+            if 'period' not in frame.columns:
+                # The engine asked for this period; the frame need not repeat it.
+                frame.insert(0, 'period', period)
+            frames.append(frame)
             provenance = frame.attrs.get("stockcast_demand_provenance")
             if provenance is not None:
                 provenance_rows.append(copy.deepcopy(provenance))
@@ -2900,6 +2908,9 @@ class SimulationEngine:
             )
         if len(labels) != len(set(labels)):
             raise ValueError("labels must be unique")
+        demand_source = self._complete_frame_calendar(
+            demand_source, inventory, policies, period_frequency,
+        )
         n_periods = self._resolve_n_periods(demand_source, n_periods)
         if period_frequency is None:
             period_frequency = self._infer_period_frequency(policies)
@@ -2974,12 +2985,80 @@ class SimulationEngine:
         if 'period' not in demand_source.columns or demand_source.empty:
             raise ValueError(
                 "n_periods could not be inferred: demand_source needs a 'period' "
-                "column with periods 0..n-1"
+                "or 'date' column"
             )
         periods = pd.to_numeric(demand_source['period'], errors='coerce')
         if periods.isna().any() or not np.isfinite(periods.to_numpy(dtype=float)).all():
             raise ValueError("demand_source.period must contain finite integers")
         return int(periods.max()) + 1
+
+    @classmethod
+    def _complete_frame_calendar(cls, demand_source, inventory, policies, period_frequency):
+        """Add ``period`` or ``date`` to a demand DataFrame that has only one.
+
+        Needs the opening date and the period length; when either is not yet
+        known (for example an unfitted policy), the frame is returned as given
+        and the usual checks report the problem.
+        """
+        if not isinstance(demand_source, pd.DataFrame):
+            return demand_source
+        if ('period' in demand_source.columns) == ('date' in demand_source.columns):
+            return demand_source
+        if not isinstance(inventory, InventoryStateDataFrame):
+            return demand_source
+        opening_dates = pd.to_datetime(inventory.get_dataframe()['date'], errors='coerce')
+        if opening_dates.isna().any() or opening_dates.nunique() != 1:
+            return demand_source
+        try:
+            frequency = (
+                period_frequency if period_frequency is not None
+                else cls._infer_period_frequency(policies)
+            )
+            offset = _require_forward_frequency(frequency, "period_frequency")
+        except (TypeError, ValueError):
+            return demand_source
+        return cls._complete_demand_calendar(demand_source, opening_dates.iloc[0], offset)
+
+    @staticmethod
+    def _complete_demand_calendar(frame: pd.DataFrame, opening_date, offset) -> pd.DataFrame:
+        """Derive the missing one of ``period`` and ``date`` from the other.
+
+        Period ``p`` is dated ``opening_date + (p + 1)`` periods, the same grid
+        the calendar validation checks. A date off that grid is rejected.
+        """
+        has_period, has_date = 'period' in frame.columns, 'date' in frame.columns
+        if has_period == has_date:
+            return frame
+        frame = frame.copy()
+        if has_period:
+            periods = pd.to_numeric(frame['period'], errors='coerce')
+            if (
+                periods.isna().any()
+                or not np.isfinite(periods.to_numpy(dtype=float)).all()
+                or not np.equal(periods, np.floor(periods)).all()
+                or (periods < 0).any()
+            ):
+                return frame  # the calendar validation reports it
+            periods = periods.astype(int)
+            grid = {p: opening_date + (p + 1) * offset for p in pd.unique(periods)}
+            frame.insert(frame.columns.get_loc('period') + 1, 'date', periods.map(grid))
+            return frame
+        dates = pd.to_datetime(frame['date'], errors='coerce')
+        if dates.isna().any():
+            raise ValueError("demand_source.date must contain complete valid dates")
+        first = opening_date + offset
+        grid = pd.date_range(start=first, end=max(dates.max(), first), freq=offset)
+        position = {stamp: index for index, stamp in enumerate(grid)}
+        periods = dates.map(position)
+        if periods.isna().any():
+            off_grid = sorted(str(value) for value in dates[periods.isna()].unique())[:5]
+            raise ValueError(
+                f"demand_source.date values {off_grid} are not on the period grid "
+                f"starting {first} ({offset.freqstr})"
+            )
+        frame['date'] = dates
+        frame.insert(frame.columns.get_loc('date'), 'period', periods.astype(int))
+        return frame
 
     @staticmethod
     def _infer_period_frequency(policies: Sequence[BasePolicy]) -> str:

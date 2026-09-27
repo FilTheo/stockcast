@@ -10,6 +10,7 @@ from stockcast.evaluation import (
     CANONICAL_EVENT_COLUMNS,
     CoverageMetric,
     InventoryEvaluator,
+    TotalCost,
     avg_on_hand,
     backlog_unit_periods,
     cycle_service_level,
@@ -17,11 +18,13 @@ from stockcast.evaluation import (
     demand_period_service_level,
     ending_on_hand_variance,
     fill_rate,
+    holding_cost,
     inventory_turns,
     lost_sales_units,
     order_event_count,
     ordering_cost,
     peak_ending_on_hand,
+    shortage_cost,
     sku_order_line_count,
     stockout_period_rate,
     terminal_backlog_units,
@@ -168,11 +171,13 @@ def test_inventory_evaluator_supports_builtin_and_custom_metrics():
     with pytest.raises(ValueError, match="physical inventory balance"):
         InventoryEvaluator().fit(event_frame=invalid)
 
-    with pytest.raises(ValueError, match="window is required"):
-        InventoryEvaluator().fit(simulation_result=result)
     evaluator = InventoryEvaluator().fit(simulation_result=result, window="scoring")
-    with pytest.raises(ValueError, match="groupby must be explicit"):
-        evaluator.evaluate(metrics=[fill_rate])
+    # Defaults: the scoring window and one pooled row.
+    default = InventoryEvaluator().fit(result)
+    pd.testing.assert_frame_equal(default.event_frame_, evaluator.event_frame_)
+    pd.testing.assert_frame_equal(
+        default.evaluate([fill_rate]), evaluator.evaluate([fill_rate], groupby=[]),
+    )
     metrics_df = evaluator.evaluate(
         metrics=[
             fill_rate,
@@ -361,3 +366,69 @@ def test_multi_sku_coverage_needs_no_grain_confirmation():
             [CoverageMetric(mode="forward")], groupby=[],
             context={"forward_demand_rate": 2.0, "coverage_aggregation": "portfolio"},
         )
+
+
+def _costed_run():
+    inventory = InventoryStateDataFrame(["A", "B"], max_lead_time=2).initialize_zero(
+        start_date=pd.Timestamp("2025-01-01")
+    )
+    inventory.data["on_hand"] = [3.0, 9.0]
+    policy = FixedOrderPolicy(
+        order_quantity=4.0, lead_time=2, review_period=2, allow_backorders=True,
+    )
+    demand = pd.DataFrame({
+        "unique_id": ["A", "B"] * 4,
+        "period": [0, 0, 1, 1, 2, 2, 3, 3],
+        "date": [pd.Timestamp("2025-01-02") + pd.Timedelta(days=p) for p in [0, 0, 1, 1, 2, 2, 3, 3]],
+        "y": [5.0, 2.0, 4.0, 1.0, 6.0, 3.0, 2.0, 2.0],
+    })
+    return SimulationEngine().run(
+        policy=policy, demand_source=demand, inventory=inventory, period_frequency="D",
+    )
+
+
+def test_total_cost_object_equals_the_context_route():
+    evaluator = InventoryEvaluator().fit(_costed_run())
+    rates = {
+        "holding": 0.2, "shortage": 1.0, "backlog": 0.5,
+        "order_per_line": 3.0, "order_per_unit": 0.1, "purchase": 2.0,
+        "terminal_backlog": 4.0, "terminal_pipeline": 1.5,
+        "salvage_on_hand": 0.3, "salvage_pipeline": 0.0,
+    }
+    context = {
+        "cost_components": [
+            "holding", "shortage", "backlog", "ordering", "purchase",
+            "terminal_backlog", "terminal_pipeline", "salvage",
+        ],
+        "holding_cost_per_unit_period": 0.2, "shortage_cost_per_unit": 1.0,
+        "backlog_cost_per_unit_period": 0.5, "order_cost_per_sku_line": 3.0,
+        "order_cost_per_unit": 0.1, "purchase_cost_per_unit": 2.0,
+        "terminal_backlog_cost_per_unit": 4.0, "terminal_pipeline_cost_per_unit": 1.5,
+        "on_hand_salvage_per_unit": 0.3, "pipeline_salvage_per_unit": 0.0,
+    }
+    for groupby in ([], ["unique_id"]):
+        by_object = evaluator.evaluate([TotalCost(**rates)], groupby=groupby)
+        by_context = evaluator.evaluate([total_cost], groupby=groupby, context=context)
+        pd.testing.assert_frame_equal(by_object, by_context)
+    two = evaluator.evaluate([TotalCost(holding=0.2, shortage=1.0)])
+    both = evaluator.evaluate([holding_cost, shortage_cost], context=context)
+    assert two.loc[0, "total_cost"] == pytest.approx(
+        both.loc[0, "holding_cost"] + both.loc[0, "shortage_cost"]
+    )
+
+
+def test_total_cost_object_rejects_ambiguous_rates():
+    with pytest.raises(ValueError, match="at least one cost rate"):
+        TotalCost()
+    with pytest.raises(ValueError, match="both order_per_line and order_per_unit"):
+        TotalCost(order_per_line=3.0)
+    with pytest.raises(ValueError, match="finite non-negative"):
+        TotalCost(holding=-1.0)
+    evaluator = InventoryEvaluator().fit(_costed_run())
+    with pytest.raises(ValueError, match="differs between context and TotalCost"):
+        evaluator.evaluate(
+            [TotalCost(holding=0.2)], context={"holding_cost_per_unit_period": 0.3},
+        )
+    ledger = evaluator.event_frame_.assign(holding_cost_per_unit_period=0.2)
+    with pytest.raises(ValueError, match="both a ledger column and a TotalCost"):
+        InventoryEvaluator().fit(event_frame=ledger).evaluate([TotalCost(holding=0.2)])

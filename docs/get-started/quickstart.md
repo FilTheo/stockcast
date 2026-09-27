@@ -195,10 +195,7 @@ from stockcast.evaluation import (
     InventoryEvaluator, avg_on_hand, fill_rate, order_event_count,
 )
 
-InventoryEvaluator().fit(result, window="scoring").evaluate(
-    metrics=[fill_rate, avg_on_hand, order_event_count],
-    groupby=[],
-)
+InventoryEvaluator().fit(result).evaluate([fill_rate, avg_on_hand, order_event_count])
 ```
 
 ```text
@@ -206,7 +203,9 @@ InventoryEvaluator().fit(result, window="scoring").evaluate(
 0        1.0    18.607143                 14
 ```
 
-Every sale was served, with about 18.6 packs on the shelf on average. The
+`fit` selects the scoring window (here every day) and `evaluate` pools all
+SKUs into one row by default. Every sale was served, with about 18.6 packs on
+the shelf on average. The
 picture below shows the whole run: sales, the stock on the shelf, and the
 inventory position returning to $S = 46$ at each review.
 
