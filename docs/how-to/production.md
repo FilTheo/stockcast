@@ -48,7 +48,6 @@ saved = pd.DataFrame({
     "on_hand": [9.0, 14.0],
     "backorders": [0.0, 0.0],
     "in_transit": [np.array([12.0, 0.0]), np.array([0.0, 0.0])],
-    "safety_stock": [0.0, 0.0],
     "period": [55, 55],
     "date": [yesterday, yesterday],
 })

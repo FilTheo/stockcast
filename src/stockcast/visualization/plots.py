@@ -40,7 +40,6 @@ def _prepare_event_frame(result, sku=None) -> pd.DataFrame:
             'order_quantity',
             'shortage_units',
             'target_level',
-            'safety_stock',
         ]
         cols_present = [c for c in numeric_cols if c in h.columns]
         h = h.groupby('period')[cols_present].sum().reset_index()
@@ -207,13 +206,12 @@ def plot_simulation_dashboard(
     sku: Optional[Union[Hashable, List[Hashable]]] = None,
     figsize: Tuple[float, float] = (13, 10),
     show_target: bool = True,
-    show_safety_stock: bool = True,
 ) -> np.ndarray:
     """
     Multi-panel dashboard for a single simulation run.
 
     Creates a synchronized 4-panel figure:
-        1. Inventory position — on_hand with target level and safety stock bands
+        1. Inventory position — on_hand with the target level
         2. Demand and order decisions — demand line with order bars at decision points
         3. Shortage per period — bar chart of unmet demand
         4. Cumulative shortage — running total showing impact over time
@@ -225,7 +223,6 @@ def plot_simulation_dashboard(
         sku: Optional SKU id or list to filter. None = aggregate all.
         figsize: Overall figure size.
         show_target: Show target inventory level (S) as horizontal reference.
-        show_safety_stock: Show safety stock band if data is available.
 
     Returns:
         Array of matplotlib Axes (one per panel).
@@ -256,12 +253,6 @@ def plot_simulation_dashboard(
         if target.max() > 0:
             ax1.plot(periods, target, color='#636363', linewidth=1, linestyle='--',
                      label='Target Level (S)', alpha=0.7)
-
-    # Safety stock band
-    if show_safety_stock and 'safety_stock' in h.columns:
-        ss = h['safety_stock']
-        if ss.max() > 0:
-            ax1.fill_between(periods, 0, ss, alpha=0.12, color='#fdae6b', label='Safety Stock')
 
     # Mark stockout periods on the x-axis
     stockout_mask = h['shortage_units'].fillna(0.0) > 0 if 'shortage_units' in h.columns else h['ending_on_hand'] == 0

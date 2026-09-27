@@ -17,7 +17,7 @@ One row per SKU. The columns that matter most:
 | `backorders` | Demand owed to customers. |
 | `period`, `date` | The state's position in time. All SKUs share one period and one date. |
 | `latest_*` | Flows of the most recent period (`latest_received`, `latest_fulfilled`, `latest_shortage`, …), reset at the start of each period. |
-| `target_level`, `safety_stock` | Informational fields written by policies. |
+| `target_level` | Informational field written by policies. |
 
 From these, `inventory_position()` adds `total_in_transit` and
 
@@ -66,7 +66,6 @@ $$
         "on_hand": [30.0, 0.0],
         "backorders": [0.0, 4.0],
         "in_transit": [np.array([0.0, 12.0]), np.array([10.0, 0.0])],
-        "safety_stock": [0.0, 0.0],
         "period": [0, 0],
         "date": [opening_date, opening_date],
     }), max_lead_time=2, allow_backorders=True)

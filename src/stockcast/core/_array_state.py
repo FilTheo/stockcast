@@ -272,8 +272,8 @@ class ArrayState:
         columns = tuple(data.columns)
         # Exactly the state schema: every transition rebuilds the state with
         # the constructor, which drops any other column.
-        if len(columns) != len(_SPECIAL_COLUMNS) + 2 or set(columns) != _SPECIAL_COLUMNS | {
-            sku_column, "safety_stock"
+        if len(columns) != len(_SPECIAL_COLUMNS) + 1 or set(columns) != _SPECIAL_COLUMNS | {
+            sku_column
         }:
             return None
         checked = ("on_hand", "backorders") if opening else _FLOAT_COLUMNS
@@ -849,7 +849,7 @@ def _audit_dtypes(record: FastRecord):
 
 def _event_signature(record: FastRecord):
     """Per-period event dtypes that are not fixed by the canonical schema."""
-    start, final = record.start.schema, record.final.schema
+    final = record.final.schema
     target = (
         final.target_dtype
         if final.target_dtype is not None
@@ -859,7 +859,6 @@ def _event_signature(record: FastRecord):
         record.uid().dtype,
         final.period_dtype,
         target,
-        start.numeric("safety_stock").dtype,
         type(record.policy_name),
         _audit_dtypes(record),
         _FLOAT64 if record.expired is None else record.expired.dtype,
@@ -963,9 +962,6 @@ def _event_block(records: List[FastRecord]) -> pd.DataFrame:
             [record.adjustments for record in records], n
         ),
         "target_level": target_level,
-        "safety_stock": _concat_pieces(
-            [state.schema.numeric("safety_stock") for state in starts], n
-        ),
         "stockout_flag": shortage > 0,
         "backorder_flag": backorders_end > 0,
         "run_window": _column_from_objects(windows, scalar_column_dtype(first.run_window)),

@@ -16,7 +16,7 @@ CANONICAL_EVENT_COLUMNS = (
     "ending_on_hand", "backorders_end", "on_order_end", "inventory_position_end",
     "order_quantity", "order_event_count", "sku_order_line_count",
     "order_line_quantity_squared_sum", "expired_units",
-    "inventory_adjustment_units", "target_level", "safety_stock",
+    "inventory_adjustment_units", "target_level",
     "stockout_flag", "backorder_flag", "requested_order_quantity",
     "callback_adjustment_units", "callback_adjusted_order_quantity",
     "constrained_order_quantity", "constraint_adjustment_units",
@@ -146,18 +146,15 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
         if values.isna().any() or not np.isfinite(values).all():
             raise ValueError(f"event_frame.{column} must contain finite numeric values")
         frame[column] = values.astype(float)
-    for column in ("target_level", "safety_stock"):
-        values = pd.to_numeric(frame[column], errors="coerce")
-        invalid = frame[column].notna() & (
-            values.isna() | ~np.isfinite(values.to_numpy(dtype=float))
+    target = pd.to_numeric(frame["target_level"], errors="coerce")
+    invalid = frame["target_level"].notna() & (
+        target.isna() | ~np.isfinite(target.to_numpy(dtype=float))
+    )
+    if invalid.any():
+        raise ValueError(
+            "event_frame.target_level must contain finite numbers or explicit missing values"
         )
-        if invalid.any():
-            raise ValueError(
-                f"event_frame.{column} must contain finite numbers or explicit missing values"
-            )
-        if column == "safety_stock" and (values.dropna() < 0).any():
-            raise ValueError("event_frame.safety_stock must be non-negative when supplied")
-        frame[column] = values
+    frame["target_level"] = target
     for column in ("order_event_count", "sku_order_line_count"):
         if not np.equal(frame[column], np.floor(frame[column])).all():
             raise ValueError(f"event_frame.{column} must contain integers")

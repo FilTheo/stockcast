@@ -421,7 +421,6 @@ def _build_period_event_frame(
     event_df = before_df[[
         sku_column,
         'on_hand',
-        'safety_stock',
         'backorders',
         'starting_on_order',
     ]].merge(
@@ -473,7 +472,6 @@ def _build_period_event_frame(
         'starting_on_hand',
         'starting_backorders',
             'starting_on_order',
-            'safety_stock',
         'ending_on_hand',
         'backorders_end',
         'demand',
@@ -483,7 +481,6 @@ def _build_period_event_frame(
         'shortage_units',
         'order_quantity',
         'target_level',
-        'safety_stock',
         'on_order_end',
     ]
     for column in numeric_columns:
@@ -559,7 +556,6 @@ def _build_period_event_frame(
         'expired_units',
         'inventory_adjustment_units',
         'target_level',
-        'safety_stock',
         'stockout_flag',
         'backorder_flag',
     ]

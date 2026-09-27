@@ -67,7 +67,7 @@ columns are listed in `stockcast.evaluation.CANONICAL_EVENT_COLUMNS`.
 | `order_event_count` | 1 on one row of a period in which any positive order was placed, else 0 (so sums count decisions) |
 | `sku_order_line_count` | positive order lines for this SKU (supplier lines with a supply model) |
 | `order_line_quantity_squared_sum` | sum of squared line quantities (for order-size variance) |
-| `target_level`, `safety_stock` | policy diagnostics, when the policy provides them |
+| `target_level` | policy diagnostic, when the policy provides it |
 | `decision_inventory_position` | inventory position the policy saw before demand; missing without a decision |
 
 ### Order trail

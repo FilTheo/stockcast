@@ -31,7 +31,7 @@ of small stockouts.)
 |---|---|
 | `plot_inventory(result, sku=None, ax=None)` | on-hand stock over time, with stockout periods highlighted |
 | `plot_demand_vs_orders(result, sku=None, ax=None)` | demand and order quantities |
-| `plot_simulation_dashboard(result, sku=None, show_target=True, show_safety_stock=True)` | the four-panel dashboard above |
+| `plot_simulation_dashboard(result, sku=None, show_target=True)` | the four-panel dashboard above |
 
 `sku` selects one SKU or a list; `None` adds all SKUs together.
 

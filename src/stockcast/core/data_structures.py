@@ -306,7 +306,7 @@ class InventoryStateDataFrame:
         - ``period``, ``date``: the state's position in time.
         - ``latest_*``: flows of the most recent period (``latest_received``,
           ``latest_fulfilled``, ``latest_shortage``, ...), reset each period.
-        - ``target_level``, ``safety_stock``: informational policy fields.
+        - ``target_level``: the policy's latest target, for information.
 
     Example:
         ```python
@@ -330,7 +330,7 @@ class InventoryStateDataFrame:
             data: A list or array of SKU ids (then call an ``initialize_*`` method),
                 or a DataFrame with the SKU column and, for a complete state,
                 ``on_hand``, ``backorders``, ``in_transit`` (NumPy arrays),
-                ``safety_stock``, ``period`` and ``date``.
+                ``period`` and ``date``.
             max_lead_time: Pipeline length. ``None`` (default) sizes it when
                 needed: a run grows it to cover the policy's lead time and the
                 supply model's longest delivery, and placing an order or
@@ -413,7 +413,6 @@ class InventoryStateDataFrame:
         # Define all inventory state columns
         numeric_columns = [
             'on_hand',
-            'safety_stock',
             'target_level',
             'latest_order',
             'latest_received',
@@ -640,7 +639,6 @@ class InventoryStateDataFrame:
             self.data,
             [
                 'on_hand',
-                'safety_stock',
                 'latest_order',
                 'latest_received',
                 'latest_fulfilled',
@@ -721,12 +719,10 @@ class InventoryStateDataFrame:
         """String representation showing number of SKUs and key statistics."""
         n_skus = len(self.data)
         total_on_hand = self.data['on_hand'].sum()
-        total_safety_stock = self.data['safety_stock'].sum()
         total_backorders = self.data['backorders'].sum()
 
         return (f"InventoryStateDataFrame(n_skus={n_skus}, "
                 f"total_on_hand={total_on_hand:.0f}, "
-                f"total_safety_stock={total_safety_stock:.0f}, "
                 f"total_backorders={total_backorders:.0f}, "
                 f"has_stockout={self.has_stockout}, "
                 f"has_backorder={self.has_backorder})")
@@ -734,7 +730,7 @@ class InventoryStateDataFrame:
     def initialize_zero(self, start_date: Optional[pd.Timestamp] = None) -> 'InventoryStateDataFrame':
         """Initialize all inventory levels to zero.
 
-        Sets all numeric inventory columns (on_hand, safety_stock, backorders, target_level, latest_order) to 0
+        Sets all numeric inventory columns (on_hand, backorders, target_level, latest_order) to 0
         and period to 0. Useful for starting fresh simulations with empty inventory.
 
         Args:
@@ -751,7 +747,7 @@ class InventoryStateDataFrame:
                 max_lead_time=7,
             )
             inventory.initialize_zero(start_date=pd.Timestamp('2025-01-01'))
-            # → on_hand=0, safety_stock=0, target_level=0, latest_order=0, backorders=0 for all SKUs
+            # → on_hand=0, target_level=0, latest_order=0, backorders=0 for all SKUs
             ```
         """
         # Ensure we have only one row per SKU (prevents duplicates when historical data passed to __init__)
@@ -759,7 +755,6 @@ class InventoryStateDataFrame:
         self.data = unique_skus
 
         self.data['on_hand'] = 0.0
-        self.data['safety_stock'] = 0.0
         self.data['target_level'] = 0.0
         self.data['latest_order'] = 0.0
         self.data['latest_received'] = 0.0
