@@ -31,9 +31,13 @@ seed, policy and target metadata, opening state, settings, and versions.
 
 ## What it means for you
 
-- `SimulationEngine.run` has no defaults for choices that change results; you
-  write your experiment down once, in the call.
+- Nothing is guessed. What Stockcast can read from your inputs, it reads: the
+  run length from the demand table, the period length from the policy, and a
+  target's probability and window from the policy's service level, lead time,
+  and review period. Anything it cannot read, such as the forecast origin or
+  the uncertainty, you state. If you also pass a value it can read, the two
+  must agree.
+- A run scores every period unless you set warm-up or settlement windows,
+  and the manifest records the windows it used.
 - Costs are only used when you give their rates, zeros included, so a total
   cost always means exactly the components you listed.
-- The examples in these docs show every argument. Once written, they are easy
-  to wrap in your own helpers (like `run_settings` in the examples).

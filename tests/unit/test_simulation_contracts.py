@@ -583,3 +583,156 @@ def test_policy_forecast_frequency_must_match_simulation_periods():
             period_frequency="D",
             **_run_contract(1),
         )
+
+
+# Run defaults: values the inputs already fix are inferred.
+
+def _daily_demand(values, skus=("A",), start="2025-01-02"):
+    dates = pd.date_range(start, periods=len(values), freq="D")
+    return pd.DataFrame([
+        {"unique_id": sku, "period": period, "date": dates[period], "y": float(value)}
+        for sku in skus
+        for period, value in enumerate(values)
+    ])
+
+
+def _order_up_to(frequency="D"):
+    from stockcast.policies import OrderUpToPolicy
+
+    return OrderUpToPolicy(1, 1, service_level=0.9, allow_backorders=False).fit(
+        pd.DataFrame({"unique_id": ["A"], "S": [8.0]}),
+        target_column="S",
+        forecast_origin=pd.Timestamp("2025-01-01"),
+        forecast_frequency=frequency,
+    )
+
+
+def _stable(result):
+    manifest = {
+        key: value for key, value in result.run_manifest.items()
+        if key not in {"run_id", "created_at_utc"}
+    }
+    return result.to_event_frame(), result.run_settings, manifest
+
+
+def test_minimal_run_matches_the_fully_explicit_run():
+    demand = _daily_demand([3, 5, 2, 4, 6, 1])
+    minimal = SimulationEngine().run(
+        policy=_order_up_to(), demand_source=demand, inventory=_inventory(),
+    )
+    explicit = SimulationEngine().run(
+        policy=_order_up_to(),
+        demand_source=demand,
+        inventory=_inventory(),
+        n_periods=6,
+        period_frequency="D",
+        warmup_periods=0,
+        scoring_periods=6,
+        settlement_periods=0,
+        order_during_settlement=False,
+        random_seed=None,
+    )
+    events, settings, manifest = _stable(minimal)
+    pd.testing.assert_frame_equal(events, explicit.to_event_frame())
+    assert settings == explicit.run_settings
+    assert manifest == _stable(explicit)[2]
+    assert manifest["demand_source"]["name"] is None
+    assert manifest["demand_source"]["random_seed"] is None
+
+
+def test_scoring_defaults_to_the_periods_left_after_warmup_and_settlement():
+    result = SimulationEngine().run(
+        policy=_order_up_to(),
+        demand_source=_daily_demand([3, 5, 2, 4, 6, 1]),
+        inventory=_inventory(),
+        warmup_periods=2,
+        settlement_periods=1,
+        order_during_settlement=False,
+    )
+    assert (
+        result.run_settings["warmup_periods"],
+        result.run_settings["scoring_periods"],
+        result.run_settings["settlement_periods"],
+    ) == (2, 3, 1)
+    assert result.to_event_frame()["run_window"].tolist() == (
+        ["warmup"] * 2 + ["scoring"] * 3 + ["settlement"]
+    )
+    with pytest.raises(ValueError, match="leave no scoring periods"):
+        SimulationEngine().run(
+            policy=_order_up_to(), demand_source=_daily_demand([3, 5]),
+            inventory=_inventory(), warmup_periods=2,
+        )
+
+
+def test_settlement_requires_an_explicit_ordering_choice():
+    with pytest.raises(ValueError, match="order_during_settlement is required"):
+        SimulationEngine().run(
+            policy=_order_up_to(),
+            demand_source=_daily_demand([3, 5, 2]),
+            inventory=_inventory(),
+            settlement_periods=1,
+        )
+
+
+def test_n_periods_is_required_for_callable_demand():
+    demand = _daily_demand([3, 5, 2])
+    with pytest.raises(ValueError, match="n_periods is required when demand_source is a callable"):
+        SimulationEngine().run(
+            policy=_order_up_to(),
+            demand_source=lambda period: demand[demand["period"] == period],
+            inventory=_inventory(),
+        )
+    result = SimulationEngine().run(
+        policy=_order_up_to(),
+        demand_source=lambda period: demand[demand["period"] == period],
+        inventory=_inventory(),
+        n_periods=3,
+    )
+    assert result.run_settings["scoring_periods"] == 3
+
+
+def test_period_frequency_comes_from_the_policy_or_must_be_given():
+    demand = _daily_demand([3, 5, 2])
+    with pytest.raises(ValueError, match="period_frequency is required"):
+        SimulationEngine().run(policy=_policy(), demand_source=demand, inventory=_inventory())
+    result = SimulationEngine().run(
+        policy=_policy(), demand_source=demand, inventory=_inventory(), period_frequency="D",
+    )
+    assert result.run_settings["scoring_periods"] == 3
+    with pytest.raises(ValueError, match="must match simulation period_frequency"):
+        SimulationEngine().run(
+            policy=_order_up_to(), demand_source=demand, inventory=_inventory(),
+            period_frequency="2D",
+        )
+
+
+def test_comparison_infers_periods_and_a_shared_frequency():
+    demand = _daily_demand([3, 5, 2, 4])
+    comparison = SimulationEngine().run_comparison(
+        [_order_up_to(), _order_up_to()], demand, _inventory(), labels=["a", "b"],
+    )
+    assert comparison["a"].run_settings["scoring_periods"] == 4
+    # A custom policy without target metadata does not constrain the frequency.
+    mixed = SimulationEngine().run_comparison(
+        [_order_up_to(), _policy()], demand, _inventory(), labels=["a", "custom"],
+    )
+    assert mixed["custom"].run_settings["scoring_periods"] == 4
+    with pytest.raises(ValueError, match="different forecast frequencies"):
+        SimulationEngine().run_comparison(
+            [_order_up_to("D"), _order_up_to("2D")], demand, _inventory(),
+            labels=["a", "b"],
+        )
+
+
+def test_optional_labels_are_recorded_when_given():
+    result = SimulationEngine().run(
+        policy=_order_up_to(), demand_source=_daily_demand([3, 5]), inventory=_inventory(),
+        demand_source_name=" shop_7 ", random_seed=11,
+    )
+    assert result.run_manifest["demand_source"]["name"] == "shop_7"
+    assert result.run_manifest["demand_source"]["random_seed"] == 11
+    with pytest.raises(ValueError, match="demand_source_name must be a non-empty string or None"):
+        SimulationEngine().run(
+            policy=_order_up_to(), demand_source=_daily_demand([3, 5]),
+            inventory=_inventory(), demand_source_name=" ",
+        )

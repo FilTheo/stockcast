@@ -47,8 +47,7 @@ shows how finer review steps approach the continuous-review result.
 
 $Q$ and $S$ are ordering choices rather than quantiles. $Q$ is often a pack
 size or an economic order quantity, and $s$ and $S$ are usually chosen
-together. Stockcast asks you to name where $Q$ comes from
-(`order_quantity_source`) so the run manifest records it.
+together.
 
 ## In Stockcast
 
@@ -77,7 +76,6 @@ together. Stockcast asks you to name where $Q$ comes from
         policy_type="sQ",
         service_level=0.95,
         order_quantity=30.0,
-        order_quantity_source="case_of_30",
         allow_backorders=False,
     ).fit(
         targets,
@@ -85,9 +83,6 @@ together. Stockcast asks you to name where $Q$ comes from
         forecast_frequency="D",
         reorder_point_column="s",
         reorder_end_date_column="s_end",
-        reorder_horizon=H,
-        target_source="external_direct",
-        target_probability=0.95,
     )
     sQ.get_parameters()
     ```
@@ -119,8 +114,6 @@ together. Stockcast asks you to name where $Q$ comes from
         reorder_point_column="s",
         order_up_to_column="S",
         reorder_end_date_column="s_end",
-        reorder_horizon=6,            # L + R
-        target_source="external_direct",
     )
     sS.get_parameters()
     ```
@@ -137,17 +130,17 @@ together. Stockcast asks you to name where $Q$ comes from
 | `policy_type` | `"sQ"` or `"sS"` |
 | `lead_time`, `review_period` / `schedule` | as for every policy |
 | `service_level` | $\alpha$ for quantile mode, `None` for planner mode |
-| `order_quantity`, `order_quantity_source` | $Q$ and where it comes from; $(s, Q)$ only |
+| `order_quantity` | $Q$; $(s, Q)$ only |
 | `allow_backorders` | `True` or `False` |
 
 | `fit` | Meaning |
 |---|---|
 | `reorder_point_column` | column holding $s$ |
 | `order_up_to_column` | column holding $S$; $(s, S)$ only |
-| `reorder_horizon` | $H$: $L + R$ for periodic schedules, $(u - t) + L$ otherwise |
-| `reorder_end_date_column` | last date covered by $s$: origin $+ H\Delta$ |
-| `target_probability` | $\alpha$, quantile mode only |
-| `forecast_origin`, `forecast_frequency`, `target_source` | as for [every target](../forecast-targets.md#the-fit-arguments) |
+| `reorder_horizon` | $H$: defaults to $L + R$ for periodic schedules; required otherwise, checked as $(u - t) + L$ |
+| `reorder_end_date_column` | optional; last date covered by $s$: origin $+ H\Delta$ |
+| `target_probability` | $\alpha$, quantile mode only; defaults to `service_level` |
+| `forecast_origin`, `forecast_frequency` | as for [every target](../forecast-targets.md#the-fit-arguments) |
 
 ## Good to know
 

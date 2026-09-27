@@ -199,10 +199,12 @@ plot is computed from the ledger, so service, stock, and cost numbers are
 consistent with each other by construction.
 
 **Inputs are facts you state.** Opening stock, dates, frequency, lead time,
-review timing, shortage rule, run windows, costs, and the provenance of demand
-are all explicit. There are no defaults for choices that change a result, and
-a missing or inconsistent input stops the run before the first period with the
-SKU and field that caused it. We chose loud and early over quiet and wrong.
+review timing, shortage rule, uncertainty, and costs are all explicit, and
+nothing is guessed. What follows from what you already stated is read, not
+asked twice: the run length comes from the demand, the period length from the
+policy, and a target's window from the lead time and review period. A missing
+or inconsistent input stops the run before the first period with the SKU and
+field that caused it. We chose loud and early over quiet and wrong.
 
 **Evaluate, don't certify.** Order-up-to rules are simple, robust, and
 asymptotically optimal in lost-sales systems as the shortage penalty grows

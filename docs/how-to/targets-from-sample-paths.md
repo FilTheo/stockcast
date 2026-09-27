@@ -84,8 +84,7 @@ target = pd.DataFrame({
 })
 policy = OrderUpToPolicy(lead_time=2, review_period=4, service_level=0.95,
                          allow_backorders=False).fit(
-    target, target_column="target", target_probability=0.95, protection_horizon=H,
-    target_source="external_direct", forecast_origin=origin, forecast_frequency="D",
+    target, target_column="target", forecast_origin=origin, forecast_frequency="D",
     target_end_date_column="target_end_date",
 )
 ```

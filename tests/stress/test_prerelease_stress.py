@@ -71,7 +71,7 @@ def fit_out(policy, skus, targets, *, horizon, origin=ORIGIN):
         pd.DataFrame({"unique_id": skus, "S": targets, "end": origin + horizon * DAY}),
         forecast_origin=origin, forecast_frequency="D", target_column="S",
         target_end_date_column="end", protection_horizon=horizon,
-        target_source="external_direct", target_probability=policy.service_level,
+        target_probability=policy.service_level,
     )
 
 
@@ -86,7 +86,7 @@ def fit_reorder(policy, skus, s_values, S_values=None, *, origin=ORIGIN):
     return policy.fit(
         frame, forecast_origin=origin, forecast_frequency="D", reorder_point_column="s",
         reorder_end_date_column="s_end", target_probability=policy.service_level,
-        reorder_horizon=horizon, target_source="external_direct", **kwargs,
+        reorder_horizon=horizon, **kwargs,
     )
 
 
@@ -354,7 +354,7 @@ def _random_case(seed: int):
             q = float(rng.randint(3, 20))
             policy = fit_reorder(sc.ReorderPointPolicy(
                 lead, schedule=schedule, policy_type="sQ", service_level=service, order_quantity=q,
-                order_quantity_source="case_pack", allow_backorders=backorders), skus, s_values)
+                allow_backorders=backorders), skus, s_values)
 
             def rule(i, ip):
                 return q if ip <= s_values[i] else 0.0
@@ -633,7 +633,7 @@ def test_every_period_reorder_point_needs_lead_plus_one_window():
     def service(lead, window):
         s = float(_poisson_ppf(alpha, mean * window)) if window else 0.0
         policy = sc.ReorderPointPolicy(lead, review_period=1, policy_type="sQ", order_quantity=q,
-                                       order_quantity_source="case", allow_backorders=True)
+                                       allow_backorders=True)
         fit_reorder(policy, skus, [s] * n_skus)  # planner mode: s supplied directly
         state = opening_state(skus, max_lead=lead, backorders=True, on_hand=[s + q] * n_skus)
         result = run_engine(sc.SimulationEngine(), policy, demand_frame(demand, skus), state,
@@ -669,7 +669,7 @@ def test_single_season_newsvendor_is_profit_maximizing_at_the_critical_fractile(
         policy.fit(pd.DataFrame({"unique_id": skus, "q": quantity,
                                  "end": origin + (lead + season) * DAY}),
                    forecast_origin=origin, forecast_frequency="D", target_column="q",
-                   target_end_date_column="end", target_source="external_direct",
+                   target_end_date_column="end",
                    target_probability=fractile)
         state = opening_state(skus, max_lead=lead, backorders=False, on_hand=[0.0] * n_skus)
         result = run_engine(sc.SimulationEngine(), policy, demand_frame(demand, skus), state,
@@ -756,7 +756,7 @@ def test_retailer_weekly_rolling_forecast_workflow_with_perishables():
         frame = pd.DataFrame(rows, columns=["unique_id", "fh", "date", "mean", "std"])
         return sc.OrderUpToPolicy(lead, review, service_level=0.95, allow_backorders=False).fit(
             frame, forecast_origin=origin, forecast_frequency="D", mean_column="mean",
-            std_column="std", forecast_date_column="date", aggregation_method="independent_normal",
+            std_column="std", forecast_date_column="date",
             protection_horizon=horizon, target_probability=0.95,
         )
 
@@ -915,15 +915,14 @@ def test_target_metadata_that_misstates_the_window_is_rejected(bad):
     with pytest.raises(ValueError):
         policy.fit(frame, forecast_origin=ORIGIN, forecast_frequency="D", target_column=column,
                    target_end_date_column="end", protection_horizon=horizon,
-                   target_probability=bad.get("target_probability", 0.95),
-                   target_source="external_direct")
+                   target_probability=bad.get("target_probability", 0.95))
 
 
 def test_summing_marginal_quantiles_is_refused():
     policy = sc.OrderUpToPolicy(1, 1, service_level=0.9, allow_backorders=False)
     frame = pd.DataFrame({"unique_id": ["a", "a"], "fh": [1, 2],
                           "date": [ORIGIN + DAY, ORIGIN + 2 * DAY], "mean": [3.0, 3.0], "std": [1.0, 1.0]})
-    with pytest.raises(ValueError, match="cannot be summed"):
+    with pytest.raises(TypeError, match="aggregation_method"):
         policy.fit(frame, forecast_origin=ORIGIN, forecast_frequency="D", mean_column="mean",
                    std_column="std", forecast_date_column="date", protection_horizon=2,
                    target_probability=0.9, aggregation_method="sum_marginal_quantiles")

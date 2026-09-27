@@ -31,14 +31,8 @@ Usage:
         policy=policy,
         demand_source=demand_fn,
         inventory=inv,
-        n_periods=365,
-        period_frequency="D",
-        warmup_periods=0,
-        scoring_periods=365,
-        settlement_periods=0,
-        order_during_settlement=False,
-        demand_source_name="synthetic_normal",
-        random_seed=42,
+        n_periods=365,          # required for a callable
+        random_seed=42,         # optional, recorded in the manifest
     )
 """
 
@@ -93,17 +87,7 @@ class DemandGenerator:
         # Dynamic: callable for SimulationEngine
         fn = gen.normal_fn(mean=100, std=20)
         result = engine.run(
-            policy=p,
-            demand_source=fn,
-            inventory=inv,
-            n_periods=30,
-            period_frequency="D",
-            warmup_periods=0,
-            scoring_periods=30,
-            settlement_periods=0,
-            order_during_settlement=False,
-            demand_source_name="synthetic_normal",
-            random_seed=42,
+            policy=p, demand_source=fn, inventory=inv, n_periods=30, random_seed=42,
         )
         ```
     """

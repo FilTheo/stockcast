@@ -12,19 +12,7 @@ the supported extension surface; they never receive live mutable engine state.
 Usage:
     # Simple usage
     engine = SimulationEngine()
-    result = engine.run(
-        policy=policy,
-        demand_source=demand_df,
-        inventory=inventory,
-        n_periods=365,
-        period_frequency="D",
-        warmup_periods=0,
-        scoring_periods=365,
-        settlement_periods=0,
-        order_during_settlement=False,
-        demand_source_name="example_demand",
-        random_seed=None,
-    )
+    result = engine.run(policy=policy, demand_source=demand_df, inventory=inventory)
     print(result.summary())
 
     # Ordered, removable callbacks are passed with callbacks=[...].
@@ -1160,10 +1148,7 @@ class SimulationEngine:
         ```python
         result = SimulationEngine().run(
             policy=policy, demand_source=demand, inventory=inventory,
-            n_periods=56, period_frequency="D",
-            warmup_periods=0, scoring_periods=56, settlement_periods=0,
-            order_during_settlement=False,
-            demand_source_name="tea_shop", random_seed=3,
+            warmup_periods=7,                 # optional: exclude a burn-in from scoring
         )
         ```
     """
@@ -1191,15 +1176,15 @@ class SimulationEngine:
         policy: BasePolicy,
         demand_source: Union[pd.DataFrame, Callable],
         inventory: InventoryStateDataFrame,
-        n_periods: int,
+        n_periods: Optional[int] = None,
         *,
-        period_frequency: str,
-        warmup_periods: int,
-        scoring_periods: int,
-        settlement_periods: int,
-        order_during_settlement: bool,
-        demand_source_name: str,
-        random_seed: Optional[int],
+        period_frequency: Optional[str] = None,
+        warmup_periods: int = 0,
+        scoring_periods: Optional[int] = None,
+        settlement_periods: int = 0,
+        order_during_settlement: Optional[bool] = None,
+        demand_source_name: Optional[str] = None,
+        random_seed: Optional[int] = None,
         policy_schedule: Optional[Mapping[int, BasePolicy]] = None,
         order_constraints: Optional[OrderingConstraints] = None,
         callbacks: Optional[Sequence[SimulationCallback]] = None,
@@ -1221,16 +1206,22 @@ class SimulationEngine:
                 ``max_lead_time`` must cover the policy's lead time and the supply
                 model's longest delivery. Its ``allow_backorders`` must match the
                 policy's, or be unset to take the policy's.
-            n_periods: Number of demand periods.
+            n_periods: Number of demand periods. Inferred from a DataFrame's
+                ``period`` column (periods ``0..n-1``); required for a callable.
             period_frequency: Length of one period, a pandas frequency such as
                 ``"D"``. Period ``p`` is dated opening date + ``(p + 1)`` periods.
-            warmup_periods: Leading periods excluded from scoring.
+                Defaults to the policy's ``forecast_frequency``; required when
+                the policy records none.
+            warmup_periods: Leading periods excluded from scoring (default 0).
             scoring_periods: Periods that metrics describe by default (>= 1).
-            settlement_periods: Trailing periods excluded from scoring. The three
-                windows must add up to ``n_periods``.
+                Defaults to the periods left after warmup and settlement. The
+                three windows must add up to ``n_periods``.
+            settlement_periods: Trailing periods excluded from scoring (default 0).
             order_during_settlement: Whether the policy may order in settlement.
-            demand_source_name: A label for the demand, stored in the manifest.
-            random_seed: The seed behind the demand, or ``None`` if there is none.
+                Required when ``settlement_periods > 0``.
+            demand_source_name: Optional label for the demand, stored in the
+                manifest.
+            random_seed: Optional seed behind the demand, stored in the manifest.
             policy_schedule: ``{decision_period: fitted_policy}`` with refitted
                 policies for later decisions. Each must match ``policy``'s class and
                 configuration, with a forecast origin equal to the decision's
@@ -1251,26 +1242,41 @@ class SimulationEngine:
                 unfitted policy, a demand calendar with gaps, a target for the wrong
                 window, or windows that do not add up.
         """
+        n_periods = self._resolve_n_periods(demand_source, n_periods)
         if not isinstance(n_periods, int) or isinstance(n_periods, bool) or n_periods < 0:
             raise ValueError("n_periods must be a non-negative integer")
-        window_lengths = {
-            'warmup_periods': warmup_periods,
-            'scoring_periods': scoring_periods,
-            'settlement_periods': settlement_periods,
-        }
-        for name, value in window_lengths.items():
+        for name, value in (
+            ('warmup_periods', warmup_periods),
+            ('settlement_periods', settlement_periods),
+        ):
             if not isinstance(value, int) or isinstance(value, bool) or value < 0:
                 raise ValueError(f"{name} must be an integer >= 0")
-        if scoring_periods < 1:
+        if scoring_periods is None:
+            scoring_periods = n_periods - warmup_periods - settlement_periods
+            if scoring_periods < 1:
+                raise ValueError(
+                    f"warmup_periods + settlement_periods ({warmup_periods + settlement_periods}) "
+                    f"leave no scoring periods in a {n_periods}-period run"
+                )
+        if not isinstance(scoring_periods, int) or isinstance(scoring_periods, bool) or scoring_periods < 1:
             raise ValueError("scoring_periods must be an integer >= 1")
-        if sum(window_lengths.values()) != n_periods:
+        if warmup_periods + scoring_periods + settlement_periods != n_periods:
             raise ValueError(
                 "warmup_periods + scoring_periods + settlement_periods must equal n_periods"
             )
+        if order_during_settlement is None:
+            if settlement_periods > 0:
+                raise ValueError(
+                    "order_during_settlement is required when settlement_periods > 0: "
+                    "choose whether the policy may order during settlement"
+                )
+            order_during_settlement = False
         if not isinstance(order_during_settlement, bool):
             raise ValueError("order_during_settlement must be boolean")
-        if not isinstance(demand_source_name, str) or not demand_source_name.strip():
-            raise ValueError("demand_source_name must be a non-empty string")
+        if demand_source_name is not None and (
+            not isinstance(demand_source_name, str) or not demand_source_name.strip()
+        ):
+            raise ValueError("demand_source_name must be a non-empty string or None")
         if random_seed is not None and (
             not isinstance(random_seed, int) or isinstance(random_seed, bool)
         ):
@@ -1300,6 +1306,8 @@ class SimulationEngine:
             raise ValueError("policy must be fitted before simulation")
         if not isinstance(inventory, InventoryStateDataFrame):
             raise TypeError("inventory must be an InventoryStateDataFrame")
+        if period_frequency is None:
+            period_frequency = self._infer_period_frequency([policy])
         period_offset = _require_forward_frequency(
             period_frequency,
             "period_frequency",
@@ -1486,7 +1494,9 @@ class SimulationEngine:
             run_settings['processes'] = copy.deepcopy(process_manifests)
         run_manifest = self._build_run_manifest(
             demand_data=demand_data,
-            demand_source_name=demand_source_name.strip(),
+            demand_source_name=(
+                demand_source_name.strip() if demand_source_name is not None else None
+            ),
             demand_source_type=demand_source_type,
             random_seed=random_seed,
             source_commit=resolved_commit,
@@ -2805,15 +2815,15 @@ class SimulationEngine:
         policies: List[BasePolicy],
         demand_source: Union[pd.DataFrame, Callable],
         inventory: InventoryStateDataFrame,
-        n_periods: int,
+        n_periods: Optional[int] = None,
         *,
-        period_frequency: str,
-        warmup_periods: int,
-        scoring_periods: int,
-        settlement_periods: int,
-        order_during_settlement: bool,
-        demand_source_name: str,
-        random_seed: Optional[int],
+        period_frequency: Optional[str] = None,
+        warmup_periods: int = 0,
+        scoring_periods: Optional[int] = None,
+        settlement_periods: int = 0,
+        order_during_settlement: Optional[bool] = None,
+        demand_source_name: Optional[str] = None,
+        random_seed: Optional[int] = None,
         labels: Optional[List[str]] = None,
         policy_schedules: Optional[List[Optional[Mapping[int, BasePolicy]]]] = None,
         order_constraints: Optional[OrderingConstraints] = None,
@@ -2885,6 +2895,9 @@ class SimulationEngine:
             )
         if len(labels) != len(set(labels)):
             raise ValueError("labels must be unique")
+        n_periods = self._resolve_n_periods(demand_source, n_periods)
+        if period_frequency is None:
+            period_frequency = self._infer_period_frequency(policies)
         if policy_schedules is None:
             policy_schedules = [None] * len(policies)
         elif len(policy_schedules) != len(policies):
@@ -2939,6 +2952,59 @@ class SimulationEngine:
             results[label] = result
 
         return ComparisonResult(results)
+
+    @staticmethod
+    def _resolve_n_periods(demand_source, n_periods: Optional[int]) -> int:
+        """Return ``n_periods``, inferred from a demand DataFrame when omitted.
+
+        A demand DataFrame must hold exactly periods ``0..n-1``, so its largest
+        period fixes ``n``. A callable has no periods to count.
+        """
+        if n_periods is not None:
+            return n_periods
+        if not isinstance(demand_source, pd.DataFrame):
+            raise ValueError(
+                "n_periods is required when demand_source is a callable"
+            )
+        if 'period' not in demand_source.columns or demand_source.empty:
+            raise ValueError(
+                "n_periods could not be inferred: demand_source needs a 'period' "
+                "column with periods 0..n-1"
+            )
+        periods = pd.to_numeric(demand_source['period'], errors='coerce')
+        if periods.isna().any() or not np.isfinite(periods.to_numpy(dtype=float)).all():
+            raise ValueError("demand_source.period must contain finite integers")
+        return int(periods.max()) + 1
+
+    @staticmethod
+    def _infer_period_frequency(policies: Sequence[BasePolicy]) -> str:
+        """Return the forecast frequency the fitted policies record.
+
+        Policies without target metadata (custom policies) do not constrain
+        it; at least one policy must record a frequency.
+        """
+        frequencies = set()
+        for policy in policies:
+            get_metadata = getattr(policy, "get_target_metadata", None)
+            metadata = (
+                get_metadata()
+                if callable(get_metadata) and getattr(policy, "fitted_", False)
+                else {}
+            )
+            frequency = metadata.get("forecast_frequency") if isinstance(metadata, dict) else None
+            if frequency is not None:
+                frequencies.add(frequency)
+        if not frequencies:
+            raise ValueError(
+                "period_frequency is required: the policy records no "
+                "forecast_frequency in its target metadata"
+            )
+        if len(frequencies) != 1:
+            raise ValueError(
+                "period_frequency is required: the policies record different "
+                f"forecast frequencies {sorted(frequencies)}"
+            )
+        return frequencies.pop()
 
     @staticmethod
     def _deduplicate_labels(labels: List[str]) -> List[str]:

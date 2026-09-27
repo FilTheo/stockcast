@@ -74,8 +74,7 @@ def fit_policy(observed, origin):
         lead_time=lead_time, review_period=review_period,
         service_level=0.95, allow_backorders=False,
     ).fit(
-        target, target_column="target", target_probability=0.95,
-        protection_horizon=horizon, target_source="external_direct",
+        target, target_column="target",
         forecast_origin=origin, forecast_frequency="D",
         target_end_date_column="target_end_date",
     )
@@ -164,7 +163,7 @@ backtest = SimulationEngine().run(
     order_constraints=supplier_rules,
     demand_source=demand[demand["period"] < 28],
     inventory=inventory,
-    **dict(run_settings, n_periods=28, scoring_periods=28),
+    **run_settings,
 )
 
 backtest_stock = backtest.to_event_frame()["ending_on_hand"].tolist()

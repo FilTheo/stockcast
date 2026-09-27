@@ -37,19 +37,14 @@ def tea_policy(probability):
         lead_time=lead_time, review_period=review_period,
         service_level=probability, allow_backorders=False,
     ).fit(
-        target, target_column="target", target_probability=probability,
-        protection_horizon=horizon, target_source="external_direct",
+        target, target_column="target",
         forecast_origin=opening_date, forecast_frequency="D",
         target_end_date_column="target_end_date",
     )
 
 
 policy = tea_policy(0.95)
-run_settings = dict(
-    n_periods=56, period_frequency="D", warmup_periods=0, scoring_periods=56,
-    settlement_periods=0, order_during_settlement=False,
-    demand_source_name="tea_shop", random_seed=3,
-)
+run_settings = dict(random_seed=3)
 result = SimulationEngine().run(
     policy=policy, demand_source=demand, inventory=inventory, **run_settings,
 )

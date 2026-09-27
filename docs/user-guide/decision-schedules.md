@@ -69,8 +69,9 @@ $$
 
 where $u_t$ is the next decision after $t$ (see
 [Timing](concepts/timing.md#irregular-schedules)). Each decision therefore
-gets its own fitted target. Pass the first one as `policy` and the rest in
-`policy_schedule`, keyed by decision period:
+gets its own fitted target, with its window passed as `protection_horizon`
+(for periodic schedules Stockcast works it out as $L + R$). Pass the first one
+as `policy` and the rest in `policy_schedule`, keyed by decision period:
 
 ```python
 import numpy as np
@@ -97,8 +98,7 @@ def fit_for(decision_period, horizon):
         lead_time=lead_time, schedule=calendar, service_level=0.95,
         allow_backorders=False,
     ).fit(
-        target, target_column="target", target_probability=0.95,
-        protection_horizon=horizon, target_source="external_direct",
+        target, target_column="target", protection_horizon=horizon,
         forecast_origin=origin, forecast_frequency="D", target_end_date_column="end",
     )
 
@@ -117,9 +117,8 @@ inventory.initialize_from_observed(pd.DataFrame({"unique_id": [sku], "on_hand": 
 
 result = SimulationEngine().run(
     policy=first, policy_schedule=later,
-    demand_source=demand, inventory=inventory, n_periods=14, period_frequency="D",
-    warmup_periods=0, scoring_periods=14, settlement_periods=0,
-    order_during_settlement=False, demand_source_name="constant_six", random_seed=3,
+    demand_source=demand, inventory=inventory,
+    random_seed=3,
 )
 events = result.to_event_frame()
 events.loc[events["decision_flag"], ["demand_period", "date", "decision_inventory_position",

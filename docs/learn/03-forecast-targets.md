@@ -158,8 +158,7 @@ policy = OrderUpToPolicy(lead_time=2, review_period=4, service_level=0.95,
                          allow_backorders=False).fit(
     daily,
     mean_column="mean", std_column="std", forecast_date_column="date",
-    aggregation_method="independent_normal", target_probability=0.95,
-    protection_horizon=6, forecast_origin=opening_date, forecast_frequency="D",
+    forecast_origin=opening_date, forecast_frequency="D",
 )
 policy.get_target_levels()
 ```

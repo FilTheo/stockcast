@@ -149,9 +149,6 @@ frequency, and end date. The fitting modes differ in what you supply.
                              allow_backorders=False).fit(
         target,
         target_column="S",
-        target_probability=0.95,
-        protection_horizon=6,
-        target_source="external_direct",
         forecast_origin=opening_date,
         forecast_frequency="D",
         target_end_date_column="S_end",
@@ -162,7 +159,9 @@ frequency, and end date. The fitting modes differ in what you supply.
 
     One row per SKU and horizon step $\mathrm{fh} = 1, \dots, H$, with the
     date of each step, a mean, and a standard deviation. Stockcast computes
-    $S = \sum_h \mu_h + z_\alpha \sqrt{\sum_h \sigma_h^2}$:
+    $S = \sum_h \mu_h + z_\alpha \sqrt{\sum_h \sigma_h^2}$, which assumes the
+    steps are independent; the target metadata records it as
+    `calculation_method="independent_normal"`:
 
     ```python
     steps = pd.DataFrame({
@@ -175,8 +174,7 @@ frequency, and end date. The fitting modes differ in what you supply.
     independent = OrderUpToPolicy(lead_time=2, review_period=4, service_level=0.95,
                                   allow_backorders=False).fit(
         steps, mean_column="mean", std_column="std", forecast_date_column="date",
-        aggregation_method="independent_normal", target_probability=0.95,
-        protection_horizon=6, forecast_origin=opening_date, forecast_frequency="D",
+        forecast_origin=opening_date, forecast_frequency="D",
     )
     independent.get_target_levels()
     ```
@@ -195,8 +193,8 @@ frequency, and end date. The fitting modes differ in what you supply.
     ```python
     planned = OrderUpToPolicy(lead_time=2, review_period=4, service_level=None,
                               allow_backorders=False).fit(
-        target, target_column="S", protection_horizon=6,
-        target_source="external_direct", forecast_origin=opening_date,
+        target, target_column="S",
+        forecast_origin=opening_date,
         forecast_frequency="D", target_end_date_column="S_end",
     )
     planned.get_target_metadata()["representation"]
@@ -210,18 +208,19 @@ frequency, and end date. The fitting modes differ in what you supply.
 
 | Argument | Meaning | Checked against |
 |---|---|---|
+| Argument | Meaning | Default and checks |
+|---|---|---|
 | `target_column` | Column holding the target | One finite, non-negative value per SKU |
-| `target_probability` | Probability $\alpha$ the target represents | Must equal the policy's `service_level` |
-| `protection_horizon` | Number of periods $H$ the target covers | $L + R$ for periodic schedules; $(u - t) + L$ per decision otherwise |
-| `target_source` | Where the number came from: `"external_direct"` | – |
-| `forecast_origin` | Last date of demand the forecast used | Must not be after the first decision's information date |
-| `forecast_frequency` | Period length of the forecast | Must equal the simulation's `period_frequency` |
-| `target_end_date_column` | Last date the target covers | Must equal origin $+ H \Delta$ |
+| `forecast_frequency` | Period length of the forecast | Required; the simulation uses it as its `period_frequency` |
+| `forecast_origin` | Last date of demand the forecast used | Required unless an end-date column dates the target; must not be after the first decision's information date |
+| `target_end_date_column` | Optional column with the last date the target covers | Must equal origin $+ H \Delta$; with no origin given, the origin is read from it |
+| `target_probability` | Probability $\alpha$ the target represents | Defaults to the policy's `service_level`; must equal it if given |
+| `protection_horizon` | Number of periods $H$ the target covers | Defaults to $L + R$ for periodic schedules (must equal it if given); required for other schedules, checked as $(u - t) + L$ per decision |
 
 Column names that look like quantiles, such as `q95`, `p90`, `up_95`, or
-`q975` (97.5%), are read as probabilities and must agree with
-`target_probability`. A column
-called `q90` cannot be passed as a 95% target by accident.
+`q975` (97.5%), are read as probabilities and must agree with the target's
+probability. A column called `q90` cannot be passed as a 95% target by
+accident.
 
 ## Targets over time
 

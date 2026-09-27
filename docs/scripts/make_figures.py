@@ -119,9 +119,6 @@ def tea_policy(probability):
     ).fit(
         target,
         target_column="target",
-        target_probability=probability,
-        protection_horizon=HORIZON,
-        target_source="external_direct",
         forecast_origin=OPENING,
         forecast_frequency="D",
         target_end_date_column="target_end_date",
@@ -129,16 +126,10 @@ def tea_policy(probability):
 
 
 def tea_run(policy, demand, **windows):
-    windows = windows or dict(warmup_periods=0, scoring_periods=len(demand),
-                              settlement_periods=0)
     return SimulationEngine().run(
         policy=policy,
         demand_source=demand,
         inventory=tea_inventory(),
-        n_periods=len(demand),
-        period_frequency="D",
-        order_during_settlement=False,
-        demand_source_name="tea_shop",
         random_seed=3,
         **windows,
     )
@@ -309,12 +300,11 @@ def fig_reorder_point():
     })
     policy = ReorderPointPolicy(
         lead_time=LEAD_TIME, review_period=1, policy_type="sQ",
-        service_level=0.95, order_quantity=30.0, order_quantity_source="case_of_30",
+        service_level=0.95, order_quantity=30.0,
         allow_backorders=False,
     ).fit(
         targets, forecast_origin=OPENING, forecast_frequency="D",
         reorder_point_column="s", reorder_end_date_column="s_end_date",
-        reorder_horizon=horizon, target_source="external_direct", target_probability=0.95,
     )
     events = tea_run(policy, demand).to_event_frame()
     dates = events["date"]
@@ -359,8 +349,8 @@ def fig_newsvendor():
 def fig_run_windows():
     demand = tea_demand(28)
     colors = {"warmup": "#f0efec", "scoring": "#cde2fb", "settlement": "#fbe0d3"}
-    result = tea_run(tea_policy(0.95), demand, warmup_periods=4, scoring_periods=16,
-                     settlement_periods=8)
+    result = tea_run(tea_policy(0.95), demand, warmup_periods=4, settlement_periods=8,
+                     order_during_settlement=False)
     events = result.to_event_frame()
     fig, ax = plt.subplots(figsize=(8.6, 2.6))
     for window, rows in events.groupby("run_window", sort=False):

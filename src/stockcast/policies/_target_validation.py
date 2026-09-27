@@ -2,7 +2,7 @@
 
 import math
 import re
-from typing import Iterable
+from typing import Iterable, Optional
 
 import numpy as np
 import pandas as pd
@@ -14,11 +14,6 @@ from stockcast.core.data_structures import (
 
 
 _QUANTILE_COLUMN = re.compile(r"^(?:up|q|p)_?(\d+(?:\.\d+)?)$", re.IGNORECASE)
-_INVALID_AGGREGATIONS = {
-    "sum_marginal_quantiles",
-    "sum_of_marginal_quantiles",
-    "marginal_quantile_sum",
-}
 
 
 def validate_probability(value: float, name: str) -> float:
@@ -34,10 +29,15 @@ def validate_probability(value: float, name: str) -> float:
 
 def validate_target_probability(
     service_level: float,
-    target_probability: float,
+    target_probability: Optional[float],
     target_column: str,
 ) -> float:
-    """Validate explicit probability metadata and recognizable column labels."""
+    """Validate probability metadata and recognizable column labels.
+
+    ``target_probability=None`` means the policy's ``service_level``.
+    """
+    if target_probability is None:
+        target_probability = service_level
     probability = validate_probability(target_probability, "target_probability")
     if not math.isclose(probability, float(service_level), rel_tol=0.0, abs_tol=1e-12):
         raise ValueError(
@@ -69,31 +69,6 @@ def validate_target_probability(
     return probability
 
 
-def validate_aggregation_method(method: str, expected: str = None) -> str:
-    """Require explicit provenance and reject marginal-quantile summation."""
-    if not isinstance(method, str) or not method.strip():
-        raise ValueError("aggregation_method must be a non-empty description")
-    normalized = method.strip().lower()
-    if normalized in _INVALID_AGGREGATIONS:
-        raise ValueError(
-            "marginal forecast quantiles cannot be summed into a protection-period "
-            "quantile; supply a directly calculated target"
-        )
-    if expected is not None and normalized != expected:
-        raise ValueError(f"aggregation_method must be '{expected}' for this input mode")
-    return method.strip()
-
-
-def validate_target_source(source: str, *, expected: str = "external_direct") -> str:
-    """Validate where a supplied target came from, separately from calculation."""
-    if not isinstance(source, str) or not source.strip():
-        raise ValueError("target_source must be a non-empty string")
-    normalized = source.strip().lower()
-    if normalized != expected:
-        raise ValueError(f"target_source must be '{expected}' for this input mode")
-    return normalized
-
-
 def validate_protection_horizon(value: int, expected: int, name: str = "protection_horizon") -> int:
     """Require the caller's horizon metadata to match the policy horizon."""
     if not isinstance(value, int) or isinstance(value, bool) or value < 1:
@@ -103,14 +78,20 @@ def validate_protection_horizon(value: int, expected: int, name: str = "protecti
     return value
 
 
-def validate_forecast_origin_and_frequency(forecast_origin, forecast_frequency: str):
-    """Validate and normalize a forecast information origin and period frequency."""
+def validate_forecast_origin(forecast_origin) -> pd.Timestamp:
+    """Return a forecast information origin as a valid timestamp."""
     try:
         origin = pd.Timestamp(forecast_origin)
     except (TypeError, ValueError) as exc:
         raise ValueError("forecast_origin must be a valid timestamp") from exc
     if pd.isna(origin):
         raise ValueError("forecast_origin must be a valid timestamp")
+    return origin
+
+
+def validate_forecast_origin_and_frequency(forecast_origin, forecast_frequency: str):
+    """Validate and normalize a forecast information origin and period frequency."""
+    origin = validate_forecast_origin(forecast_origin)
     offset = _require_forward_frequency(
         forecast_frequency,
         "forecast_frequency",
@@ -159,6 +140,20 @@ def prepare_inventory_positions(
     return prepared
 
 
+def _end_date_column(target_df: pd.DataFrame, target_end_date_column: str) -> pd.Series:
+    """Return a target end-date column as valid timestamps."""
+    if not isinstance(target_end_date_column, str) or not target_end_date_column:
+        raise ValueError("the target end-date column must be a non-empty column name")
+    if target_end_date_column not in target_df.columns:
+        raise ValueError(
+            f"target end-date column '{target_end_date_column}' not found in target_df"
+        )
+    dates = pd.to_datetime(target_df[target_end_date_column], errors="coerce")
+    if dates.isna().any():
+        raise ValueError(f"target_df.{target_end_date_column} must contain valid dates")
+    return dates
+
+
 def validate_target_end_dates(
     target_df: pd.DataFrame,
     target_end_date_column: str,
@@ -167,15 +162,7 @@ def validate_target_end_dates(
     horizon: int,
 ) -> pd.Timestamp:
     """Require every direct target to identify the expected protection end date."""
-    if not isinstance(target_end_date_column, str) or not target_end_date_column:
-        raise ValueError("target_end_date_column is required for direct targets")
-    if target_end_date_column not in target_df.columns:
-        raise ValueError(
-            f"target end-date column '{target_end_date_column}' not found in target_df"
-        )
-    dates = pd.to_datetime(target_df[target_end_date_column], errors="coerce")
-    if dates.isna().any():
-        raise ValueError(f"target_df.{target_end_date_column} must contain valid dates")
+    dates = _end_date_column(target_df, target_end_date_column)
     expected = forecast_origin + horizon * forecast_offset
     if not (dates == expected).all():
         actual = sorted(str(value) for value in dates.unique())
@@ -184,6 +171,50 @@ def validate_target_end_dates(
             f"{horizon}; got {actual}"
         )
     return expected
+
+
+def resolve_target_window(
+    target_df: pd.DataFrame,
+    *,
+    forecast_origin,
+    end_date_column: Optional[str],
+    forecast_offset,
+    horizon: int,
+    end_date_argument: str = "target_end_date_column",
+) -> tuple:
+    """Return ``(origin, end_date)`` of a direct target's window.
+
+    The two dates are tied by ``end = origin + horizon`` periods, so either one
+    is enough. When both are given they must agree.
+    """
+    if forecast_origin is None and end_date_column is None:
+        raise ValueError(
+            f"give forecast_origin or {end_date_argument}: the target window ends "
+            f"{horizon} periods after the forecast origin"
+        )
+    if forecast_origin is not None:
+        origin = validate_forecast_origin(forecast_origin)
+        if end_date_column is None:
+            return origin, origin + horizon * forecast_offset
+        end_date = validate_target_end_dates(
+            target_df, end_date_column, origin, forecast_offset, horizon,
+        )
+        return origin, end_date
+    dates = _end_date_column(target_df, end_date_column)
+    if dates.nunique() != 1:
+        actual = sorted(str(value) for value in dates.unique())
+        raise ValueError(
+            f"target_df.{end_date_column} must hold one end date for every SKU; "
+            f"got {actual}"
+        )
+    end_date = pd.Timestamp(dates.iloc[0])
+    origin = end_date - horizon * forecast_offset
+    if origin + horizon * forecast_offset != end_date:
+        raise ValueError(
+            f"target_df.{end_date_column} date {end_date} is not on the "
+            f"{forecast_offset.freqstr} period grid"
+        )
+    return origin, end_date
 
 
 def prepare_direct_targets(
@@ -221,10 +252,14 @@ def prepare_independent_normal_forecasts(
     std_column: str,
     horizon: int,
     forecast_date_column: str,
-    forecast_origin: pd.Timestamp,
+    forecast_origin: Optional[pd.Timestamp],
     forecast_offset,
-) -> dict:
-    """Validate consecutive marginal mean/std forecasts for an explicit model."""
+) -> tuple:
+    """Validate consecutive marginal mean/std forecasts for an explicit model.
+
+    Returns ``(forecasts_by_sku, origin)``. With ``forecast_origin=None`` the
+    origin is read from the forecast dates (``date - fh`` periods).
+    """
     if not isinstance(forecast_df, pd.DataFrame) or forecast_df.empty:
         raise ValueError("forecast_df must be a non-empty pandas DataFrame")
     if not isinstance(forecast_date_column, str) or not forecast_date_column:
@@ -257,6 +292,14 @@ def prepare_independent_normal_forecasts(
     if dates.isna().any():
         raise ValueError(f"forecast_df.{forecast_date_column} must contain valid dates")
     prepared[forecast_date_column] = dates
+    if forecast_origin is None:
+        first = prepared.iloc[0]
+        forecast_origin = first[forecast_date_column] - int(first["fh"]) * forecast_offset
+        if forecast_origin + int(first["fh"]) * forecast_offset != first[forecast_date_column]:
+            raise ValueError(
+                f"forecast date {first[forecast_date_column]} is not on the "
+                f"{forecast_offset.freqstr} period grid"
+            )
     expected_dates = prepared["fh"].map(
         lambda fh_value: forecast_origin + int(fh_value) * forecast_offset
     )
@@ -282,19 +325,32 @@ def prepare_independent_normal_forecasts(
                 f"got {actual_fh}"
             )
         by_sku[sku] = rows[rows["fh"] <= horizon].copy()
-    return by_sku
+    return by_sku, forecast_origin
 
 
-def schedule_protection_horizon(schedule, lead_time: int, declared: int, name: str) -> int:
+def schedule_protection_horizon(
+    schedule, lead_time: int, declared: Optional[int], name: str,
+) -> int:
     """Return the fit-time protection horizon implied by a decision schedule.
 
-    A periodic schedule with interval ``R`` fixes ``H = L + R``. Other
-    schedules require an explicit horizon, which is checked against the next
+    A periodic schedule with interval ``R`` fixes ``H = L + R``; ``declared``
+    may be ``None`` and is otherwise checked against it. Other schedules
+    require an explicit horizon, which is checked against the next
     opportunity at every decision before the run starts.
     """
     from stockcast.core.decision_schedule import PeriodicSchedule
 
-    expected = lead_time + schedule.every if isinstance(schedule, PeriodicSchedule) else declared
+    if isinstance(schedule, PeriodicSchedule):
+        expected = lead_time + schedule.every
+        if declared is None:
+            return expected
+    else:
+        if declared is None:
+            raise ValueError(
+                f"{name} is required for a nonperiodic schedule; it is checked "
+                "against each decision's window before the run"
+            )
+        expected = declared
     return validate_protection_horizon(declared, expected, name)
 
 

@@ -256,7 +256,6 @@ def test_engine_runs_on_a_poisson_sampler():
         target_column="target",
         target_probability=0.9,
         protection_horizon=2,
-        target_source="external_direct",
         forecast_origin=opening_date,
         forecast_frequency="D",
         target_end_date_column="target_end_date",

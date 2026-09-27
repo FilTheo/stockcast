@@ -42,13 +42,10 @@ policy = OrderUpToPolicy(
     allow_backorders=False,       # lost sales
 ).fit(
     target,
-    target_column="target",
-    target_probability=0.95,               # must match service_level
-    protection_horizon=horizon,            # must equal L + R
-    target_source="external_direct",       # the target was computed outside Stockcast
+    target_column="target",                # the 95% quantile over H = L + R days
     forecast_origin=opening_date,          # the forecast used data up to this date
     forecast_frequency="D",
-    target_end_date_column="target_end_date",
+    target_end_date_column="target_end_date",  # optional: checked against origin + H
 )
 policy
 ```

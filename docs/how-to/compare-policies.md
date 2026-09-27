@@ -59,8 +59,7 @@ rs_targets = pd.DataFrame({
 })
 order_up_to = OrderUpToPolicy(lead_time=L, review_period=R, service_level=0.95,
                               allow_backorders=False).fit(
-    rs_targets, target_column="S", target_probability=0.95, protection_horizon=L + R,
-    target_source="external_direct", forecast_origin=opening, forecast_frequency="D",
+    rs_targets, target_column="S", forecast_origin=opening, forecast_frequency="D",
     target_end_date_column="end",
 )
 
@@ -74,7 +73,6 @@ reorder_point = ReorderPointPolicy(lead_time=L, review_period=1, policy_type="sS
                                    service_level=0.95, allow_backorders=False).fit(
     ss_targets, forecast_origin=opening, forecast_frequency="D",
     reorder_point_column="s", order_up_to_column="S", reorder_end_date_column="end",
-    reorder_horizon=L + 1, target_source="external_direct", target_probability=0.95,
 )
 ```
 
@@ -86,9 +84,7 @@ Two weeks of warm-up let both policies settle before scoring starts:
 comparison = SimulationEngine().run_comparison(
     policies=[order_up_to, reorder_point],
     labels=["(R, S) every 4 days", "(s, S) daily check"],
-    demand_source=demand, inventory=inventory, n_periods=n, period_frequency="D",
-    warmup_periods=14, scoring_periods=70, settlement_periods=0,
-    order_during_settlement=False, demand_source_name="three_teas", random_seed=5,
+    demand_source=demand, inventory=inventory, warmup_periods=14, random_seed=5,
 )
 ```
 

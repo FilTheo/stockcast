@@ -40,12 +40,8 @@ service_level = lost_sale_cost / (lost_sale_cost + holding_cost)
 three_week_totals = past_sales.rolling(coverage).sum()
 forecast = three_week_totals.quantile(service_level)
 
-# The link: the forecast becomes the policy's order-up-to level.
-target = pd.DataFrame({
-    "unique_id": ["coffee"],
-    "order_up_to": [forecast],
-    "covers_until": [today + pd.Timedelta(weeks=coverage)],
-})
+# The link: the forecast, made today, becomes the policy's order-up-to level.
+target = pd.DataFrame({"unique_id": ["coffee"], "order_up_to": [forecast]})
 policy = OrderUpToPolicy(
     lead_time=lead_time,
     review_period=review_period,
@@ -55,10 +51,6 @@ policy = OrderUpToPolicy(
 policy.fit(
     target,
     target_column="order_up_to",
-    target_end_date_column="covers_until",
-    target_probability=service_level,
-    protection_horizon=coverage,
-    target_source="external_direct",
     forecast_origin=today,
     forecast_frequency="W-MON",
 )
@@ -80,20 +72,7 @@ demand = pd.DataFrame({
 })
 
 # Simulate: order every Monday, receive two weeks later, sell from the shelf.
-engine = SimulationEngine()
-result = engine.run(
-    policy=policy,
-    demand_source=demand,
-    inventory=shelf,
-    n_periods=8,
-    period_frequency="W-MON",
-    warmup_periods=0,
-    scoring_periods=8,
-    settlement_periods=0,
-    order_during_settlement=False,
-    demand_source_name="coffee_sales",
-    random_seed=None,
-)
+result = SimulationEngine().run(policy=policy, demand_source=demand, inventory=shelf)
 
 # Score the decisions: service and cost.
 evaluator = InventoryEvaluator()

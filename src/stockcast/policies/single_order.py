@@ -5,7 +5,8 @@ import math
 import pandas as pd
 
 from stockcast.core.decision_schedule import OneTimeSchedule
-from stockcast.policies._target_validation import validate_forecast_origin_and_frequency
+from stockcast.core.data_structures import _require_forward_frequency
+from stockcast.policies._target_validation import validate_forecast_origin
 from stockcast.policies.order_up_to import OrderUpToPolicy
 
 
@@ -95,48 +96,54 @@ class SingleOrderPolicy(OrderUpToPolicy):
         self,
         target_df,
         *,
-        forecast_origin,
         forecast_frequency,
         target_column,
-        target_end_date_column,
-        target_source,
+        forecast_origin=None,
+        target_end_date_column=None,
         target_probability=None,
         sku_column="unique_id",
     ):
         """Bind the season target.
 
+        Give ``forecast_origin``, ``target_end_date_column``, or both: the
+        season ends ``lead_time + selling_horizon`` periods after the origin.
+
         Args:
             target_df: One row per SKU.
-            forecast_origin: Date of the last information used, normally the date
-                before the decision.
             forecast_frequency: Period frequency, such as ``"D"``.
             target_column: Column with the season target.
-            target_end_date_column: Last date of the season:
-                ``forecast_origin + (lead_time + selling_horizon)`` periods.
-            target_source: ``"external_direct"``.
-            target_probability: Must equal ``service_level`` when one is set.
+            forecast_origin: Date of the last information used, normally the date
+                before the decision.
+            target_end_date_column: Optional column with the last date of the
+                season: ``forecast_origin + (lead_time + selling_horizon)`` periods.
+            target_probability: Defaults to ``service_level``; if given, it must
+                equal it.
             sku_column: SKU column name.
 
         Returns:
             The fitted policy (``self``).
         """
-        origin, offset = validate_forecast_origin_and_frequency(
-            forecast_origin, forecast_frequency
-        )
+        offset = _require_forward_frequency(forecast_frequency, "forecast_frequency")
         # The generic direct-target validator counts periods from the point
         # immediately preceding the first covered demand. Information was
         # available earlier, at origin; preserve that actual cutoff below.
+        origin = None if forecast_origin is None else validate_forecast_origin(forecast_origin)
+        coverage_origin = None if origin is None else origin + self.lead_time * offset
         super().fit(
             target_df,
-            forecast_origin=origin + self.lead_time * offset,
+            forecast_origin=coverage_origin,
             forecast_frequency=forecast_frequency,
             target_column=target_column,
             target_end_date_column=target_end_date_column,
-            target_source=target_source,
             target_probability=target_probability,
             protection_horizon=self.selling_horizon,
             sku_column=sku_column,
         )
+        if origin is None:
+            origin = (
+                pd.Timestamp(self.target_metadata_["forecast_origin"])
+                - self.lead_time * offset
+            )
         self.target_metadata_.update(
             representation="single_season_target",
             forecast_origin=origin.isoformat(),

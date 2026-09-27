@@ -22,12 +22,12 @@ No. [Learn the basics](../learn/index.md) introduces every idea with a small
 example, and the [Guide](../user-guide/index.md) adds the theory when you
 want it.
 
-**Why does `SimulationEngine.run` have so many required arguments?**
+**What does `SimulationEngine.run` need?**
 
-Each one is a choice that changes results: how long the run is, which window
-you score, what the period length is, which demand was used. Writing them
-down makes every experiment explicit and reproducible. Once written, put them
-in a dict and reuse it, as the examples do with `run_settings`.
+The policy, the demand, and the opening state. The run length comes from the
+demand table and the period length from the policy, and every period is
+scored unless you set warm-up or settlement windows. Everything the run used
+is recorded in its manifest.
 [Every input is explicit](../user-guide/design/explicit-inputs.md) explains
 the thinking.
 

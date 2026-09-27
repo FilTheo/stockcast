@@ -66,8 +66,8 @@ policy = SingleOrderPolicy(
     pd.DataFrame({"unique_id": ["sandwich"], "target": [quantity],
                   "target_end": [selling_day]}),
     forecast_origin=origin, forecast_frequency="D",
-    target_column="target", target_probability=alpha,
-    target_end_date_column="target_end", target_source="external_direct",
+    target_column="target",
+    target_end_date_column="target_end",
 )
 
 kiosk = InventoryStateDataFrame(["sandwich"], max_lead_time=0, allow_backorders=False)
@@ -76,9 +76,7 @@ demand = pd.DataFrame({"unique_id": ["sandwich"], "period": [0],
                        "date": [selling_day], "y": [37.0]})
 
 result = SimulationEngine().run(
-    policy=policy, demand_source=demand, inventory=kiosk, n_periods=1,
-    period_frequency="D", warmup_periods=0, scoring_periods=1, settlement_periods=0,
-    order_during_settlement=False, demand_source_name="one_selling_day", random_seed=None,
+    policy=policy, demand_source=demand, inventory=kiosk,
 )
 day = result.to_event_frame().iloc[0]
 profit = 10.0 * day.fulfilled_units - 4.0 * day.order_quantity + 2.0 * day.ending_on_hand
@@ -120,8 +118,8 @@ seasonal = SingleOrderPolicy(
                   "target": [np.quantile(season_totals, alpha)],
                   "target_end": [origin + pd.Timedelta(days=L + season)]}),
     forecast_origin=origin, forecast_frequency="D",
-    target_column="target", target_probability=alpha,
-    target_end_date_column="target_end", target_source="external_direct",
+    target_column="target",
+    target_end_date_column="target_end",
 )
 
 shop = InventoryStateDataFrame(["advent_calendar"], max_lead_time=L, allow_backorders=False)
@@ -133,10 +131,7 @@ season_demand = pd.DataFrame({
     "y": [0.0] * L + [38.0, 45.0, 41.0, 39.0, 50.0, 44.0, 36.0],
 })
 result = SimulationEngine().run(
-    policy=seasonal, demand_source=season_demand, inventory=shop, n_periods=L + season,
-    period_frequency="D", warmup_periods=0, scoring_periods=L + season,
-    settlement_periods=0, order_during_settlement=False,
-    demand_source_name="advent_season", random_seed=None,
+    policy=seasonal, demand_source=season_demand, inventory=shop,
 )
 events = result.to_event_frame()
 events["order_quantity"].sum(), events["demand"].sum(), events["lost_sales_units"].sum()

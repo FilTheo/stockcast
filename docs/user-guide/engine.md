@@ -8,9 +8,10 @@ returns a `SimulationResult` with the complete record of what happened.
 
 ```py
 result = SimulationEngine(verbose=0).run(
-    policy, demand_source, inventory, n_periods,
-    *, period_frequency, warmup_periods, scoring_periods, settlement_periods,
-    order_during_settlement, demand_source_name, random_seed,
+    policy, demand_source, inventory, n_periods=None,
+    *, period_frequency=None, warmup_periods=0, scoring_periods=None,
+    settlement_periods=0, order_during_settlement=None,
+    demand_source_name=None, random_seed=None,
     policy_schedule=None, order_constraints=None, callbacks=None,
     supply=None, processes=None,
 )
@@ -21,21 +22,30 @@ result = SimulationEngine(verbose=0).run(
 | `policy` | A fitted policy. |
 | `demand_source` | A [demand table](demand.md), or a function `period -> DataFrame`. |
 | `inventory` | The opening `InventoryStateDataFrame`. |
-| `n_periods` | Number of demand periods to simulate. |
-| `period_frequency` | Length of one period, a pandas frequency such as `"D"`. |
-| `warmup_periods`, `scoring_periods`, `settlement_periods` | Consecutive windows that add up to `n_periods`; scoring must be at least 1. |
-| `order_during_settlement` | Whether the policy may still order in the settlement window. |
-| `demand_source_name` | A label for the demand, stored in the manifest. |
-| `random_seed` | The seed behind the demand, or `None` if no randomness is involved. |
+| `n_periods` | Number of demand periods to simulate. Read from a demand table's `period` column; needed for a demand function. |
+| `period_frequency` | Length of one period, a pandas frequency such as `"D"`. Read from the policy's `forecast_frequency`; needed for a policy that records none. |
+| `warmup_periods`, `scoring_periods`, `settlement_periods` | Consecutive windows that add up to `n_periods`. Warm-up and settlement default to 0; scoring defaults to the rest and must be at least 1. |
+| `order_during_settlement` | Whether the policy may still order in the settlement window. Needed when `settlement_periods > 0`. |
+| `demand_source_name` | Optional label for the demand, stored in the manifest. |
+| `random_seed` | Optional seed behind the demand, stored in the manifest. |
 | `policy_schedule` | `{decision_period: fitted_policy}`: fresh targets at later decisions. |
 | `order_constraints` | An [`OrderingConstraints`](constraints.md) sequence. |
 | `callbacks` | A list of [callbacks](callbacks.md), applied in order. |
 | `supply` | A [`SupplyModel`](suppliers.md): suppliers, lead times, split deliveries. |
 | `processes` | A list of [inventory processes](processes.md), such as `ShelfLife`. |
 
-The first block of arguments describes the experiment and is always required.
-The optional ones switch on extra building blocks; leave them out and the run
-uses none of that code.
+Only the policy, the demand, and the opening state are required. The run
+length and the period length come from them, and every period is scored
+unless you set windows. The last block switches on extra building blocks;
+leave them out and the run uses none of that code.
+
+```py
+SimulationEngine().run(policy=policy, demand_source=demand, inventory=inventory)
+SimulationEngine().run(policy=policy, demand_source=demand, inventory=inventory,
+                       warmup_periods=14)                # score after a burn-in
+SimulationEngine().run(policy=policy, demand_source=demand_fn, inventory=inventory,
+                       n_periods=56)                     # a demand function
+```
 
 ## Before the first period
 

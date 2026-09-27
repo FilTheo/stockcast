@@ -77,7 +77,7 @@ def _policy(lead=2, *, every=1, backorders=True, targets=(30.0, 25.0)):
         pd.DataFrame({"unique_id": SKUS, "S": list(targets), "end": ORIGIN + horizon * DAY}),
         forecast_origin=ORIGIN, forecast_frequency="D", target_column="S",
         target_end_date_column="end", protection_horizon=horizon,
-        target_source="external_direct", target_probability=0.9,
+        target_probability=0.9,
     )
 
 

@@ -59,7 +59,7 @@ def order_up_to(skus, targets, *, lead, every, backorders):
         pd.DataFrame({"unique_id": skus, "S": targets, "end": ORIGIN + horizon * DAY}),
         forecast_origin=ORIGIN, forecast_frequency="D", target_column="S",
         target_end_date_column="end", protection_horizon=horizon,
-        target_source="external_direct", target_probability=0.9,
+        target_probability=0.9,
     )
 
 

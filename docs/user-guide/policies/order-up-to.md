@@ -78,9 +78,6 @@ policy = OrderUpToPolicy(
 ).fit(
     target,
     target_column="S",
-    target_probability=0.95,
-    protection_horizon=6,               # = lead_time + review_period
-    target_source="external_direct",
     forecast_origin=opening_date,
     forecast_frequency="D",
     target_end_date_column="S_end",
@@ -107,13 +104,15 @@ policy.get_target_metadata()
 `fit` accepts one of two modes, described in
 [Forecast targets](../forecast-targets.md#three-ways-to-fit-a-target):
 
-- **direct**: `target_column`, `target_end_date_column`,
-  `target_source="external_direct"`;
-- **independent normal**: `mean_column`, `std_column`,
-  `forecast_date_column`, `aggregation_method="independent_normal"`.
+- **direct**: `target_column`;
+- **independent normal**: `mean_column`, `std_column`, and
+  `forecast_date_column`.
 
-Both take `forecast_origin`, `forecast_frequency`, `protection_horizon`, and
-(with a service level) `target_probability`.
+Both take `forecast_frequency` and `forecast_origin`. The window
+`protection_horizon` defaults to $L + R$ and the probability
+`target_probability` to the `service_level`; pass them only to have them
+checked. A direct target can give an end-date column
+(`target_end_date_column`) instead of, or as well as, the origin.
 
 ## Special cases
 

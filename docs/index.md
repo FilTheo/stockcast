@@ -166,21 +166,14 @@ inventory.initialize_from_observed(pd.DataFrame({"unique_id": [sku], "on_hand": 
 # A forecast target: the 95% quantile of total demand over the next 6 days.
 paths = np.random.default_rng(42).poisson(6.0, size=(10_000, 6))
 target = pd.DataFrame({"unique_id": [sku],
-                       "target": [np.quantile(paths.sum(axis=1), 0.95)],
-                       "end": [opening + pd.Timedelta(days=6)]})
+                       "target": [np.quantile(paths.sum(axis=1), 0.95)]})
 
 # Order up to that target every 4 days; deliveries take 2 days.
 policy = OrderUpToPolicy(lead_time=2, review_period=4, service_level=0.95,
                          allow_backorders=False).fit(
-    target, target_column="target", target_probability=0.95, protection_horizon=6,
-    target_source="external_direct", forecast_origin=opening,
-    forecast_frequency="D", target_end_date_column="end")
+    target, target_column="target", forecast_origin=opening, forecast_frequency="D")
 
-result = SimulationEngine().run(
-    policy=policy, demand_source=demand, inventory=inventory, n_periods=56,
-    period_frequency="D", warmup_periods=0, scoring_periods=56,
-    settlement_periods=0, order_during_settlement=False,
-    demand_source_name="tea_shop", random_seed=3)
+result = SimulationEngine().run(policy=policy, demand_source=demand, inventory=inventory)
 
 result.to_event_frame()   # one row per SKU and day: every unit, accounted for
 ```

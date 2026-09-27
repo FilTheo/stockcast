@@ -47,7 +47,6 @@ def test_order_up_to_never_invents_missing_uncertainty():
             mean_column="mean",
             target_probability=0.95,
             protection_horizon=2,
-            aggregation_method="independent_normal",
             forecast_date_column="date",
             **_calendar_args(),
         )
@@ -72,19 +71,18 @@ def test_marginal_quantiles_cannot_be_passed_as_direct_targets():
             target_column="up_95",
             target_probability=0.95,
             protection_horizon=2,
-            target_source="external_direct",
             target_end_date_column="target_end",
             **_calendar_args(),
         )
 
 
-def test_aggregation_labels_are_rejected_for_direct_targets():
+def test_marginal_quantile_summation_has_no_entry_point():
     target = pd.DataFrame({
         "unique_id": ["A"],
         "target": [30.0],
         "target_end": [pd.Timestamp("2025-01-03")],
     })
-    with pytest.raises(ValueError, match="does not apply to direct targets"):
+    with pytest.raises(TypeError, match="aggregation_method"):
         OrderUpToPolicy(
             lead_time=1,
             review_period=1,
@@ -96,7 +94,6 @@ def test_aggregation_labels_are_rejected_for_direct_targets():
             target_probability=0.95,
             protection_horizon=2,
             aggregation_method="sum_marginal_quantiles",
-            target_source="external_direct",
             target_end_date_column="target_end",
             **_calendar_args(),
         )
@@ -119,7 +116,6 @@ def test_service_level_must_match_probability_metadata_and_column_label():
             target_column="up_80",
             target_probability=0.80,
             protection_horizon=2,
-            target_source="external_direct",
             target_end_date_column="target_end",
             **_calendar_args(),
         )
@@ -135,7 +131,6 @@ def test_service_level_must_match_probability_metadata_and_column_label():
             target_column="up_80",
             target_probability=0.99,
             protection_horizon=2,
-            target_source="external_direct",
             target_end_date_column="target_end",
             **_calendar_args(),
         )
@@ -153,7 +148,6 @@ def test_independent_normal_mode_is_explicit_and_records_provenance():
         std_column="std",
         target_probability=0.95,
         protection_horizon=2,
-        aggregation_method="independent_normal",
         forecast_date_column="date",
         **_calendar_args(),
     )
@@ -192,7 +186,6 @@ def test_forecast_frequency_must_advance_time(frequency):
             std_column="std",
             target_probability=0.95,
             protection_horizon=2,
-            aggregation_method="independent_normal",
             forecast_date_column="date",
             forecast_origin=ORIGIN,
             forecast_frequency=frequency,
@@ -218,7 +211,6 @@ def test_independent_normal_overflow_warns_and_fails_closed():
             std_column="std",
             target_probability=0.95,
             protection_horizon=2,
-            aggregation_method="independent_normal",
             forecast_date_column="date",
             **_calendar_args(),
         )
@@ -237,7 +229,6 @@ def test_policy_rejects_non_finite_plain_inventory_position(position):
         std_column="std",
         target_probability=0.95,
         protection_horizon=2,
-        aggregation_method="independent_normal",
         forecast_date_column="date",
         **_calendar_args(),
     )
@@ -264,7 +255,6 @@ def test_forecast_dates_must_match_origin_frequency_and_horizon():
             std_column="std",
             target_probability=0.95,
             protection_horizon=2,
-            aggregation_method="independent_normal",
             forecast_date_column="date",
             **_calendar_args(),
         )
@@ -288,7 +278,6 @@ def test_direct_target_end_date_must_match_protection_horizon():
             target_column="target",
             target_probability=0.95,
             protection_horizon=2,
-            target_source="external_direct",
             target_end_date_column="target_end",
             **_calendar_args(),
         )
@@ -301,7 +290,7 @@ def test_zero_lead_time_is_supported_and_negative_is_rejected():
         OrderUpToPolicy(lead_time=-1, review_period=1, service_level=.95, allow_backorders=False)
 
 
-def test_sq_requires_explicit_quantity_and_provenance():
+def test_sq_requires_explicit_quantity():
     with pytest.raises(ValueError, match="order_quantity is required"):
         ReorderPointPolicy(
             lead_time=1,
@@ -310,14 +299,14 @@ def test_sq_requires_explicit_quantity_and_provenance():
             service_level=0.95,
             allow_backorders=False,
         )
-
-    with pytest.raises(ValueError, match="order_quantity_source is required"):
+    with pytest.raises(TypeError, match="order_quantity_source"):
         ReorderPointPolicy(
             lead_time=1,
             review_period=1,
             policy_type="sQ",
             service_level=0.95,
             order_quantity=12,
+            order_quantity_source="supplier_case_pack",
             allow_backorders=False,
         )
 
@@ -328,7 +317,6 @@ def test_reorder_point_review_timing_is_explicit():
         policy_type="sQ",
         service_level=0.95,
         order_quantity=12,
-        order_quantity_source="supplier_case_pack",
         allow_backorders=False,
     )
     with pytest.raises(ValueError, match="supply schedule or review_period"):
@@ -339,7 +327,7 @@ def test_reorder_point_review_timing_is_explicit():
     assert weekly.schedule.to_manifest() == {"type": "periodic", "every": 7, "start": 2}
 
 
-def test_sq_records_direct_reorder_target_and_quantity_provenance():
+def test_sq_records_direct_reorder_target_and_quantity():
     targets = pd.DataFrame({
         "unique_id": ["A"],
         "reorder_q95": [25.0],
@@ -351,21 +339,19 @@ def test_sq_records_direct_reorder_target_and_quantity_provenance():
         policy_type="sQ",
         service_level=0.95,
         order_quantity=12,
-        order_quantity_source="supplier_case_pack",
         allow_backorders=False,
     ).fit(
         targets,
         reorder_point_column="reorder_q95",
         target_probability=0.95,
         reorder_horizon=3,
-        target_source="external_direct",
         reorder_end_date_column="reorder_end",
         **_calendar_args(),
     )
 
     assert policy.get_parameters().loc[0, "order_quantity"] == 12.0
     assert policy.get_target_metadata()["reorder_horizon"] == 3
-    assert policy.get_target_metadata()["order_quantity_source"] == "supplier_case_pack"
+    assert "order_quantity_source" not in policy.get_target_metadata()
     assert policy.get_target_metadata()["target_source"] == "external_direct"
     decision = policy.predict(
         pd.DataFrame({"unique_id": ["A"], "inventory_position": [20.0]}),
@@ -393,7 +379,6 @@ def test_ss_treats_order_up_to_level_as_a_policy_parameter_not_a_quantile():
         reorder_point_column="reorder_q95",
         target_probability=0.95,
         reorder_horizon=3,
-        target_source="external_direct",
         reorder_end_date_column="reorder_end",
         **_calendar_args(),
     )
@@ -433,7 +418,6 @@ def test_reorder_point_planner_mode_accepts_jointly_chosen_s_and_S():
         order_up_to_column="S",
         reorder_end_date_column="end",
         reorder_horizon=7,
-        target_source="external_direct",
         **_calendar_args(),
     )
     with pytest.raises(ValueError, match="set service_level"):
@@ -551,3 +535,141 @@ def test_custom_periodic_provider_metadata_must_be_serializable():
             forecast_origin=ORIGIN,
             forecast_frequency="D",
         )
+
+
+# Inferred fit inputs: values the policy already knows are not repeated.
+
+def _direct_target(end=pd.Timestamp("2025-01-03"), column="S"):
+    return pd.DataFrame({"unique_id": ["A"], column: [30.0], "end": [end]})
+
+
+def test_direct_fit_infers_probability_horizon_and_end_date():
+    policy = OrderUpToPolicy(1, 1, service_level=0.95, allow_backorders=False)
+    minimal = policy.fit(
+        _direct_target(), target_column="S", **_calendar_args(),
+    ).get_target_metadata()
+    explicit = OrderUpToPolicy(1, 1, service_level=0.95, allow_backorders=False).fit(
+        _direct_target(),
+        target_column="S",
+        target_probability=0.95,
+        protection_horizon=2,
+        target_end_date_column="end",
+        **_calendar_args(),
+    ).get_target_metadata()
+    assert minimal == explicit
+    assert minimal["target_probability"] == 0.95
+    assert minimal["protection_horizon"] == 2
+    assert minimal["target_source"] == "external_direct"
+    assert minimal["target_end_date"] == "2025-01-03T00:00:00"
+
+
+def test_direct_fit_reads_the_origin_from_the_end_date_column():
+    policy = OrderUpToPolicy(1, 1, service_level=0.95, allow_backorders=False).fit(
+        _direct_target(), target_column="S", target_end_date_column="end",
+        forecast_frequency="D",
+    )
+    assert policy.get_target_metadata()["forecast_origin"] == ORIGIN.isoformat()
+
+
+def test_direct_fit_needs_the_origin_or_the_end_date():
+    policy = OrderUpToPolicy(1, 1, service_level=0.95, allow_backorders=False)
+    with pytest.raises(ValueError, match="give forecast_origin or target_end_date_column"):
+        policy.fit(_direct_target(), target_column="S", forecast_frequency="D")
+    with pytest.raises(ValueError, match="one end date for every SKU"):
+        policy.fit(
+            pd.DataFrame({
+                "unique_id": ["A", "B"],
+                "S": [30.0, 20.0],
+                "end": [pd.Timestamp("2025-01-03"), pd.Timestamp("2025-01-04")],
+            }),
+            target_column="S", target_end_date_column="end", forecast_frequency="D",
+        )
+    with pytest.raises(ValueError, match="not on the W-MON period grid"):
+        policy.fit(
+            _direct_target(end=pd.Timestamp("2025-01-08")),  # a Wednesday
+            target_column="S", target_end_date_column="end", forecast_frequency="W-MON",
+        )
+
+
+def test_inferred_values_are_still_checked_when_given():
+    policy = OrderUpToPolicy(1, 1, service_level=0.95, allow_backorders=False)
+    with pytest.raises(ValueError, match="does not match policy service_level"):
+        policy.fit(_direct_target(), target_column="S", target_probability=0.9,
+                   **_calendar_args())
+    with pytest.raises(ValueError, match="policy horizon 2"):
+        policy.fit(_direct_target(), target_column="S", protection_horizon=3,
+                   **_calendar_args())
+    with pytest.raises(ValueError, match="must equal 2025-01-03"):
+        policy.fit(_direct_target(end=pd.Timestamp("2025-01-04")), target_column="S",
+                   target_end_date_column="end", **_calendar_args())
+    # A quantile label is still read against the implied probability.
+    with pytest.raises(ValueError, match="denotes probability 0.9"):
+        policy.fit(_direct_target(column="q90"), target_column="q90", **_calendar_args())
+
+
+def test_nonperiodic_schedules_still_require_an_explicit_horizon():
+    from stockcast import ExplicitSchedule
+
+    policy = OrderUpToPolicy(
+        1, schedule=ExplicitSchedule([0, 3]), service_level=0.95, allow_backorders=False,
+    )
+    with pytest.raises(ValueError, match="protection_horizon is required for a nonperiodic"):
+        policy.fit(_direct_target(), target_column="S", **_calendar_args())
+
+
+def test_mean_std_fit_reads_the_origin_from_forecast_dates():
+    with_origin = OrderUpToPolicy(1, 1, service_level=0.95, allow_backorders=False).fit(
+        _normal_forecast(), mean_column="mean", std_column="std",
+        forecast_date_column="date", **_calendar_args(),
+    )
+    without_origin = OrderUpToPolicy(1, 1, service_level=0.95, allow_backorders=False).fit(
+        _normal_forecast(), mean_column="mean", std_column="std",
+        forecast_date_column="date", forecast_frequency="D",
+    )
+    assert with_origin.get_target_metadata() == without_origin.get_target_metadata()
+    assert without_origin.get_target_metadata()["calculation_method"] == "independent_normal"
+    pd.testing.assert_frame_equal(
+        with_origin.get_target_levels(), without_origin.get_target_levels(),
+    )
+
+
+def test_dropped_single_value_arguments_are_not_accepted():
+    policy = OrderUpToPolicy(1, 1, service_level=0.95, allow_backorders=False)
+    with pytest.raises(TypeError, match="target_source"):
+        policy.fit(_direct_target(), target_column="S", target_source="external_direct",
+                   **_calendar_args())
+
+
+def test_reorder_point_fit_infers_horizon_probability_and_end_date():
+    def policy():
+        return ReorderPointPolicy(
+            2, 1, policy_type="sQ", service_level=0.95, order_quantity=12,
+            allow_backorders=False,
+        )
+
+    table = pd.DataFrame({"unique_id": ["A"], "s": [25.0], "end": [pd.Timestamp("2025-01-04")]})
+    minimal = policy().fit(table, reorder_point_column="s", **_calendar_args())
+    from_end = policy().fit(
+        table, reorder_point_column="s", reorder_end_date_column="end",
+        forecast_frequency="D",
+    )
+    assert minimal.get_target_metadata() == from_end.get_target_metadata()
+    assert minimal.get_target_metadata()["reorder_horizon"] == 3
+    assert minimal.get_target_metadata()["target_probability"] == 0.95
+    with pytest.raises(ValueError, match="give forecast_origin or reorder_end_date_column"):
+        policy().fit(table, reorder_point_column="s", forecast_frequency="D")
+
+
+def test_single_order_fit_reads_the_origin_from_the_season_end():
+    from stockcast.policies import SingleOrderPolicy
+
+    def policy():
+        return SingleOrderPolicy(2, selling_horizon=3, service_level=0.75,
+                                 allow_backorders=False)
+
+    table = pd.DataFrame({"unique_id": ["A"], "t": [20.0], "end": [ORIGIN + pd.Timedelta(days=5)]})
+    from_origin = policy().fit(table, target_column="t", **_calendar_args())
+    from_end = policy().fit(table, target_column="t", target_end_date_column="end",
+                            forecast_frequency="D")
+    assert from_origin.get_target_metadata() == from_end.get_target_metadata()
+    assert from_end.get_target_metadata()["forecast_origin"] == ORIGIN.isoformat()

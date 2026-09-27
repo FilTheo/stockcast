@@ -12,20 +12,23 @@ import warnings
 from statistics import NormalDist
 from typing import Optional, Union
 
-from stockcast.core.data_structures import InventoryStateDataFrame, OrderDecision
+from stockcast.core.data_structures import (
+    InventoryStateDataFrame,
+    OrderDecision,
+    _require_forward_frequency,
+)
 from stockcast.core.base_policy import BasePolicy
-from stockcast.core.decision_schedule import DecisionSchedule, PeriodicSchedule
+from stockcast.core.decision_schedule import DecisionSchedule
 from stockcast.policies._target_validation import (
+    _QUANTILE_COLUMN,
     prepare_direct_targets,
     prepare_independent_normal_forecasts,
     prepare_inventory_positions,
-    validate_aggregation_method,
-    validate_forecast_origin_and_frequency,
-    validate_protection_horizon,
+    resolve_target_window,
+    schedule_protection_horizon,
+    validate_forecast_origin,
     validate_schedule_coverage,
-    validate_target_end_dates,
     validate_target_probability,
-    validate_target_source,
 )
 
 
@@ -44,14 +47,10 @@ class OrderUpToPolicy(BasePolicy):
         policy = OrderUpToPolicy(
             lead_time=2, review_period=4, service_level=0.95, allow_backorders=False,
         ).fit(
-            targets,                          # unique_id, S, S_end
+            targets,                          # unique_id, S: the 95% quantile over 6 days
             target_column="S",
-            target_probability=0.95,
-            protection_horizon=6,             # lead_time + review_period
-            target_source="external_direct",
             forecast_origin=pd.Timestamp("2026-01-05"),
             forecast_frequency="D",
-            target_end_date_column="S_end",
         )
         decision = policy.predict(state, current_period=1)
         ```
@@ -86,14 +85,12 @@ class OrderUpToPolicy(BasePolicy):
         self,
         forecast_df: pd.DataFrame,
         *,
-        forecast_origin: pd.Timestamp,
         forecast_frequency: str,
+        forecast_origin: Optional[pd.Timestamp] = None,
         target_column: Optional[str] = None,
         target_end_date_column: Optional[str] = None,
         target_probability: Optional[float] = None,
         protection_horizon: Optional[int] = None,
-        aggregation_method: Optional[str] = None,
-        target_source: Optional[str] = None,
         sku_column: str = 'unique_id',
         mean_column: Optional[str] = None,
         std_column: Optional[str] = None,
@@ -107,46 +104,50 @@ class OrderUpToPolicy(BasePolicy):
         1. Supply one externally calculated protection-period target per SKU
            with ``target_column``.
         2. Supply consecutive marginal means and standard deviations with
-           ``mean_column`` and ``std_column`` and explicitly select
-           ``aggregation_method="independent_normal"``.
+           ``mean_column`` and ``std_column``. They are combined under an
+           independence assumption across periods:
+           ``S = sum(means) + z * sqrt(sum(stds**2))``.
 
         Marginal quantiles are not accepted because their sum is not generally
         the quantile of cumulative protection-period demand.
 
+        The target window runs from ``forecast_origin`` for
+        ``protection_horizon`` periods, so its end date is
+        ``forecast_origin + protection_horizon`` periods. Give the origin, a
+        direct target's end-date column, or both (they must then agree).
+
         Args:
             forecast_df: Target or forecast DataFrame.
-            forecast_origin: Information-set date at which the forecast or
-                direct target was created.
             forecast_frequency: Explicit pandas frequency for forecast horizons.
+            forecast_origin: Information-set date at which the forecast or
+                direct target was created. Optional when
+                ``target_end_date_column`` (direct mode) or
+                ``forecast_date_column`` (mean/std mode) dates the window.
             target_column: Direct protection-period target column. The frame
                 must contain exactly one row per SKU in this mode.
-            target_end_date_column: Date represented by a direct target.
-            target_probability: Probability represented by the target. It must
-                equal the policy's ``service_level``.
+            target_end_date_column: Optional column with the date a direct
+                target covers up to; checked against the origin when both are given.
+            target_probability: Probability represented by the target. Defaults
+                to the policy's ``service_level``; if given, it must equal it.
             protection_horizon: Number of periods represented by the target.
-                For periodic schedules it equals ``lead_time + review_period``.
-                Nonperiodic schedules require an explicit horizon, checked at
-                each decision against its next opportunity or terminal window.
-            aggregation_method: Exactly ``"independent_normal"`` for mean/std
-                mode. It is not a label for externally supplied targets.
-            target_source: Exactly ``"external_direct"`` for direct-target mode.
+                Defaults to ``lead_time + review_period`` for periodic
+                schedules (and must equal it if given). Nonperiodic schedules
+                require an explicit horizon, checked at each decision against
+                its next opportunity or terminal window.
             sku_column: SKU identifier column.
-            mean_column: Marginal forecast mean column for independent-normal mode.
+            mean_column: Marginal forecast mean column for mean/std mode.
             std_column: Marginal forecast standard deviation column for
-                independent-normal mode. It is required; Stockcast never invents it.
+                mean/std mode. It is required; Stockcast never invents it.
             forecast_date_column: Target date column for horizon forecasts.
 
         Returns:
             self (for method chaining)
         """
-        protection_period = (
-            self.lead_time + self.schedule.every
-            if isinstance(self.schedule, PeriodicSchedule) else protection_horizon
+        protection_period = schedule_protection_horizon(
+            self.schedule, self.lead_time, protection_horizon, "protection_horizon",
         )
-        validate_protection_horizon(protection_horizon, protection_period)
-        origin, forecast_offset = validate_forecast_origin_and_frequency(
-            forecast_origin,
-            forecast_frequency,
+        forecast_offset = _require_forward_frequency(
+            forecast_frequency, "forecast_frequency",
         )
 
         direct_mode = target_column is not None
@@ -162,7 +163,6 @@ class OrderUpToPolicy(BasePolicy):
             if self.service_level is None:
                 if target_probability is not None:
                     raise ValueError("set service_level when declaring target_probability")
-                from stockcast.policies._target_validation import _QUANTILE_COLUMN
                 if _QUANTILE_COLUMN.match(str(target_column)):
                     raise ValueError("quantile-labelled targets require explicit probability")
                 probability = None
@@ -170,23 +170,17 @@ class OrderUpToPolicy(BasePolicy):
                 probability = validate_target_probability(
                     self.service_level, target_probability, target_column,
                 )
-            source = validate_target_source(target_source)
-            if aggregation_method is not None:
-                raise ValueError(
-                    "aggregation_method does not apply to direct targets; use "
-                    "target_source='external_direct'"
-                )
             prepared_targets = prepare_direct_targets(
                 forecast_df,
                 sku_column,
                 [target_column],
             )
-            target_end_date = validate_target_end_dates(
+            origin, target_end_date = resolve_target_window(
                 prepared_targets,
-                target_end_date_column,
-                origin,
-                forecast_offset,
-                protection_period,
+                forecast_origin=forecast_origin,
+                end_date_column=target_end_date_column,
+                forecast_offset=forecast_offset,
+                horizon=protection_period,
             )
             for row in prepared_targets[[sku_column, target_column]].itertuples(index=False):
                 target_levels.append({sku_column: row[0], 'target_level': row[1]})
@@ -194,12 +188,11 @@ class OrderUpToPolicy(BasePolicy):
                 "direct_protection_period_target" if probability is not None
                 else "external_inventory_target"
             )
+            source = "external_direct"
             method = None
         else:
             if self.service_level is None:
                 raise ValueError("independent-normal targets require service_level")
-            if target_source is not None:
-                raise ValueError("target_source applies only to direct-target mode")
             if mean_column is None or std_column is None:
                 raise ValueError("mean_column and std_column are both required")
             probability = validate_target_probability(
@@ -207,18 +200,15 @@ class OrderUpToPolicy(BasePolicy):
                 target_probability,
                 "independent_normal_target",
             )
-            method = validate_aggregation_method(
-                aggregation_method,
-                expected="independent_normal",
-            )
-            prepared_forecasts = prepare_independent_normal_forecasts(
+            method = "independent_normal"
+            prepared_forecasts, origin = prepare_independent_normal_forecasts(
                 forecast_df,
                 sku_column,
                 mean_column,
                 std_column,
                 protection_period,
                 forecast_date_column,
-                origin,
+                None if forecast_origin is None else validate_forecast_origin(forecast_origin),
                 forecast_offset,
             )
             for sku, sku_forecasts in prepared_forecasts.items():

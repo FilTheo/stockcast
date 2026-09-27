@@ -102,7 +102,7 @@ def order_up_to(lead, review, targets, backorders, skus):
     return OrderUpToPolicy(lead, review, allow_backorders=backorders).fit(
         pd.DataFrame({"unique_id": list(skus), "S": targets, "end": ORIGIN + horizon * DAY}),
         forecast_origin=ORIGIN, forecast_frequency="D", target_column="S",
-        target_end_date_column="end", protection_horizon=horizon, target_source="external_direct",
+        target_end_date_column="end", protection_horizon=horizon,
     )
 
 
@@ -254,7 +254,7 @@ def test_policies_match_textbook_reference(family, backorders, lead, review):
         frame = pd.DataFrame({"unique_id": skus, "s": s, "S": S, "end": ORIGIN + horizon * DAY})
         if family == "sQ":
             policy = ReorderPointPolicy(lead, review, policy_type="sQ", order_quantity=11.0,
-                                        order_quantity_source="pack", allow_backorders=backorders)
+                                        allow_backorders=backorders)
             rule = lambda sku, ip: 11.0 if ip <= s[sku] else 0.0  # noqa: E731
             extra = {}
         else:
@@ -263,7 +263,7 @@ def test_policies_match_textbook_reference(family, backorders, lead, review):
             extra = {"order_up_to_column": "S"}
         policy.fit(frame, forecast_origin=ORIGIN, forecast_frequency="D", reorder_point_column="s",
                    reorder_end_date_column="end", reorder_horizon=horizon,
-                   target_source="external_direct", **extra)
+                   **extra)
     state = opening(skus, max_lead=max_lead, backorders=backorders, on_hand=on_hand,
                     backlog=backlog, pipeline=pipeline)
     result = run(policy, demand_frame(demand, skus), state, 12)
@@ -281,12 +281,11 @@ def test_policies_match_textbook_reference(family, backorders, lead, review):
 def test_periodic_reorder_horizon_must_be_lead_plus_review(lead, review):
     def fit(horizon):
         return ReorderPointPolicy(
-            lead, review, policy_type="sQ", order_quantity=5.0, order_quantity_source="x",
+            lead, review, policy_type="sQ", order_quantity=5.0,
             allow_backorders=True,
         ).fit(pd.DataFrame({"unique_id": ["a"], "s": [3.0], "end": ORIGIN + horizon * DAY}),
               forecast_origin=ORIGIN, forecast_frequency="D", reorder_point_column="s",
-              reorder_end_date_column="end", reorder_horizon=horizon,
-              target_source="external_direct")
+              reorder_end_date_column="end", reorder_horizon=horizon)
 
     fit(lead + review)
     for wrong in {lead, lead + review - 1, lead + review + 1} - {0}:
@@ -301,7 +300,7 @@ def test_independent_normal_target_and_critical_fractile():
     })
     policy = OrderUpToPolicy(2, 3, service_level=0.9, allow_backorders=True).fit(
         forecasts, forecast_origin=ORIGIN, forecast_frequency="D", mean_column="mu",
-        std_column="sd", forecast_date_column="date", aggregation_method="independent_normal",
+        std_column="sd", forecast_date_column="date",
         target_probability=0.9, protection_horizon=5,
     )
     expected = 24.0 + NormalDist().inv_cdf(0.9) * np.sqrt(11.0)
@@ -319,7 +318,7 @@ def test_single_order_buys_target_minus_stock_for_the_season(lead):
                                allow_backorders=False).fit(
         pd.DataFrame({"unique_id": ["a"], "t": [20.0], "end": ORIGIN + (lead + 3) * DAY}),
         forecast_origin=ORIGIN, forecast_frequency="D", target_column="t",
-        target_probability=0.75, target_end_date_column="end", target_source="external_direct",
+        target_probability=0.75, target_end_date_column="end",
     )
     state = opening(["a"], max_lead=lead, backorders=False, on_hand=[4.0])
     demand = np.array([[0.0]] * lead + [[8.0], [9.0], [7.0]])
@@ -740,7 +739,7 @@ def test_quantile_labels_are_read_as_probabilities(column, probability, accepted
             pd.DataFrame({"unique_id": ["a"], column: [10.0], "end": ORIGIN + 2 * DAY}),
             forecast_origin=ORIGIN, forecast_frequency="D", target_column=column,
             target_end_date_column="end", protection_horizon=2,
-            target_source="external_direct", target_probability=probability)
+            target_probability=probability)
 
     if accepted:
         fit()
@@ -755,7 +754,7 @@ def test_quantile_label_mismatch_names_only_probability_readings():
             pd.DataFrame({"unique_id": ["a"], "q975": [10.0], "end": ORIGIN + 2 * DAY}),
             forecast_origin=ORIGIN, forecast_frequency="D", target_column="q975",
             target_end_date_column="end", protection_horizon=2,
-            target_source="external_direct", target_probability=0.95)
+            target_probability=0.95)
 
 
 class _DatedReturns(InventoryProcess):

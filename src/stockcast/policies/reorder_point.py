@@ -21,25 +21,27 @@ import numpy as np
 import pandas as pd
 
 from stockcast.core.base_policy import BasePolicy
-from stockcast.core.data_structures import InventoryStateDataFrame, OrderDecision
+from stockcast.core.data_structures import (
+    InventoryStateDataFrame,
+    OrderDecision,
+    _require_forward_frequency,
+)
 from stockcast.core.decision_schedule import DecisionSchedule
 from stockcast.policies._target_validation import (
     _QUANTILE_COLUMN,
     prepare_direct_targets,
     prepare_inventory_positions,
+    resolve_target_window,
     schedule_protection_horizon,
-    validate_forecast_origin_and_frequency,
     validate_schedule_coverage,
-    validate_target_end_dates,
     validate_target_probability,
-    validate_target_source,
 )
 
 
 class ReorderPointPolicy(BasePolicy):
     """Order when inventory position is at or below a reorder point ``s``.
 
-    - ``(s,Q)``: order a fixed, explicitly sourced quantity ``Q``.
+    - ``(s,Q)``: order a fixed, explicit quantity ``Q``.
     - ``(s,S)``: order up to ``S``.
 
     Review timing comes from ``review_period`` or an explicit ``schedule``; use
@@ -48,8 +50,8 @@ class ReorderPointPolicy(BasePolicy):
 
     Two target modes:
 
-    - quantile: set ``service_level`` and declare the same ``target_probability``
-      at fit; ``s`` is the external demand quantile over the window.
+    - quantile: set ``service_level``; ``s`` is the external demand quantile
+      at that probability over the window.
     - planner: leave ``service_level=None``; ``s`` (and ``S``) are externally
       chosen policy parameters, for example jointly optimized ``(s,S)`` pairs.
 
@@ -65,7 +67,6 @@ class ReorderPointPolicy(BasePolicy):
         policy_type: Literal["sQ", "sS"],
         service_level: Optional[float] = None,
         order_quantity: Optional[float] = None,
-        order_quantity_source: Optional[str] = None,
         allow_backorders: bool,
         schedule: Optional[DecisionSchedule] = None,
     ):
@@ -85,13 +86,9 @@ class ReorderPointPolicy(BasePolicy):
                 raise ValueError("order_quantity must be a finite number > 0") from exc
             if not np.isfinite(order_quantity) or order_quantity <= 0:
                 raise ValueError("order_quantity must be a finite number > 0")
-            if not isinstance(order_quantity_source, str) or not order_quantity_source.strip():
-                raise ValueError("order_quantity_source is required for an (s,Q) policy")
-            order_quantity_source = order_quantity_source.strip()
-        elif order_quantity is not None or order_quantity_source is not None:
-            raise ValueError("order_quantity inputs apply only to an (s,Q) policy")
+        elif order_quantity is not None:
+            raise ValueError("order_quantity applies only to an (s,Q) policy")
         self.order_quantity = order_quantity
-        self.order_quantity_source = order_quantity_source
         self.reorder_points_ = None
         self.order_quantities_ = None
         self.order_up_to_levels_ = None
@@ -100,36 +97,39 @@ class ReorderPointPolicy(BasePolicy):
         self,
         target_df: pd.DataFrame,
         *,
-        forecast_origin: pd.Timestamp,
         forecast_frequency: str,
         reorder_point_column: str,
-        reorder_end_date_column: str,
-        reorder_horizon: int,
-        target_source: str,
+        forecast_origin: Optional[pd.Timestamp] = None,
+        reorder_end_date_column: Optional[str] = None,
+        reorder_horizon: Optional[int] = None,
         target_probability: Optional[float] = None,
         order_up_to_column: Optional[str] = None,
         sku_column: str = "unique_id",
     ) -> "ReorderPointPolicy":
         """Bind one external reorder point (and ``S`` for ``(s,S)``) per SKU.
 
+        Give ``forecast_origin``, ``reorder_end_date_column``, or both: the
+        window of ``s`` ends ``reorder_horizon`` periods after the origin.
+
         Args:
             target_df: One row per SKU.
-            forecast_origin: Last observed demand date used to build ``s``.
             forecast_frequency: Explicit pandas frequency of one period.
             reorder_point_column: Column holding ``s``.
-            reorder_end_date_column: Date of the last demand epoch ``s`` covers,
-                ``forecast_origin + reorder_horizon`` periods.
-            reorder_horizon: Protection window of ``s``. For a periodic
-                schedule it must equal ``lead_time + review_period``; other
-                schedules are checked at each decision against
-                ``(next opportunity - decision) + lead_time``.
-            target_source: Exactly ``"external_direct"``.
-            target_probability: Required in quantile mode and must equal
-                ``service_level``; must be omitted in planner mode.
+            forecast_origin: Last observed demand date used to build ``s``.
+            reorder_end_date_column: Optional column with the date of the last
+                demand epoch ``s`` covers, ``forecast_origin + reorder_horizon``
+                periods.
+            reorder_horizon: Protection window of ``s``. Defaults to
+                ``lead_time + review_period`` for a periodic schedule (and must
+                equal it if given); other schedules require it and check it at
+                each decision against ``(next opportunity - decision) + lead_time``.
+            target_probability: Quantile mode only. Defaults to
+                ``service_level``; if given, it must equal it. Must be omitted
+                in planner mode.
             order_up_to_column: Column holding ``S`` for an ``(s,S)`` policy.
             sku_column: SKU identifier column.
         """
-        origin, offset = validate_forecast_origin_and_frequency(forecast_origin, forecast_frequency)
+        offset = _require_forward_frequency(forecast_frequency, "forecast_frequency")
         horizon = schedule_protection_horizon(
             self.schedule, self.lead_time, reorder_horizon, "reorder_horizon",
         )
@@ -143,7 +143,6 @@ class ReorderPointPolicy(BasePolicy):
             probability = validate_target_probability(
                 self.service_level, target_probability, reorder_point_column,
             )
-        source = validate_target_source(target_source)
 
         columns = [reorder_point_column]
         if self.policy_type == "sS":
@@ -153,8 +152,13 @@ class ReorderPointPolicy(BasePolicy):
         elif order_up_to_column is not None:
             raise ValueError("order_up_to_column applies only to an (s,S) policy")
         prepared = prepare_direct_targets(target_df, sku_column, columns)
-        end_date = validate_target_end_dates(
-            prepared, reorder_end_date_column, origin, offset, horizon,
+        origin, end_date = resolve_target_window(
+            prepared,
+            forecast_origin=forecast_origin,
+            end_date_column=reorder_end_date_column,
+            forecast_offset=offset,
+            horizon=horizon,
+            end_date_argument="reorder_end_date_column",
         )
         self.reorder_points_ = prepared[[sku_column, reorder_point_column]].rename(
             columns={reorder_point_column: "reorder_point"}
@@ -178,8 +182,7 @@ class ReorderPointPolicy(BasePolicy):
             ),
             "target_probability": probability,
             "reorder_horizon": horizon,
-            "target_source": source,
-            "order_quantity_source": self.order_quantity_source,
+            "target_source": "external_direct",
             "forecast_origin": origin.isoformat(),
             "forecast_frequency": offset.freqstr,
             "reorder_end_date": end_date.isoformat(),

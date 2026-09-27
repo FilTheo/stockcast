@@ -67,8 +67,7 @@ policy = OrderUpToPolicy(
     lead_time=lead_time, review_period=review_period,
     service_level=0.95, allow_backorders=False,
 ).fit(
-    target, target_column="target", target_probability=0.95,
-    protection_horizon=horizon, target_source="external_direct",
+    target, target_column="target",
     forecast_origin=opening_date, forecast_frequency="D",
     target_end_date_column="target_end_date",
 )
@@ -78,13 +77,6 @@ result = engine.run(
     policy=policy,
     demand_source=demand,
     inventory=inventory,
-    n_periods=56,
-    period_frequency="D",
-    warmup_periods=0,
-    scoring_periods=56,
-    settlement_periods=0,
-    order_during_settlement=False,
-    demand_source_name="tea_shop",
     random_seed=3,
 )
 result
@@ -100,21 +92,22 @@ with the very first one. That rhythm is the policy's **decision schedule**.
 irregular calendars are covered in
 [Decision schedules](../user-guide/decision-schedules.md).
 
-## Every argument is a decision you make
+## What the engine reads for you
 
-`run` has no hidden defaults for things that change results. Each argument is
-part of the experiment you are describing:
+`run` needs only the policy, the demand, and the opening state. It reads the
+rest from them and records it in the run manifest:
 
-| Argument | Why you set it |
-|---|---|
-| `n_periods`, `period_frequency` | How long the run is, and what one period means |
-| `warmup_periods`, `scoring_periods`, `settlement_periods` | Which periods count towards the metrics |
-| `order_during_settlement` | Whether the policy keeps ordering in the settlement tail |
-| `demand_source_name`, `random_seed` | A record of which demand this run used |
+| Setting | Read from | Set it yourself when |
+|---|---|---|
+| `n_periods` | the demand table's `period` column (here 56) | demand comes from a function |
+| `period_frequency` | the policy's `forecast_frequency` (here `"D"`) | a custom policy records none |
+| run windows | score every period | you want a warm-up or settlement window |
+| `demand_source_name`, `random_seed` | not recorded | you want the manifest to name the demand or its seed |
 
 ## Warm-up, scoring, settlement
 
-A run can be split into three consecutive windows that add up to `n_periods`:
+A run can be split into three consecutive windows that add up to `n_periods`.
+Pass `warmup_periods` and `settlement_periods`; scoring gets the rest:
 
 ![Run windows](../assets/figures/run-windows.svg)
 
@@ -122,8 +115,8 @@ A run can be split into three consecutive windows that add up to `n_periods`:
   results.
 - **Scoring** is the window your metrics describe.
 - **Settlement** plays demand a little longer, so orders placed near the end
-  of scoring can arrive. Set `order_during_settlement=False` to stop new
-  orders there.
+  of scoring can arrive. With a settlement window, also say whether the policy
+  may keep ordering there (`order_during_settlement=True` or `False`).
 
 All three windows move stock. Only the scoring window counts by default.
 

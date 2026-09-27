@@ -88,14 +88,13 @@ paths = np.random.default_rng(42).poisson(6.0, size=(10_000, horizon))
 target = pd.DataFrame({
     "unique_id": [sku],
     "target": [np.quantile(paths.sum(axis=1), 0.95)],
-    "target_end_date": [opening_date + pd.Timedelta(days=horizon)],
 })
 target
 ```
 
 ```text
-  unique_id  target target_end_date
-0  tea_250g    46.0      2026-01-11
+  unique_id  target
+0  tea_250g    46.0
 ```
 
 The shop aims to have an inventory position of 46 packs after each order.
@@ -127,18 +126,14 @@ policy = OrderUpToPolicy(
 ).fit(
     target,
     target_column="target",
-    target_probability=0.95,
-    protection_horizon=horizon,
-    target_source="external_direct",
     forecast_origin=opening_date,
     forecast_frequency="D",
-    target_end_date_column="target_end_date",
 )
 ```
 
-The `fit` arguments describe the target: what probability it represents, which
-window it covers, and when the forecast was made. Stockcast checks that these
-agree with the policy's lead time and review period.
+`fit` needs the target column and when the forecast was made. The rest it
+knows from the policy: the target is the 95% quantile (the `service_level`)
+over $H = L + R = 6$ days, so it covers demand up to 2026-01-11.
 
 ## 5. Simulate
 
@@ -153,21 +148,16 @@ result = SimulationEngine().run(
     policy=policy,
     demand_source=demand,
     inventory=inventory,
-    n_periods=56,
-    period_frequency="D",
-    warmup_periods=0,         # (1)!
-    scoring_periods=56,
-    settlement_periods=0,
-    order_during_settlement=False,
-    demand_source_name="tea_shop",  # (2)!
-    random_seed=3,
+    random_seed=3,  # (1)!
 )
 ```
 
-1.  A run can be split into warm-up, scoring, and settlement windows. Metrics
-    use the scoring window. Here we score all 56 days.
-2.  A label and a seed for the demand. They are stored in the run manifest, so
-    every result carries a record of how it was produced.
+1.  Optional: the seed behind the demand. It is stored in the run manifest,
+    so every result carries a record of how it was produced.
+
+The engine reads the run length (56 days) and the day length from the demand
+and the policy, and scores every day. To leave out a burn-in, pass
+`warmup_periods=...`.
 
 ## 6. Read what happened
 
