@@ -20,8 +20,9 @@ release line and a migration note.
   seeded, validated demand tables from built-in models or from your own
   sampler function, with one sampler for the whole panel or one per SKU. See
   [demand and calendars](user-guide/demand.md).
-- **Policies.** Order-up-to and periodic-review policies, `ReorderPointPolicy`
-  for `(s,Q)` and `(s,S)` rules on any schedule, single-order (newsvendor)
+- **Policies.** Order-up-to policies, `ReorderPointPolicy` for `(s,Q)` and
+  `(s,S)` rules on any schedule, with levels from fixed values, a forecast, or
+  your own target provider, single-order (newsvendor)
   decisions, and `BasePolicy` for your own rules. Targets can come from any
   forecaster or from a planner.
 - **Open orders and suppliers.** Declare an opening pipeline with

@@ -12,7 +12,7 @@ Import each name from its home module:
 | Module | Contents |
 |---|---|
 | `stockcast.core` | state, orders, the engine, schedules, constraints, callbacks, suppliers, processes |
-| `stockcast.policies` | built-in policies and periodic-review target providers |
+| `stockcast.policies` | built-in policies and the reorder-point target provider |
 | `stockcast.evaluation` | the evaluator, ledger validation, metrics |
 | `stockcast.utils` | demand generation and manual-loop primitives |
 | `stockcast.visualization` | plots |
@@ -26,7 +26,7 @@ package, and `stockcast.__version__` gives the installed version.
 |---|---|
 | [Simulation engine](engine.md) | `SimulationEngine`, `SimulationResult`, `ComparisonResult` |
 | [State and orders](state.md) | `InventoryStateDataFrame`, `OrderDecision`, `OrderLines` |
-| [Policies](policies.md) | `BasePolicy`, `OrderUpToPolicy`, `ReorderPointPolicy`, `PeriodicReviewPolicy`, `SingleOrderPolicy`, `newsvendor_critical_fractile`, target providers |
+| [Policies](policies.md) | `BasePolicy`, `OrderUpToPolicy`, `ReorderPointPolicy`, `SingleOrderPolicy`, `newsvendor_critical_fractile`, `ReorderPointTargetProvider` |
 | [Decision schedules](schedules.md) | `DecisionSchedule`, `PeriodicSchedule`, `OneTimeSchedule`, `ExplicitSchedule` |
 | [Ordering constraints](constraints.md) | `OrderingConstraints`, `OrderingConstraint`, `MinimumOrderQuantity`, `OrderMultiple`, `MaximumOrderQuantity`, `ShelfSpaceLimit`, `ConstraintContext`, `ConstraintResult` |
 | [Callbacks](callbacks.md) | `SimulationCallback`, `CallbackContext`, adjustment results, scheduled callbacks, `CallbackError` |

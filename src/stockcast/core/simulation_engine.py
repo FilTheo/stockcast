@@ -2568,6 +2568,16 @@ class SimulationEngine:
             raise ValueError("fitted policy target metadata must include forecast_origin")
         if "forecast_frequency" not in metadata:
             raise ValueError("fitted policy target metadata must include forecast_frequency")
+        undated = (metadata["forecast_origin"] is None, metadata["forecast_frequency"] is None)
+        if all(undated):
+            # Undated planning levels (for example fixed reorder points) claim no
+            # information date, so there is no origin to check.
+            return
+        if any(undated):
+            raise ValueError(
+                "fitted policy target metadata must give both forecast_origin and "
+                "forecast_frequency, or neither"
+            )
         policy_frequency = _require_forward_frequency(
             metadata["forecast_frequency"],
             "policy forecast_frequency",
@@ -3023,6 +3033,15 @@ class SimulationEngine:
             )
             offset = _require_forward_frequency(frequency, "period_frequency")
         except (TypeError, ValueError):
+            if (
+                period_frequency is None
+                and 'period' not in demand_source.columns
+                and all(getattr(policy, "fitted_", False) for policy in policies)
+            ):
+                raise ValueError(
+                    "period_frequency is required: the policy records no "
+                    "forecast_frequency, so the demand dates cannot be numbered"
+                ) from None
             return demand_source
         return cls._complete_demand_calendar(demand_source, opening_dates.iloc[0], offset)
 

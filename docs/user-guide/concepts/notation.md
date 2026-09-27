@@ -31,8 +31,8 @@ these meanings.
 
 | Symbol | Meaning | Used by |
 |---|---|---|
-| $S$ | Order-up-to level | `OrderUpToPolicy`, `ReorderPointPolicy("sS")`, `PeriodicReviewPolicy` |
-| $s$ | Reorder point: order when $\mathit{IP} \le s$ | `ReorderPointPolicy`, `PeriodicReviewPolicy` |
+| $S$ | Order-up-to level | `OrderUpToPolicy`, `ReorderPointPolicy("sS")` |
+| $s$ | Reorder point: order when $\mathit{IP} \le s$ | `ReorderPointPolicy` |
 | $Q$ | Fixed order quantity | `ReorderPointPolicy("sQ")` |
 | $\alpha$ | Target probability (the quantile level of a target) | `service_level`, `target_probability` |
 | $z_\alpha$ | Standard normal quantile, $\Phi^{-1}(\alpha)$ | independent-normal targets |

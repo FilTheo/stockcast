@@ -850,3 +850,62 @@ def test_comparison_dict_maps_schedules_by_label():
     assert (policies, labels, schedules) == ([first, second], ["a", "b"], [None, schedule])
     listed = ([first], ["x"], [None])
     assert SimulationEngine._comparison_branches(*listed) == listed
+
+
+def test_date_only_demand_without_a_frequency_names_the_missing_frequency():
+    demand = _daily_demand([3, 5, 2]).drop(columns="period")
+    with pytest.raises(ValueError, match="period_frequency is required.*cannot be numbered"):
+        SimulationEngine().run(policy=_policy(), demand_source=demand, inventory=_inventory())
+    result = SimulationEngine().run(
+        policy=_policy(), demand_source=demand, inventory=_inventory(), period_frequency="D",
+    )
+    assert len(result.to_event_frame()) == 3
+
+
+def _fixed_reorder_point(**dates):
+    from stockcast.policies import ReorderPointPolicy
+
+    return ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=False).fit(
+        reorder_point=2.0, order_up_to_level=6.0, **dates,
+    )
+
+
+def test_undated_fixed_levels_run_on_the_demand_calendar():
+    demand = _daily_demand([3, 5, 2, 4], skus=("A", "B"))
+    with pytest.raises(ValueError, match="period_frequency is required"):
+        SimulationEngine().run(
+            policy=_fixed_reorder_point(), demand_source=demand,
+            inventory=_inventory(skus=("A", "B")),
+        )
+    result = SimulationEngine().run(
+        policy=_fixed_reorder_point(), demand_source=demand,
+        inventory=_inventory(skus=("A", "B")), period_frequency="D",
+    )
+    dated = SimulationEngine().run(
+        policy=_fixed_reorder_point(forecast_origin=pd.Timestamp("2025-01-01"), forecast_frequency="D"),
+        demand_source=demand, inventory=_inventory(skus=("A", "B")),
+    )
+    events = result.to_event_frame()
+    pd.testing.assert_frame_equal(
+        events.drop(columns="policy"), dated.to_event_frame().drop(columns="policy"),
+    )
+    # s=2, S=6: order at positions 0 and 1, not at 6 or 5.
+    assert events.loc[events["unique_id"] == "A", "order_quantity"].tolist() == [6.0, 0.0, 5.0, 0.0]
+
+
+def test_dated_fixed_levels_are_checked_against_the_opening_date():
+    policy = _fixed_reorder_point(forecast_origin=pd.Timestamp("2025-02-01"), forecast_frequency="D")
+    with pytest.raises(ValueError, match="forecast_origin"):
+        SimulationEngine().run(
+            policy=policy, demand_source=_daily_demand([3, 5]), inventory=_inventory(),
+        )
+
+
+def test_policy_metadata_with_only_one_date_is_rejected():
+    policy = _fixed_reorder_point()
+    policy.target_metadata_["forecast_frequency"] = "D"
+    with pytest.raises(ValueError, match="both forecast_origin and forecast_frequency, or neither"):
+        SimulationEngine().run(
+            policy=policy, demand_source=_daily_demand([3, 5]), inventory=_inventory(),
+            period_frequency="D",
+        )

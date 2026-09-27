@@ -6,13 +6,10 @@ import pytest
 
 from stockcast import PeriodicSchedule
 from stockcast.policies import (
-    ColumnPeriodicReviewTargets,
-    FixedPeriodicReviewTargets,
     OrderUpToPolicy,
-    PeriodicReviewPolicy,
-    PeriodicReviewTargetProvider,
-    PeriodicReviewTargets,
     ReorderPointPolicy,
+    ReorderPointTargetProvider,
+    ReorderPointTargets,
 )
 
 ORIGIN = pd.Timestamp("2025-01-01")
@@ -429,22 +426,19 @@ def test_reorder_point_planner_mode_accepts_jointly_chosen_s_and_S():
     assert metadata["reorder_horizon"] == 7
 
 
-def test_periodic_rss_uses_only_explicit_reorder_and_restore_targets():
+def test_fixed_rss_values_from_table_columns_order_only_below_s():
     targets = pd.DataFrame({
         "unique_id": ["A"],
         "reorder": [10.0],
         "restore": [20.0],
     })
-    policy = PeriodicReviewPolicy(
+    policy = ReorderPointPolicy(
         lead_time=1,
         review_period=2,
         allow_backorders=False,
     ).fit(
-        targets,
-        target_provider=ColumnPeriodicReviewTargets(
-            reorder_point_column="reorder",
-            order_up_to_column="restore",
-        ),
+        reorder_point=targets.set_index("unique_id")["reorder"],
+        order_up_to_level=targets.set_index("unique_id")["restore"],
         forecast_origin=ORIGIN,
         forecast_frequency="D",
     )
@@ -464,34 +458,33 @@ def test_periodic_rss_uses_only_explicit_reorder_and_restore_targets():
     assert "reorder_horizon" not in metadata
 
 
-def test_periodic_fixed_provider_supports_scalar_targets():
-    policy = PeriodicReviewPolicy(
+def test_fixed_scalar_values_cover_the_given_skus():
+    policy = ReorderPointPolicy(
         lead_time=1,
         review_period=2,
         allow_backorders=False,
     ).fit(
         pd.DataFrame({"unique_id": ["A", "B"]}),
-        target_provider=FixedPeriodicReviewTargets(
-            reorder_point=5.0,
-            order_up_to_level=12.0,
-        ),
+        reorder_point=5.0,
+        order_up_to_level=12.0,
         forecast_origin=ORIGIN,
         forecast_frequency="D",
     )
     assert policy.get_parameters()["order_up_to_level"].tolist() == [12.0, 12.0]
+    assert policy.get_target_metadata()["representation"] == "fixed_policy_levels"
 
 
-def test_custom_periodic_provider_is_revalidated_centrally():
-    class BrokenProvider(PeriodicReviewTargetProvider):
+def test_custom_target_provider_is_revalidated_centrally():
+    class BrokenProvider(ReorderPointTargetProvider):
         def provide(self, target_data, *, sku_column):
-            return PeriodicReviewTargets(pd.DataFrame({
+            return ReorderPointTargets(pd.DataFrame({
                 sku_column: ["A"],
                 "reorder_point": [10.0],
                 "order_up_to_level": [5.0],
             }))
 
     with pytest.raises(ValueError, match="order-up-to levels"):
-        PeriodicReviewPolicy(
+        ReorderPointPolicy(
             lead_time=1,
             review_period=2,
             allow_backorders=False,
@@ -503,10 +496,10 @@ def test_custom_periodic_provider_is_revalidated_centrally():
         )
 
 
-def test_custom_periodic_provider_metadata_must_be_serializable():
-    class InvalidMetadataProvider(PeriodicReviewTargetProvider):
+def test_custom_target_provider_metadata_must_be_serializable():
+    class InvalidMetadataProvider(ReorderPointTargetProvider):
         def provide(self, target_data, *, sku_column):
-            return PeriodicReviewTargets(
+            return ReorderPointTargets(
                 pd.DataFrame({
                     sku_column: ["A"],
                     "reorder_point": [5.0],
@@ -516,7 +509,7 @@ def test_custom_periodic_provider_metadata_must_be_serializable():
             )
 
     with pytest.raises(ValueError, match="JSON-serializable"):
-        PeriodicReviewPolicy(
+        ReorderPointPolicy(
             lead_time=1,
             review_period=2,
             allow_backorders=False,
@@ -675,3 +668,144 @@ def test_reorder_point_policy_type_follows_from_the_order_quantity():
         ReorderPointPolicy(1, 1, policy_type="sS", order_quantity=12, allow_backorders=False)
     with pytest.raises(ValueError, match="order_quantity is required"):
         ReorderPointPolicy(1, 1, policy_type="sQ", allow_backorders=False)
+
+
+def _positions(values):
+    return pd.DataFrame({
+        "unique_id": list(values),
+        "inventory_position": list(values.values()),
+    })
+
+
+def test_undated_scalar_levels_apply_to_every_sku_the_run_sees():
+    policy = ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=False).fit(
+        reorder_point=5.0, order_up_to_level=12.0,
+    )
+    orders = policy.predict(_positions({"A": 5.0, "B": 6.0, "C": -1.0}), current_period=0)
+    assert orders.get_dataframe()["order_quantity"].tolist() == [7.0, 0.0, 13.0]
+    metadata = policy.get_target_metadata()
+    assert metadata["forecast_origin"] is None
+    assert metadata["forecast_frequency"] is None
+    assert metadata["representation"] == "fixed_policy_levels"
+    with pytest.raises(ValueError, match="one value for every SKU.*pass target_df"):
+        policy.get_parameters()
+
+
+def test_fixed_levels_accept_dict_or_series_by_sku():
+    by_dict = ReorderPointPolicy(lead_time=1, review_period=2, allow_backorders=True).fit(
+        reorder_point={"A": 3.0, "B": 8.0}, order_up_to_level={"A": 10.0, "B": 20.0},
+    )
+    by_series = ReorderPointPolicy(lead_time=1, review_period=2, allow_backorders=True).fit(
+        reorder_point=pd.Series({"A": 3.0, "B": 8.0}),
+        order_up_to_level=pd.Series({"A": 10.0, "B": 20.0}),
+    )
+    for policy in (by_dict, by_series):
+        pd.testing.assert_frame_equal(policy.get_parameters(), pd.DataFrame({
+            "unique_id": ["A", "B"],
+            "reorder_point": [3.0, 8.0],
+            "order_up_to_level": [10.0, 20.0],
+        }))
+    with pytest.raises(ValueError, match=r"No reorder_point was fitted for SKUs: \['C'\]"):
+        by_dict.predict(_positions({"A": 0.0, "C": 0.0}), current_period=0)
+
+
+def test_fixed_sq_levels_order_the_fixed_quantity():
+    policy = ReorderPointPolicy(
+        lead_time=0, review_period=1, order_quantity=4.0, allow_backorders=False,
+    ).fit(reorder_point={"A": 2.0, "B": 2.0})
+    orders = policy.predict(_positions({"A": 2.0, "B": 2.5}), current_period=3)
+    assert orders.get_dataframe()["order_quantity"].tolist() == [4.0, 0.0]
+    assert "order_up_to_representation" not in policy.get_target_metadata()
+
+
+@pytest.mark.parametrize(
+    "fit_kwargs, message",
+    [
+        ({}, "choose exactly one target source"),
+        (
+            {"reorder_point": 1.0, "reorder_point_column": "s", "order_up_to_level": 2.0},
+            "choose exactly one target source",
+        ),
+        ({"reorder_point": 1.0}, "order_up_to_level is required"),
+        ({"reorder_point": 5.0, "order_up_to_level": 4.0}, "greater than or equal"),
+        ({"reorder_point": -1.0, "order_up_to_level": 4.0}, "finite number >= 0"),
+        ({"reorder_point": True, "order_up_to_level": 4.0}, "finite number >= 0"),
+        (
+            {"reorder_point": {"A": 1.0}, "order_up_to_level": {"B": 4.0}},
+            "must name the same SKUs",
+        ),
+        (
+            {"reorder_point": 1.0, "order_up_to_level": 4.0, "reorder_horizon": 2},
+            "reorder_horizon apply only to reorder_point_column",
+        ),
+        (
+            {"reorder_point": 1.0, "order_up_to_level": 4.0, "forecast_origin": ORIGIN},
+            "both forecast_origin and forecast_frequency, or neither",
+        ),
+        (
+            {
+                "target_df": pd.DataFrame({"unique_id": ["A"]}),
+                "reorder_point": {"B": 1.0}, "order_up_to_level": {"B": 4.0},
+            },
+            "exactly the SKUs of target_df",
+        ),
+    ],
+)
+def test_fixed_levels_reject_ambiguous_or_invalid_inputs(fit_kwargs, message):
+    policy = ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=False)
+    with pytest.raises(ValueError, match=message):
+        policy.fit(**fit_kwargs)
+
+
+def test_fixed_levels_and_providers_need_service_level_none():
+    policy = ReorderPointPolicy(
+        lead_time=1, review_period=1, service_level=0.9, allow_backorders=False,
+    )
+    with pytest.raises(ValueError, match="service_level=None"):
+        policy.fit(reorder_point=1.0, order_up_to_level=4.0)
+
+
+def test_sq_rejects_an_order_up_to_level():
+    policy = ReorderPointPolicy(
+        lead_time=1, review_period=1, order_quantity=3.0, allow_backorders=False,
+    )
+    with pytest.raises(ValueError, match="applies only to an \\(s,S\\) policy"):
+        policy.fit(reorder_point=1.0, order_up_to_level=4.0)
+
+
+class _ScaledProvider(ReorderPointTargetProvider):
+    def __init__(self, with_S=True):
+        self.with_S = with_S
+
+    def provide(self, target_data, *, sku_column):
+        frame = target_data[[sku_column]].copy()
+        frame["reorder_point"] = target_data["rate"] * 2.0
+        if self.with_S:
+            frame["order_up_to_level"] = target_data["rate"] * 5.0
+        return ReorderPointTargets(frame=frame, metadata={"multiplier": 2.0})
+
+
+def test_target_provider_sets_levels_and_records_its_manifest():
+    rates = pd.DataFrame({"unique_id": ["A", "B"], "rate": [4.0, 1.0]})
+    policy = ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=False).fit(
+        rates, target_provider=_ScaledProvider(),
+    )
+    assert policy.get_parameters()["order_up_to_level"].tolist() == [20.0, 5.0]
+    metadata = policy.get_target_metadata()
+    assert metadata["representation"] == "provider_policy_levels"
+    assert metadata["target_source"] == "custom_provider"
+    assert metadata["provider"]["provider_class"] == "_ScaledProvider"
+    assert metadata["provider_metadata"] == {"multiplier": 2.0}
+
+    sq = ReorderPointPolicy(
+        lead_time=1, review_period=1, order_quantity=6.0, allow_backorders=False,
+    ).fit(rates, target_provider=_ScaledProvider(with_S=False))
+    assert sq.get_parameters()["order_quantity"].tolist() == [6.0, 6.0]
+    with pytest.raises(ValueError, match="must not return order_up_to_level"):
+        ReorderPointPolicy(
+            lead_time=1, review_period=1, order_quantity=6.0, allow_backorders=False,
+        ).fit(rates, target_provider=_ScaledProvider())
+    with pytest.raises(TypeError, match="must be a ReorderPointTargetProvider"):
+        ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=False).fit(
+            rates, target_provider=object(),
+        )

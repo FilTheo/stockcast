@@ -186,7 +186,6 @@ nav:
               - user-guide/policies/index.md
               - Order-up-to (R, S): user-guide/policies/order-up-to.md
               - Reorder point (s, Q) and (s, S): user-guide/policies/reorder-point.md
-              - Periodic review (R, s, S): user-guide/policies/periodic-review.md
               - Single order (newsvendor): user-guide/policies/single-order.md
               - Write your own policy: user-guide/policies/custom-policies.md
           - The simulation engine: user-guide/engine.md

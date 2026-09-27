@@ -15,6 +15,8 @@ service or fill rate, which also depend on undershoot, ``Q``, outstanding
 orders, the shortage mode, and the demand process.
 """
 
+import json
+from collections.abc import Mapping
 from typing import Literal, Optional, Union
 
 import numpy as np
@@ -25,6 +27,7 @@ from stockcast.core.data_structures import (
     InventoryStateDataFrame,
     OrderDecision,
     _require_forward_frequency,
+    _require_identifiers,
 )
 from stockcast.core.decision_schedule import DecisionSchedule
 from stockcast.policies._target_validation import (
@@ -33,8 +36,13 @@ from stockcast.policies._target_validation import (
     prepare_inventory_positions,
     resolve_target_window,
     schedule_protection_horizon,
+    validate_forecast_origin_and_frequency,
     validate_schedule_coverage,
     validate_target_probability,
+)
+from stockcast.policies.reorder_point_targets import (
+    ReorderPointTargetProvider,
+    validate_reorder_point_targets,
 )
 
 
@@ -49,15 +57,17 @@ class ReorderPointPolicy(BasePolicy):
     checked.
 
     Review timing comes from ``review_period`` or an explicit ``schedule``; use
-    ``review_period=1`` for every-period review. ``s`` is a dated target over
-    the schedule's protection window (see the module docstring).
+    ``review_period=1`` for every-period review.
 
-    Two target modes:
+    ``fit`` takes ``s`` (and ``S``) from one of three sources:
 
-    - quantile: set ``service_level``; ``s`` is the external demand quantile
-      at that probability over the window.
-    - planner: leave ``service_level=None``; ``s`` (and ``S``) are externally
-      chosen policy parameters, for example jointly optimized ``(s,S)`` pairs.
+    - a forecast table (``reorder_point_column``): ``s`` is dated and covers the
+      schedule's protection window, checked at every decision (see the module
+      docstring). With ``service_level`` set, ``s`` is the demand quantile at
+      that probability; with ``service_level=None`` it is a planner value.
+    - fixed values (``reorder_point=``): one number for every SKU, or one per
+      SKU, for example jointly optimized ``(s,S)`` pairs.
+    - your own rule (``target_provider=``), a ``ReorderPointTargetProvider``.
 
     ``S`` is never interpreted as a quantile: in the literature ``s`` and ``S``
     are generally determined jointly. Stockcast only requires ``S >= s``.
@@ -95,30 +105,49 @@ class ReorderPointPolicy(BasePolicy):
         elif order_quantity is not None:
             raise ValueError("order_quantity applies only to an (s,Q) policy")
         self.order_quantity = order_quantity
+        self._uniform_levels = None
         self.reorder_points_ = None
         self.order_quantities_ = None
         self.order_up_to_levels_ = None
 
     def fit(
         self,
-        target_df: pd.DataFrame,
+        target_df: Optional[pd.DataFrame] = None,
         *,
-        forecast_frequency: str,
-        reorder_point_column: str,
+        forecast_frequency: Optional[str] = None,
+        reorder_point_column: Optional[str] = None,
         forecast_origin: Optional[pd.Timestamp] = None,
         reorder_end_date_column: Optional[str] = None,
         reorder_horizon: Optional[int] = None,
         target_probability: Optional[float] = None,
         order_up_to_column: Optional[str] = None,
+        reorder_point=None,
+        order_up_to_level=None,
+        target_provider: Optional[ReorderPointTargetProvider] = None,
         sku_column: str = "unique_id",
     ) -> "ReorderPointPolicy":
-        """Bind one external reorder point (and ``S`` for ``(s,S)``) per SKU.
+        """Set the reorder point ``s`` (and ``S`` for ``(s,S)``) per SKU.
 
-        Give ``forecast_origin``, ``reorder_end_date_column``, or both: the
-        window of ``s`` ends ``reorder_horizon`` periods after the origin.
+        Choose exactly one source:
+
+        1. ``reorder_point_column`` (and ``order_up_to_column``): targets in
+           ``target_df``, typically from a forecast. They are dated: give
+           ``forecast_origin``, ``reorder_end_date_column``, or both; the
+           window of ``s`` ends ``reorder_horizon`` periods after the origin
+           and is checked at every decision.
+        2. ``reorder_point`` (and ``order_up_to_level``): fixed planning values,
+           one number for every SKU, a ``{sku: value}`` dict, or a Series
+           indexed by SKU.
+        3. ``target_provider``: your own ``ReorderPointTargetProvider``, called
+           with ``target_df``.
+
+        Sources 2 and 3 are planning levels: they need ``service_level=None``
+        and claim no window. ``forecast_origin`` and ``forecast_frequency`` are
+        optional for them; when given, the run checks the origin as for
+        source 1.
 
         Args:
-            target_df: One row per SKU.
+            target_df: One row per SKU (sources 1 and 3; optional for 2).
             forecast_frequency: Explicit pandas frequency of one period.
             reorder_point_column: Column holding ``s``.
             forecast_origin: Last observed demand date used to build ``s``.
@@ -133,8 +162,246 @@ class ReorderPointPolicy(BasePolicy):
                 ``service_level``; if given, it must equal it. Must be omitted
                 in planner mode.
             order_up_to_column: Column holding ``S`` for an ``(s,S)`` policy.
+            reorder_point: Fixed ``s``: a number, a dict, or a Series by SKU.
+            order_up_to_level: Fixed ``S`` for an ``(s,S)`` policy, in the same
+                forms.
+            target_provider: A ``ReorderPointTargetProvider``.
             sku_column: SKU identifier column.
+
+        Returns:
+            The fitted policy (``self``).
         """
+        sources = [
+            name for name, value in (
+                ("reorder_point_column", reorder_point_column),
+                ("reorder_point", reorder_point),
+                ("target_provider", target_provider),
+            ) if value is not None
+        ]
+        if len(sources) != 1:
+            raise ValueError(
+                "choose exactly one target source: reorder_point_column, "
+                "reorder_point, or target_provider"
+            )
+        self._uniform_levels = None
+        if sources[0] == "reorder_point_column":
+            if order_up_to_level is not None:
+                raise ValueError(
+                    "order_up_to_level goes with reorder_point; with "
+                    "reorder_point_column use order_up_to_column"
+                )
+            return self._fit_columns(
+                target_df,
+                forecast_frequency=forecast_frequency,
+                reorder_point_column=reorder_point_column,
+                forecast_origin=forecast_origin,
+                reorder_end_date_column=reorder_end_date_column,
+                reorder_horizon=reorder_horizon,
+                target_probability=target_probability,
+                order_up_to_column=order_up_to_column,
+                sku_column=sku_column,
+            )
+        window_arguments = {
+            "reorder_end_date_column": reorder_end_date_column,
+            "reorder_horizon": reorder_horizon,
+            "target_probability": target_probability,
+            "order_up_to_column": order_up_to_column,
+        }
+        given = sorted(name for name, value in window_arguments.items() if value is not None)
+        if given:
+            raise ValueError(
+                f"{', '.join(given)} apply only to reorder_point_column targets"
+            )
+        if self.service_level is not None:
+            raise ValueError(
+                "fixed values and target providers are planning levels without a "
+                "probability; create the policy with service_level=None"
+            )
+        dates = self._planning_dates(forecast_origin, forecast_frequency)
+        if sources[0] == "reorder_point":
+            return self._fit_fixed(
+                target_df, reorder_point, order_up_to_level, sku_column, dates,
+            )
+        if order_up_to_level is not None:
+            raise ValueError("order_up_to_level goes with reorder_point, not target_provider")
+        return self._fit_provider(target_df, target_provider, sku_column, dates)
+
+    @staticmethod
+    def _planning_dates(forecast_origin, forecast_frequency):
+        """Optional dates of planning levels: both or neither."""
+        if (forecast_origin is None) != (forecast_frequency is None):
+            raise ValueError(
+                "give both forecast_origin and forecast_frequency, or neither, "
+                "for fixed values and target providers"
+            )
+        if forecast_origin is None:
+            return None, None
+        return validate_forecast_origin_and_frequency(forecast_origin, forecast_frequency)
+
+    @staticmethod
+    def _fixed_values(value, name: str):
+        """A number, or ``{sku: number}`` from a dict or a Series."""
+        if isinstance(value, pd.Series):
+            if value.index.has_duplicates:
+                raise ValueError(f"{name} has duplicate SKUs")
+            value = value.to_dict()
+        if isinstance(value, Mapping):
+            if not value:
+                raise ValueError(f"{name} must name at least one SKU")
+            numbers = {}
+            for sku, item in value.items():
+                numbers[sku] = ReorderPointPolicy._fixed_number(item, name)
+            return numbers
+        return ReorderPointPolicy._fixed_number(value, name)
+
+    @staticmethod
+    def _fixed_number(value, name: str) -> float:
+        if isinstance(value, bool):
+            raise ValueError(f"{name} must be a finite number >= 0")
+        try:
+            number = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{name} must be a finite number >= 0") from exc
+        if not np.isfinite(number) or number < 0:
+            raise ValueError(f"{name} must be a finite number >= 0")
+        return number
+
+    def _fit_fixed(self, target_df, reorder_point, order_up_to_level, sku_column, dates):
+        """Mode 2: fixed planning values."""
+        s_values = self._fixed_values(reorder_point, "reorder_point")
+        if self.policy_type == "sS":
+            if order_up_to_level is None:
+                raise ValueError("order_up_to_level is required for an (s,S) policy")
+            S_values = self._fixed_values(order_up_to_level, "order_up_to_level")
+        elif order_up_to_level is not None:
+            raise ValueError("order_up_to_level applies only to an (s,S) policy")
+        else:
+            S_values = None
+        per_sku = [v for v in (s_values, S_values) if isinstance(v, dict)]
+        skus = None
+        if per_sku:
+            skus = list(per_sku[0])
+            for values in per_sku[1:]:
+                if set(values) != set(skus):
+                    raise ValueError(
+                        "reorder_point and order_up_to_level must name the same SKUs"
+                    )
+        if target_df is not None:
+            if not isinstance(target_df, pd.DataFrame) or target_df.empty:
+                raise ValueError("target_df must be a non-empty pandas DataFrame")
+            table_skus = _require_identifiers(target_df, sku_column, "target_df", unique=True)
+            if skus is not None and set(skus) != table_skus:
+                raise ValueError("the SKUs of the values must be exactly the SKUs of target_df")
+            skus = target_df[sku_column].tolist()
+        if skus is None:
+            # One value for every SKU: applied to the SKUs of each decision.
+            self._uniform_levels = (s_values, S_values)
+            self.reorder_points_ = None
+            self.order_quantities_ = None
+            self.order_up_to_levels_ = None
+            self.target_df_ = None
+        else:
+            def column(values):
+                return [values[sku] if isinstance(values, dict) else values for sku in skus]
+            frame = pd.DataFrame({sku_column: skus, "reorder_point": column(s_values)})
+            if S_values is not None:
+                frame["order_up_to_level"] = column(S_values)
+            self._set_levels(frame, sku_column)
+            self.target_df_ = None if target_df is None else target_df.copy()
+        if S_values is not None:
+            pairs = (
+                [(s_values, S_values)] if skus is None
+                else list(zip(frame["reorder_point"], frame["order_up_to_level"]))
+            )
+            if any(S < s for s, S in pairs):
+                raise ValueError("order-up-to levels must be greater than or equal to reorder points")
+        self.sku_column_ = sku_column
+        self._set_planning_metadata("fixed_policy_levels", "external_direct", dates)
+        self.fitted_ = True
+        return self
+
+    def _fit_provider(self, target_df, target_provider, sku_column, dates):
+        """Mode 3: your own rule."""
+        if not isinstance(target_provider, ReorderPointTargetProvider):
+            raise TypeError("target_provider must be a ReorderPointTargetProvider")
+        if not isinstance(target_df, pd.DataFrame) or target_df.empty:
+            raise ValueError("target_df must be a non-empty pandas DataFrame")
+        if target_provider.target_source not in {"external_direct", "custom_provider"}:
+            raise ValueError(
+                "target provider target_source must be 'external_direct' or "
+                "'custom_provider'"
+            )
+        provider_result = target_provider.provide(target_df.copy(), sku_column=sku_column)
+        levels = validate_reorder_point_targets(
+            provider_result, sku_column=sku_column, order_up_to=self.policy_type == "sS",
+        )
+        provider_manifest = target_provider.to_manifest()
+        if not isinstance(provider_manifest, dict):
+            raise TypeError("target provider manifest must be a dictionary")
+        try:
+            json.dumps({
+                "provider": provider_manifest,
+                "provider_metadata": provider_result.metadata,
+            })
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "target provider manifest and metadata must be JSON-serializable"
+            ) from exc
+        self._set_levels(levels, sku_column)
+        self.target_df_ = target_df.copy()
+        self.sku_column_ = sku_column
+        self._set_planning_metadata(
+            "provider_policy_levels", target_provider.target_source, dates,
+            provider=provider_manifest,
+            provider_metadata=provider_result.metadata.copy(),
+        )
+        self.fitted_ = True
+        return self
+
+    def _set_levels(self, frame: pd.DataFrame, sku_column: str) -> None:
+        """Store per-SKU ``s`` and ``Q`` or ``S`` from a validated frame."""
+        self.reorder_points_ = frame[[sku_column, "reorder_point"]].astype(
+            {"reorder_point": float}
+        ).reset_index(drop=True)
+        if self.policy_type == "sQ":
+            self.order_quantities_ = self.reorder_points_[[sku_column]].copy()
+            self.order_quantities_["order_quantity"] = self.order_quantity
+            self.order_up_to_levels_ = None
+        else:
+            self.order_up_to_levels_ = frame[[sku_column, "order_up_to_level"]].astype(
+                {"order_up_to_level": float}
+            ).reset_index(drop=True)
+            self.order_quantities_ = None
+
+    def _set_planning_metadata(self, representation, source, dates, **extra) -> None:
+        origin, offset = dates
+        self.target_metadata_ = {
+            "representation": representation,
+            "target_probability": None,
+            "target_source": source,
+            "forecast_origin": None if origin is None else origin.isoformat(),
+            "forecast_frequency": None if offset is None else offset.freqstr,
+            **extra,
+        }
+        if self.policy_type == "sS":
+            self.target_metadata_["order_up_to_representation"] = "external_policy_level"
+
+    def _fit_columns(
+        self,
+        target_df,
+        *,
+        forecast_frequency,
+        reorder_point_column,
+        forecast_origin,
+        reorder_end_date_column,
+        reorder_horizon,
+        target_probability,
+        order_up_to_column,
+        sku_column,
+    ) -> "ReorderPointPolicy":
+        """Mode 1: dated, window-checked targets from table columns."""
+        if forecast_frequency is None:
+            raise ValueError("forecast_frequency is required for reorder_point_column targets")
         offset = _require_forward_frequency(forecast_frequency, "forecast_frequency")
         horizon = schedule_protection_horizon(
             self.schedule, self.lead_time, reorder_horizon, "reorder_horizon",
@@ -209,6 +476,8 @@ class ReorderPointPolicy(BasePolicy):
         Raises:
             ValueError: If the reorder horizon or dates do not match.
         """
+        if "reorder_horizon" not in self.target_metadata_:
+            return  # fixed values and provider levels claim no window
         validate_schedule_coverage(
             self.schedule,
             lead_time=self.lead_time,
@@ -244,19 +513,22 @@ class ReorderPointPolicy(BasePolicy):
             inventory_df = inventory_state_df.copy()
         inventory_df = prepare_inventory_positions(inventory_df, sku_column, allow_components=True)
 
+        reorder_points, order_quantities, order_up_to_levels = self._levels_for(
+            inventory_df[sku_column], sku_column,
+        )
         orders = inventory_df[[sku_column, "inventory_position"]].merge(
-            self.reorder_points_, on=sku_column, how="left",
+            reorder_points, on=sku_column, how="left",
         )
         missing = orders.loc[orders["reorder_point"].isna(), sku_column].tolist()
         if missing:
             raise ValueError(f"No reorder_point was fitted for SKUs: {missing[:5]}")
         should_order = orders["inventory_position"] <= orders["reorder_point"]
         if self.policy_type == "sQ":
-            orders = orders.merge(self.order_quantities_, on=sku_column, how="left")
+            orders = orders.merge(order_quantities, on=sku_column, how="left")
             orders["order_quantity"] = np.where(should_order, orders["order_quantity"], 0.0)
             orders["target_level"] = np.nan
         else:
-            orders = orders.merge(self.order_up_to_levels_, on=sku_column, how="left")
+            orders = orders.merge(order_up_to_levels, on=sku_column, how="left")
             orders["order_quantity"] = np.where(
                 should_order,
                 np.maximum(0.0, orders["order_up_to_level"] - orders["inventory_position"]),
@@ -273,6 +545,29 @@ class ReorderPointPolicy(BasePolicy):
             result, sku_column=sku_column, lead_time=self.lead_time,
         )
 
+    def _levels_for(self, skus: pd.Series, sku_column: str):
+        """Fitted level frames; one-value-for-every-SKU levels cover ``skus``."""
+        if self._uniform_levels is None:
+            return self.reorder_points_, self.order_quantities_, self.order_up_to_levels_
+        s_value, S_value = self._uniform_levels
+        reorder_points = pd.DataFrame({sku_column: skus.tolist(), "reorder_point": s_value})
+        quantities = levels = None
+        if self.policy_type == "sQ":
+            quantities = reorder_points[[sku_column]].copy()
+            quantities["order_quantity"] = self.order_quantity
+        else:
+            levels = pd.DataFrame({sku_column: skus.tolist(), "order_up_to_level": S_value})
+        return reorder_points, quantities, levels
+
+    def _require_per_sku_levels(self) -> None:
+        if self._uniform_levels is not None:
+            s_value, S_value = self._uniform_levels
+            raise ValueError(
+                f"the reorder point is one value for every SKU (s={s_value}"
+                + ("" if S_value is None else f", S={S_value}")
+                + "); pass target_df to fit for a per-SKU table"
+            )
+
     def get_reorder_points(self) -> pd.DataFrame:
         """Return the fitted reorder point ``s`` per SKU.
 
@@ -284,12 +579,14 @@ class ReorderPointPolicy(BasePolicy):
         """
         if not self.fitted_:
             raise ValueError("Policy must be fitted first. Call fit() to set reorder points.")
+        self._require_per_sku_levels()
         return self.reorder_points_.copy()
 
     def get_parameters(self) -> pd.DataFrame:
         """Return ``s`` with ``Q`` (for ``(s,Q)``) or ``S`` (for ``(s,S)``) per SKU."""
         if not self.fitted_:
             raise ValueError("Policy must be fitted first. Call fit() to set parameters.")
+        self._require_per_sku_levels()
         other = self.order_quantities_ if self.policy_type == "sQ" else self.order_up_to_levels_
         return self.reorder_points_.merge(other, on=self.sku_column_, how="left")
 

@@ -408,16 +408,14 @@ def test_custom_schedule_interface_and_manifest():
     assert result.to_event_frame().decision_flag.tolist() == [False, True, False]
 
 
-def test_provider_policy_accepts_separate_nonperiodic_schedule_without_probability():
-    from stockcast import FixedPeriodicReviewTargets, PeriodicReviewPolicy
+def test_fixed_levels_accept_separate_nonperiodic_schedule_without_probability():
+    from stockcast import ReorderPointPolicy
 
-    policy = PeriodicReviewPolicy(
+    policy = ReorderPointPolicy(
         0, schedule=OneTimeSchedule(), allow_backorders=False
     ).fit(
         pd.DataFrame({"unique_id": ["A"]}),
-        target_provider=FixedPeriodicReviewTargets(
-            reorder_point=5.0, order_up_to_level=10.0
-        ),
+        reorder_point=5.0, order_up_to_level=10.0,
         forecast_origin=ORIGIN,
         forecast_frequency="D",
     )

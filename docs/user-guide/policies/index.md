@@ -11,7 +11,7 @@ write your own with the same interface.
 | [`OrderUpToPolicy`](order-up-to.md) | $(R, S)$ | every scheduled opportunity | $\max(0, S - \mathit{IP})$ |
 | [`ReorderPointPolicy("sQ")`](reorder-point.md) | $(s, Q)$ | when $\mathit{IP} \le s$ | $Q$ |
 | [`ReorderPointPolicy("sS")`](reorder-point.md) | $(s, S)$ | when $\mathit{IP} \le s$ | $\max(0, S - \mathit{IP})$ |
-| [`PeriodicReviewPolicy`](periodic-review.md) | $(R, s, S)$ | at scheduled opportunities when $\mathit{IP} \le s$ | $\max(0, S - \mathit{IP})$ |
+| [`ReorderPointPolicy("sS")`](reorder-point.md), `review_period=R` | $(R, s, S)$ | at scheduled opportunities when $\mathit{IP} \le s$ | $\max(0, S - \mathit{IP})$ |
 | [`SingleOrderPolicy`](single-order.md) | newsvendor | once | up to a season target |
 | [Your own](custom-policies.md) | – | your rule | your rule |
 
@@ -25,7 +25,7 @@ flowchart TD
     B -- no --> C{"Is placing an order<br/>costly compared with holding stock?"}
     C -- "no, order whenever there is a chance" --> RS["OrderUpToPolicy (R, S)"]
     C -- "yes, only order when low" --> D{"Fixed ordering days?"}
-    D -- yes --> RSS["PeriodicReviewPolicy (R, s, S)"]
+    D -- yes --> RSS["ReorderPointPolicy (R, s, S)<br/>review_period=R"]
     D -- "no, check every period" --> SS["ReorderPointPolicy (s, S)<br/>review_period=1"]
 ```
 

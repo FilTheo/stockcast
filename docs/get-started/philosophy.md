@@ -254,9 +254,9 @@ you get:
 
 | You want any… | Subclass | Implement | Built-ins |
 |---|---|---|---|
-| ordering rule | `BasePolicy` | `fit`, `predict` | order-up-to, reorder point $(s,Q)$/$(s,S)$, $(R,s,S)$, single order |
+| ordering rule | `BasePolicy` | `fit`, `predict` | order-up-to, reorder point $(s,Q)$/$(s,S)$/$(R,s,S)$, single order |
 | ordering calendar | `DecisionSchedule` | `should_decide`, `next_decision_period` | periodic, one-time, explicit |
-| way to produce $(s, S)$ | `PeriodicReviewTargetProvider` | `provide` | from columns, fixed |
+| way to produce $(s, S)$ | `ReorderPointTargetProvider` | `provide` | fixed values and forecast columns, passed straight to `fit` |
 | operational rule on orders | `OrderingConstraint` | `apply` | minimum, multiple, maximum, shelf space |
 | planned intervention | `SimulationCallback` | `on_after_prediction`, `on_after_demand` | scheduled override, multiplier, hold, stock adjustment |
 | sourcing logic | `SupplierAllocation` | `allocate` | fixed shares |

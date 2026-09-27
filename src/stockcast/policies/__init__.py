@@ -10,23 +10,14 @@ from stockcast.policies.single_order import (
 )
 
 from .order_up_to import OrderUpToPolicy
-from .periodic_review import PeriodicReviewPolicy
 from .reorder_point import ReorderPointPolicy
-from .periodic_targets import (
-    ColumnPeriodicReviewTargets,
-    FixedPeriodicReviewTargets,
-    PeriodicReviewTargetProvider,
-    PeriodicReviewTargets,
-)
+from .reorder_point_targets import ReorderPointTargetProvider, ReorderPointTargets
 
 __all__ = [
     "OrderUpToPolicy",
     "ReorderPointPolicy",
-    "PeriodicReviewPolicy",
-    "PeriodicReviewTargetProvider",
-    "PeriodicReviewTargets",
-    "ColumnPeriodicReviewTargets",
-    "FixedPeriodicReviewTargets",
+    "ReorderPointTargetProvider",
+    "ReorderPointTargets",
     "SingleOrderPolicy",
     "newsvendor_critical_fractile",
 ]

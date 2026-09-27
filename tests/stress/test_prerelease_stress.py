@@ -371,9 +371,8 @@ def _random_case(seed: int):
         schedule = sc.ExplicitSchedule(tuple(periods))
         s_values = {sku: float(rng.randint(0, 15)) for sku in skus}
         S_values = {sku: s_values[sku] + rng.randint(0, 20) for sku in skus}
-        policy = sc.PeriodicReviewPolicy(lead, schedule=schedule, allow_backorders=backorders).fit(
-            pd.DataFrame({"unique_id": skus}),
-            target_provider=sc.FixedPeriodicReviewTargets(reorder_point=s_values, order_up_to_level=S_values),
+        policy = sc.ReorderPointPolicy(lead, schedule=schedule, allow_backorders=backorders).fit(
+            reorder_point=s_values, order_up_to_level=S_values,
             forecast_origin=ORIGIN, forecast_frequency="D",
         )
 

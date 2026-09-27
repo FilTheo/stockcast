@@ -100,7 +100,7 @@ saw, and when the order should arrive ($0 + L = 2$).
 | `OrderUpToPolicy` $(R, S)$ | Every $R$ periods, order $\max(0, S - \mathit{IP})$ | Regular ordering days, one target per SKU |
 | `ReorderPointPolicy` $(s, Q)$ | When $\mathit{IP} \le s$, order a fixed $Q$ | Case packs, fixed lot sizes |
 | `ReorderPointPolicy` $(s, S)$ | When $\mathit{IP} \le s$, order up to $S$ | Order only when stock gets low |
-| `PeriodicReviewPolicy` $(R, s, S)$ | Every $R$ periods, if $\mathit{IP} \le s$, order up to $S$ | Periodic review with a trigger level |
+| `ReorderPointPolicy` $(R, s, S)$ | Every $R$ periods, if $\mathit{IP} \le s$, order up to $S$ | Periodic review with a trigger level |
 | `SingleOrderPolicy` | One purchase for a selling season | Newsvendor, seasonal, and fresh products |
 
 Each has its own page in the [policy guide](../user-guide/policies/index.md),

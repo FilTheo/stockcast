@@ -8,16 +8,10 @@ Ordering rules and their target providers. Guide: [Policies](../user-guide/polic
 
 ::: stockcast.policies.ReorderPointPolicy
 
-::: stockcast.policies.PeriodicReviewPolicy
-
 ::: stockcast.policies.SingleOrderPolicy
 
 ::: stockcast.policies.newsvendor_critical_fractile
 
-::: stockcast.policies.PeriodicReviewTargetProvider
+::: stockcast.policies.ReorderPointTargetProvider
 
-::: stockcast.policies.PeriodicReviewTargets
-
-::: stockcast.policies.ColumnPeriodicReviewTargets
-
-::: stockcast.policies.FixedPeriodicReviewTargets
+::: stockcast.policies.ReorderPointTargets

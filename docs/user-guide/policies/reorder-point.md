@@ -18,6 +18,11 @@ $$
   quantity.
 - $(s, S)$ orders up to a level $S \ge s$, so larger drops get larger orders.
 
+Reviewed every $R$ periods, $(s, S)$ is the classic $(R, s, S)$ policy of
+periodic inventory control (Silver, Pyke and Thomas, 2017). With $s = S$ it
+behaves like order-up-to $(R, S)$; lowering $s$ skips small orders, which pays
+off when each order carries a fixed cost.
+
 ![A reorder-point run](../../assets/figures/reorder-point.svg)
 
 ## Choosing $s$
@@ -49,7 +54,83 @@ $Q$ and $S$ are ordering choices rather than quantiles. $Q$ is often a pack
 size or an economic order quantity, and $s$ and $S$ are usually chosen
 together.
 
-## In Stockcast
+## Where $s$ and $S$ come from
+
+Reorder points come from many places: one house rule, a planning table, a
+forecast, a formula your team trusts. `fit` takes exactly one source:
+
+| You have | Pass to `fit` |
+|---|---|
+| one pair for every SKU | `reorder_point=20.0, order_up_to_level=50.0` |
+| one value per SKU | `reorder_point={"tea_250g": 25.0, ...}` or a Series by SKU, such as `table["s"]` |
+| a dated forecast quantile | a table with `reorder_point_column=...` (and `order_up_to_column=...`) |
+| your own rule | a table with `target_provider=YourProvider()` |
+
+Every source goes through the same checks: finite values, $s \ge 0$, and
+$S \ge s$.
+
+### Fixed values
+
+Pass the numbers directly. A dict or a Series gives one value per SKU:
+
+```python
+import pandas as pd
+
+from stockcast.core import InventoryStateDataFrame
+from stockcast.policies import ReorderPointPolicy
+
+opening_date = pd.Timestamp("2026-01-05")
+
+policy = ReorderPointPolicy(
+    lead_time=2, review_period=7, allow_backorders=False,
+).fit(
+    reorder_point={"tea_250g": 25.0, "coffee_1kg": 10.0},
+    order_up_to_level={"tea_250g": 60.0, "coffee_1kg": 30.0},
+)
+
+state = InventoryStateDataFrame.from_observed(
+    pd.DataFrame({"unique_id": ["tea_250g", "coffee_1kg"], "on_hand": [22.0, 14.0]}),
+    start_date=opening_date,
+)
+policy.predict(state, current_period=0).get_dataframe()[
+    ["unique_id", "inventory_position", "reorder_point", "target_level", "order_quantity"]]
+```
+
+```text
+    unique_id  inventory_position  reorder_point  target_level  order_quantity
+0    tea_250g                22.0           25.0          60.0            38.0
+1  coffee_1kg                14.0           10.0          30.0             0.0
+```
+
+Tea is below its reorder point and orders up to 60; coffee is above its
+reorder point and waits.
+
+The columns of a planning table work the same way, and a single number
+applies to every SKU:
+
+```python
+table = pd.DataFrame({"unique_id": ["tea_250g", "coffee_1kg"],
+                      "s": [25.0, 10.0], "S": [60.0, 30.0]}).set_index("unique_id")
+from_table = ReorderPointPolicy(lead_time=2, review_period=7,
+                                allow_backorders=False).fit(
+    reorder_point=table["s"], order_up_to_level=table["S"],
+)
+house_rule = ReorderPointPolicy(lead_time=2, review_period=7,
+                                allow_backorders=False).fit(
+    reorder_point=20.0, order_up_to_level=50.0,
+)
+```
+
+Fixed values are planning levels, so they need `service_level=None` (the
+default). Dates are optional: with `forecast_origin` and
+`forecast_frequency`, the run checks that the values were set no later than
+the opening date. Without them, give the run a `period_frequency` when the
+demand is dated.
+
+### From a forecast
+
+A forecast quantile is dated and covers a window, so the table carries the
+dates too. The window of $s$ is checked at every decision.
 
 === "(s, Q), quantile mode"
 
@@ -123,6 +204,56 @@ together.
     0  tea_250g           20.0               60.0
     ```
 
+### Your own rule
+
+A target provider packages a rule of your own. It receives the table passed to
+`fit` and returns `ReorderPointTargets(frame, metadata)` with one row per SKU.
+Here $s$ and $S$ are days of cover of a daily rate:
+
+```python
+from stockcast.policies import ReorderPointTargetProvider, ReorderPointTargets
+
+
+class DaysOfCoverTargets(ReorderPointTargetProvider):
+    """s = reorder_days x rate, S = order_up_to_days x rate."""
+
+    def __init__(self, reorder_days, order_up_to_days):
+        self.reorder_days, self.order_up_to_days = reorder_days, order_up_to_days
+
+    def provide(self, target_data, *, sku_column):
+        rate = target_data["daily_rate"]
+        frame = pd.DataFrame({
+            sku_column: target_data[sku_column],
+            "reorder_point": self.reorder_days * rate,
+            "order_up_to_level": self.order_up_to_days * rate,
+        })
+        return ReorderPointTargets(frame=frame, metadata=self.to_manifest())
+
+    def to_manifest(self):
+        return {**super().to_manifest(), "reorder_days": self.reorder_days,
+                "order_up_to_days": self.order_up_to_days}
+
+
+rates = pd.DataFrame({"unique_id": ["tea_250g", "coffee_1kg"], "daily_rate": [6.0, 2.0]})
+cover = ReorderPointPolicy(lead_time=2, review_period=7, allow_backorders=False).fit(
+    rates, target_provider=DaysOfCoverTargets(4, 10),
+)
+cover.get_parameters()
+```
+
+```text
+    unique_id  reorder_point  order_up_to_level
+0    tea_250g           24.0               60.0
+1  coffee_1kg            8.0               20.0
+```
+
+The provider's `to_manifest()` output is stored in the run manifest, so every
+result records how its levels were made. For an $(s, Q)$ policy, return
+`reorder_point` only. Set the class attribute
+`target_source = "external_direct"` when the provider only passes along
+values computed elsewhere; the default is `"custom_provider"`. Like fixed
+values, provider levels need `service_level=None` and take optional dates.
+
 ### Arguments
 
 | Constructor | Meaning |
@@ -135,12 +266,18 @@ together.
 
 | `fit` | Meaning |
 |---|---|
+| `reorder_point` | fixed $s$: a number, a dict, or a Series by SKU |
+| `order_up_to_level` | fixed $S$, in the same forms; $(s, S)$ only |
+| `target_provider` | a `ReorderPointTargetProvider`, called with the table |
 | `reorder_point_column` | column holding $s$ |
 | `order_up_to_column` | column holding $S$; $(s, S)$ only |
 | `reorder_horizon` | $H$: defaults to $L + R$ for periodic schedules; required otherwise, checked as $(u - t) + L$ |
 | `reorder_end_date_column` | optional; last date covered by $s$: origin $+ H\Delta$ |
 | `target_probability` | $\alpha$, quantile mode only; defaults to `service_level` |
-| `forecast_origin`, `forecast_frequency` | as for [every target](../forecast-targets.md#the-fit-arguments) |
+| `forecast_origin`, `forecast_frequency` | as for [every target](../forecast-targets.md#the-fit-arguments); optional for fixed values and providers |
+
+The window arguments (`reorder_horizon`, `reorder_end_date_column`,
+`target_probability`, `order_up_to_column`) belong to column targets.
 
 ## Good to know
 
@@ -153,5 +290,7 @@ together.
   shortage rule, which is exactly what a simulation measures.
 
 **Notebooks:** [05b: reorder points and review frequency](../../notebooks/05b_reorder_points_and_review_frequency.ipynb) ·
+[02b: decision schedules](../../notebooks/02b_decision_schedules.ipynb) ·
+[08: callbacks and audit](../../notebooks/08_callbacks_and_audit.ipynb) ·
 [05: custom policies](../../notebooks/05_custom_policies.ipynb) ·
 [06: fair comparisons](../../notebooks/06_fair_forecast_and_policy_comparisons.ipynb)

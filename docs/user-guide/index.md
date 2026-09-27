@@ -20,7 +20,7 @@ notebook that uses it.
 | feed in sales history or simulated demand | demand table, `DemandGenerator` | [Demand and calendars](demand.md) | [02](../notebooks/02_first_engine_simulation.ipynb), [02c](../notebooks/02c_synthetic_demand.ipynb) |
 | turn my forecast into a stock target | target table + `fit` | [Forecast targets](forecast-targets.md), [Connect any forecasting model](../how-to/connect-a-forecaster.md) | [04c](../notebooks/04c_cumulative_protection_target.ipynb), [04e](../notebooks/04e_cumulative_target_methods.ipynb) |
 | order up to a level at every review | `OrderUpToPolicy` | [Order-up-to](policies/order-up-to.md) | [04](../notebooks/04_forecast_to_inventory_integration.ipynb), [06](../notebooks/06_fair_forecast_and_policy_comparisons.ipynb) |
-| order only when stock falls low | `ReorderPointPolicy`, `PeriodicReviewPolicy` | [Reorder point](policies/reorder-point.md), [Periodic review](policies/periodic-review.md) | [05b](../notebooks/05b_reorder_points_and_review_frequency.ipynb), [08](../notebooks/08_callbacks_and_audit.ipynb) |
+| order only when stock falls low | `ReorderPointPolicy` | [Reorder point](policies/reorder-point.md) | [05b](../notebooks/05b_reorder_points_and_review_frequency.ipynb), [08](../notebooks/08_callbacks_and_audit.ipynb) |
 | buy once for a season | `SingleOrderPolicy`, `newsvendor_critical_fractile` | [Single order](policies/single-order.md) | [04b](../notebooks/04b_daily_newsvendor.ipynb) |
 | use my own ordering rule | subclass `BasePolicy` | [Write your own policy](policies/custom-policies.md) | [05](../notebooks/05_custom_policies.ipynb) |
 | order on specific days only | `PeriodicSchedule`, `ExplicitSchedule`, `DecisionSchedule` | [Decision schedules](decision-schedules.md) | [02b](../notebooks/02b_decision_schedules.ipynb), [04f](../notebooks/04f_scheduled_forecast_simulation.ipynb) |
@@ -67,7 +67,7 @@ Read these first. Everything else builds on them.
 | [Demand and calendars](demand.md) | Demand tables, frequencies, generators | `DemandGenerator` |
 | [Decision schedules](decision-schedules.md) | When a policy may order | `PeriodicSchedule`, `OneTimeSchedule`, `ExplicitSchedule` |
 | [Forecast targets](forecast-targets.md) | From forecast to stock target | target tables, `policy_schedule` |
-| [Policies](policies/index.md) | Ordering rules and how to choose one | `OrderUpToPolicy`, `ReorderPointPolicy`, `PeriodicReviewPolicy`, `SingleOrderPolicy`, `BasePolicy` |
+| [Policies](policies/index.md) | Ordering rules and how to choose one | `OrderUpToPolicy`, `ReorderPointPolicy`, `SingleOrderPolicy`, `BasePolicy` |
 | [The simulation engine](engine.md) | Running and comparing simulations | `SimulationEngine`, `SimulationResult` |
 | [Ordering constraints](constraints.md) | Minimums, case packs, maximums, shelf space | `OrderingConstraints` and friends |
 | [Callbacks](callbacks.md) | Planned interventions with an audit trail | `SimulationCallback`, scheduled callbacks |

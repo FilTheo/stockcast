@@ -11,13 +11,12 @@ import stockcast.visualization as visualization
 def test_public_export_sets_are_frozen_for_0_1():
     assert stockcast.__all__ == [
         "BasePolicy", "CallbackContext", "CallbackError",
-        "ColumnPeriodicReviewTargets", "ComparisonResult", "ConstraintContext",
-        "ConstraintResult", "FixedPeriodicReviewTargets",
+        "ComparisonResult", "ConstraintContext", "ConstraintResult",
         "InventoryAdjustmentResult", "InventoryStateDataFrame",
         "MaximumOrderQuantity", "MinimumOrderQuantity", "OrderAdjustmentResult",
         "OrderDecision", "OrderMultiple", "OrderUpToPolicy", "OrderingConstraint",
-        "OrderingConstraints", "PeriodicReviewPolicy", "PeriodicReviewTargetProvider",
-        "PeriodicReviewTargets", "ReorderPointPolicy", "ScheduledInventoryAdjustment", "ScheduledOrderHold",
+        "OrderingConstraints", "ReorderPointPolicy", "ReorderPointTargetProvider",
+        "ReorderPointTargets", "ScheduledInventoryAdjustment", "ScheduledOrderHold",
         "ScheduledOrderMultiplier", "ScheduledOrderOverride", "ShelfSpaceLimit",
         "SimulationCallback", "SimulationEngine", "SimulationResult",
         "DecisionSchedule", "PeriodicSchedule", "OneTimeSchedule", "ExplicitSchedule",
@@ -45,9 +44,8 @@ def test_public_export_sets_are_frozen_for_0_1():
         "DeliveryContext", "DeliveryOutcome",
     ]
     assert policies.__all__ == [
-        "OrderUpToPolicy", "ReorderPointPolicy", "PeriodicReviewPolicy",
-        "PeriodicReviewTargetProvider", "PeriodicReviewTargets",
-        "ColumnPeriodicReviewTargets", "FixedPeriodicReviewTargets",
+        "OrderUpToPolicy", "ReorderPointPolicy",
+        "ReorderPointTargetProvider", "ReorderPointTargets",
         "SingleOrderPolicy", "newsvendor_critical_fractile",
     ]
     assert evaluation.__all__ == [

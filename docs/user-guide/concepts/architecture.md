@@ -12,8 +12,8 @@ owns, and how the engine puts them together.
 | **Inventory state** | Hold on-hand stock, the pipeline, and backorders | `InventoryStateDataFrame` | – |
 | **Demand** | Say how much is requested in each period | DataFrame, `DemandGenerator` | any callable |
 | **Decision schedule** | Say *when* ordering is allowed | `PeriodicSchedule`, `OneTimeSchedule`, `ExplicitSchedule` | `DecisionSchedule` |
-| **Policy** | Say *how much* to order | `OrderUpToPolicy`, `ReorderPointPolicy`, `PeriodicReviewPolicy`, `SingleOrderPolicy` | `BasePolicy` |
-| **Target provider** | Supply $(s, S)$ levels to a periodic-review policy | `ColumnPeriodicReviewTargets`, `FixedPeriodicReviewTargets` | `PeriodicReviewTargetProvider` |
+| **Policy** | Say *how much* to order | `OrderUpToPolicy`, `ReorderPointPolicy`, `SingleOrderPolicy` | `BasePolicy` |
+| **Target provider** | Supply $s$ (and $S$) to a reorder-point policy from your own rule | fixed values and forecast columns, passed straight to `fit` | `ReorderPointTargetProvider` |
 | **Callback** | Adjust an order, or stock, at a planned moment | `ScheduledOrderOverride`, `ScheduledOrderMultiplier`, `ScheduledOrderHold`, `ScheduledInventoryAdjustment` | `SimulationCallback` |
 | **Ordering constraint** | Turn a requested order into a feasible one | `MinimumOrderQuantity`, `OrderMultiple`, `MaximumOrderQuantity`, `ShelfSpaceLimit` | `OrderingConstraint` |
 | **Supply model** | Decide which supplier delivers, when, and in how many parts | `SupplyModel`, `Supplier`, `SupplierShares` | `SupplierAllocation`, `DeliveryOutcome` |
@@ -191,7 +191,7 @@ Each extension point is a base class with a few methods to fill in:
 |---|---|---|
 | `BasePolicy` | `fit`, `predict` | [Write your own policy](../policies/custom-policies.md) |
 | `DecisionSchedule` | `should_decide`, `next_decision_period`, `to_manifest` | [Decision schedules](../decision-schedules.md) |
-| `PeriodicReviewTargetProvider` | `provide` | [Periodic review](../policies/periodic-review.md) |
+| `ReorderPointTargetProvider` | `provide` | [Reorder point](../policies/reorder-point.md#your-own-rule) |
 | `SimulationCallback` | `on_after_prediction` and/or `on_after_demand` | [Callbacks](../callbacks.md) |
 | `OrderingConstraint` | `apply` | [Ordering constraints](../constraints.md) |
 | `SupplierAllocation` | `allocate` | [Suppliers](../suppliers.md) |

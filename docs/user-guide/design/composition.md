@@ -24,7 +24,7 @@ long list of arguments for every variant (every supplier rule, every expiry
 rule), Stockcast offers a base class you can subclass: `SupplierAllocation`,
 `DeliveryOutcome`, `InventoryProcess`, `OrderingConstraint`,
 `SimulationCallback`, `DecisionSchedule`, `BasePolicy`,
-`PeriodicReviewTargetProvider`, `BaseInventoryMetric`. The built-ins are
+`ReorderPointTargetProvider`, `BaseInventoryMetric`. The built-ins are
 written with the same interfaces you use.
 
 **Familiar shapes.** Policies follow scikit-learn's `fit` / `predict`,
