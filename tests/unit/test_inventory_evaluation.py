@@ -445,3 +445,43 @@ def test_grouping_by_one_column_is_warning_free():
         by_two = evaluator.evaluate([fill_rate], groupby=["unique_id", "run_window"])
     assert by_sku["unique_id"].tolist() == ["A", "B"]
     assert by_two[["unique_id", "run_window"]].values.tolist() == [["A", "scoring"], ["B", "scoring"]]
+
+
+def _turns_run(frequency, n_periods=6):
+    inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
+        start_date=pd.Timestamp("2025-01-06")
+    )
+    inventory.data["on_hand"] = 30.0
+    policy = FixedOrderPolicy(
+        order_quantity=4.0, lead_time=1, review_period=1, allow_backorders=False,
+    )
+    dates = pd.date_range(
+        pd.Timestamp("2025-01-06") + pd.tseries.frequencies.to_offset(frequency),
+        periods=n_periods, freq=frequency,
+    )
+    demand = pd.DataFrame({"unique_id": "A", "date": dates, "y": 5.0})
+    return SimulationEngine().run(
+        policy=policy, demand_source=demand, inventory=inventory, period_frequency=frequency,
+    ).to_event_frame()
+
+
+@pytest.mark.parametrize(
+    ("frequency", "per_year"),
+    [("D", 365), ("W-MON", 52), ("MS", 12), ("2D", 182.5)],
+)
+def test_inventory_turns_reads_the_period_length_from_the_dates(frequency, per_year):
+    events = _turns_run(frequency)
+    assert inventory_turns(events) == inventory_turns(events, {"periods_per_year": per_year})
+
+
+def test_inventory_turns_asks_when_the_period_length_is_unclear():
+    with pytest.raises(ValueError, match="no standard number of '[hH]' periods per year"):
+        inventory_turns(_turns_run("h"))
+    with pytest.raises(ValueError, match="fewer than three dates"):
+        inventory_turns(_turns_run("D", n_periods=2))
+    irregular = _turns_run("D", n_periods=4)
+    irregular.loc[irregular.index[-1], "date"] += pd.Timedelta(days=3)
+    with pytest.raises(ValueError, match="irregular dates"):
+        inventory_turns(irregular)
+    # An explicit value always wins.
+    assert inventory_turns(_turns_run("h"), {"periods_per_year": 8760}) > 0

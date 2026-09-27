@@ -580,6 +580,50 @@ def peak_ending_on_hand(event_frame: pd.DataFrame, context: Optional[dict] = Non
     return float(totals.max())
 
 
+# Standard year lengths for period frequencies read from ledger dates. Other
+# frequencies (business days, hours, ...) have no single convention and must be
+# given as context["periods_per_year"].
+_PERIODS_PER_YEAR = (
+    (pd.offsets.Day, 365.0),
+    (pd.offsets.Week, 52.0),
+    (pd.offsets.MonthBegin, 12.0),
+    (pd.offsets.MonthEnd, 12.0),
+    (pd.offsets.QuarterBegin, 4.0),
+    (pd.offsets.QuarterEnd, 4.0),
+    (pd.offsets.YearBegin, 1.0),
+    (pd.offsets.YearEnd, 1.0),
+)
+
+
+def _periods_per_year(period_events: pd.DataFrame, context: dict) -> float:
+    """``context['periods_per_year']``, or the standard value for the ledger's dates."""
+    if "periods_per_year" in context:
+        value = _context_scalar(context, "periods_per_year")
+        if value <= 0:
+            raise ValueError("context['periods_per_year'] must be > 0")
+        return value
+    ask = "pass context={'periods_per_year': ...}, for example 365 for daily periods"
+    dates = pd.DatetimeIndex([])
+    if "date" in period_events.columns:
+        dates = pd.DatetimeIndex(pd.to_datetime(period_events["date"]).unique()).sort_values()
+    if len(dates) < 3:
+        raise ValueError(
+            f"inventory_turns cannot tell the period length from fewer than three dates; {ask}"
+        )
+    frequency = pd.infer_freq(dates)
+    if frequency is None:
+        raise ValueError(
+            f"inventory_turns cannot tell the period length from irregular dates; {ask}"
+        )
+    offset = pd.tseries.frequencies.to_offset(frequency)
+    for kind, per_year in _PERIODS_PER_YEAR:
+        if type(offset) is kind:
+            return per_year / offset.n
+    raise ValueError(
+        f"inventory_turns has no standard number of {frequency!r} periods per year; {ask}"
+    )
+
+
 def inventory_turns(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
     """Annualised throughput divided by average total stock.
 
@@ -590,16 +634,18 @@ def inventory_turns(event_frame: pd.DataFrame, context: Optional[dict] = None) -
 
     Args:
         event_frame: Event ledger, or a slice of it (for example one window or group).
-        context: Must contain ``periods_per_year`` (> 0), e.g. 365 for daily periods.
+        context: Optional ``periods_per_year`` (> 0). Without it, the period
+            length is read from the ledger's dates: daily 365, weekly 52,
+            monthly 12, quarterly 4, yearly 1 (divided by the step, so ``"2D"``
+            is 182.5). Other frequencies, irregular dates, or fewer than three
+            dates raise an error asking for it.
 
     Returns:
         The number of turns per year, or NaN without stock.
     """
     context = context or {}
-    periods_per_year = _context_scalar(context, "periods_per_year")
-    if periods_per_year <= 0:
-        raise ValueError("context['periods_per_year'] must be > 0")
     period_events = _period_events(event_frame)
+    periods_per_year = _periods_per_year(period_events, context)
     _require_columns(period_events, ["period"])
     n_periods = period_events["period"].nunique()
     period_column = "demand_period" if "demand_period" in period_events.columns else "period"

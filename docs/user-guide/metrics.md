@@ -82,7 +82,7 @@ backorders served later are recorded separately in `backorders_fulfilled`.
 | `avg_on_hand`, `avg_on_order`, `avg_inventory_position` | mean of $\mathit{OH}$, $P$, $\mathit{IP}$ over SKU-period rows |
 | `peak_ending_on_hand` | $\max_t \sum_i \mathit{OH}_{i,t}$: the largest total stock in any period |
 | `ending_on_hand_variance` | variance over periods of $\sum_i \mathit{OH}_{i,t}$ |
-| `inventory_turns` | $\dfrac{\sum (F + \text{backorders served}) / n \times \text{periods per year}}{\text{mean}_t \sum_i \mathit{OH}_{i,t}}$: units shipped, including backorders served late; needs `context["periods_per_year"]` |
+| `inventory_turns` | $\dfrac{\sum (F + \text{backorders served}) / n \times \text{periods per year}}{\text{mean}_t \sum_i \mathit{OH}_{i,t}}$: units shipped, including backorders served late. Periods per year are read from the dates (daily 365, weekly 52, monthly 12, quarterly 4, yearly 1); for other period lengths pass `context["periods_per_year"]` |
 | `CoverageMetric("forward")` | mean of $\mathit{OH} / \text{expected demand rate}$, from an `expected_demand_rate` column or `context["forward_demand_rate"]` |
 | `CoverageMetric("trailing")` | mean of $\mathit{OH} / \text{average realised demand}$ per SKU |
 
