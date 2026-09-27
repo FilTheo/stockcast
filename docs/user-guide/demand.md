@@ -194,11 +194,9 @@ and applies the same negative-draw handling as the built-in methods.
 
 ## Demand as a function
 
-Each method has an `_fn` twin (`normal_fn`, `seasonal_fn`, `sample_fn`, …)
-that returns a function `period -> DataFrame`. `sample_fn` calls your sampler
-with one period at a time, so it suits samplers that draw each period on its
-own; use `sample` for samplers that carry state across periods. You can also
-write your own:
+Instead of a table, `demand_source` can be a function `period -> DataFrame`
+that returns one row per SKU for that period. It need not repeat the period
+or the date: the engine knows which period it asked for.
 
 ```python
 import numpy as np
@@ -209,13 +207,12 @@ def promo_demand(period):
     boost = 3.0 if period % 14 == 0 else 1.0     # a promotion every two weeks
     return pd.DataFrame({
         "unique_id": ["tea_250g"],
-        "period": [period],
-        "date": [opening_date + pd.Timedelta(days=period + 1)],
         "y": [float(rng.poisson(6.0 * boost))],
     })
 ```
 
-Pass it as `demand_source=promo_demand`. The engine calls it once per period
+Pass it as `demand_source=promo_demand`, with `n_periods`: a function has no
+length of its own. The engine calls it once per period
 **before** the run, builds the complete table, validates it, and then runs.
 Every run, and every branch of a comparison, therefore uses one fixed demand
 path.

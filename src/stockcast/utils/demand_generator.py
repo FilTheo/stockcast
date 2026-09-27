@@ -8,10 +8,9 @@ in the format expected by SimulationEngine and process_demand():
     - period: simulation period index
     - date: date corresponding to the period
 
-Supports both batch generation (full DataFrame) and callable generation
-(period-by-period, for dynamic demand with SimulationEngine). Built-in
-distributions cover common cases; ``sample``/``sample_fn`` accept any
-user-defined sampler.
+Each method returns the complete demand table for a run. Built-in
+distributions cover common cases; ``sample`` accepts any user-defined
+sampler.
 
 Usage:
     gen = DemandGenerator(
@@ -22,16 +21,9 @@ Usage:
         negative_demand_handling='clip_zero',
     )
 
-    # Full DataFrame
     demand_df = gen.normal(n_periods=365, mean=100, std=20)
-
-    # Callable for SimulationEngine
-    demand_fn = gen.normal_fn(mean=100, std=20)
     result = engine.run(
-        policy=policy,
-        demand_source=demand_fn,
-        inventory=inv,
-        n_periods=365,          # required for a callable
+        policy=policy, demand_source=demand_df, inventory=inv,
         random_seed=42,         # optional, recorded in the manifest
     )
 """
@@ -55,9 +47,8 @@ class DemandGenerator:
         [unique_id, y, period, date]
 
     Parameters accept scalars (same for all SKUs) or dicts keyed by SKU
-    for per-SKU configuration. ``sample`` and ``sample_fn`` accept any
-    sampler function in the same way: one for the whole panel, or a dict with
-    one per SKU. Negative draws are rejected by default, or clipped to zero
+    for per-SKU configuration. ``sample`` accepts any sampler function in the
+    same way: one for the whole panel, or a dict with one per SKU. Negative draws are rejected by default, or clipped to zero
     with a warning when ``negative_demand_handling='clip_zero'``.
 
     Args:
@@ -83,12 +74,6 @@ class DemandGenerator:
 
         # Any distribution: a sampler(rng, periods) -> one value per period
         df = gen.sample(30, lambda rng, periods: rng.poisson(100, periods.size))
-
-        # Dynamic: callable for SimulationEngine
-        fn = gen.normal_fn(mean=100, std=20)
-        result = engine.run(
-            policy=p, demand_source=fn, inventory=inv, n_periods=30, random_seed=42,
-        )
         ```
     """
 
@@ -194,11 +179,6 @@ class DemandGenerator:
         if not isinstance(n_periods, int) or isinstance(n_periods, bool) or n_periods < 1:
             raise ValueError("n_periods must be an integer >= 1")
 
-    @staticmethod
-    def _validate_period(period: int) -> None:
-        if not isinstance(period, int) or isinstance(period, bool) or period < 0:
-            raise ValueError("period must be an integer >= 0")
-
     def _handle_negative(self, values) -> np.ndarray:
         array = np.asarray(values, dtype=float)
         if not np.isfinite(array).all():
@@ -256,19 +236,6 @@ class DemandGenerator:
                     'date': date,
                 })
         return self._attach_generation_provenance(pd.DataFrame(records), raw_arrays)
-
-    def _single_period_df(self, period, demands):
-        """Build DataFrame for a single period from per-SKU demand values."""
-        self._validate_period(period)
-        prepared = self._handle_negative(demands)
-        date = self.start_date + period * self.period_offset
-        frame = pd.DataFrame({
-            'unique_id': self.skus,
-            'y': prepared.astype(float),
-            'period': period,
-            'date': date,
-        })
-        return self._attach_generation_provenance(frame, [demands])
 
     # ========================================================================
     # BATCH GENERATORS (return full DataFrame)
@@ -490,115 +457,6 @@ class DemandGenerator:
             for sku, fn in zip(self.skus, samplers)
         }
         return self._build_df(n_periods, arrays)
-
-    # ========================================================================
-    # CALLABLE GENERATORS (return callable(period) -> demand_df)
-    # ========================================================================
-
-    def constant_fn(self, value: Union[float, Dict[str, float]]) -> Callable:
-        """Returns callable(period) -> demand_df with constant demand."""
-        values = self._resolve_param(value, "value", nonnegative=True)
-        def fn(period):
-            return self._single_period_df(period, values)
-        return fn
-
-    def normal_fn(self, mean: Union[float, Dict[str, float]], std: Union[float, Dict[str, float]]) -> Callable:
-        """Returns callable(period) -> demand_df with normally distributed demand."""
-        means = self._resolve_param(mean, "mean", nonnegative=True)
-        stds = self._resolve_param(std, "std", nonnegative=True)
-        def fn(period):
-            demands = [self.rng.normal(m, s) for m, s in zip(means, stds)]
-            return self._single_period_df(period, demands)
-        return fn
-
-    def seasonal_fn(
-        self,
-        base: Union[float, Dict[str, float]],
-        amplitude: Union[float, Dict[str, float]],
-        season_length: int,
-        std: Union[float, Dict[str, float]],
-    ) -> Callable:
-        """Returns callable(period) -> demand_df with seasonal demand."""
-        if not isinstance(season_length, int) or isinstance(season_length, bool) or season_length < 1:
-            raise ValueError("season_length must be an integer >= 1")
-        bases = self._resolve_param(base, "base", nonnegative=True)
-        amplitudes = self._resolve_param(amplitude, "amplitude", nonnegative=True)
-        stds = self._resolve_param(std, "std", nonnegative=True)
-        def fn(period):
-            seasonal = np.sin(2 * np.pi * period / season_length)
-            demands = [b + a * seasonal + self.rng.normal(0, s) for b, a, s in zip(bases, amplitudes, stds)]
-            return self._single_period_df(period, demands)
-        return fn
-
-    def trend_fn(
-        self,
-        initial: Union[float, Dict[str, float]],
-        growth_rate: Union[float, Dict[str, float]],
-        std: Union[float, Dict[str, float]],
-    ) -> Callable:
-        """Returns callable(period) -> demand_df with trending demand."""
-        initials = self._resolve_param(initial, "initial", nonnegative=True)
-        rates = self._resolve_param(growth_rate, "growth_rate")
-        stds = self._resolve_param(std, "std", nonnegative=True)
-        def fn(period):
-            demands = [init + rate * period + self.rng.normal(0, s) for init, rate, s in zip(initials, rates, stds)]
-            return self._single_period_df(period, demands)
-        return fn
-
-    def from_historical_fn(
-        self,
-        historical_df: pd.DataFrame,
-        sampling_method: str,
-        demand_column: str = 'y',
-        sku_column: str = 'unique_id',
-    ) -> Callable:
-        """Returns callable(period) -> demand_df sampling from historical distributions."""
-        if sampling_method != "normal_moments":
-            raise ValueError("sampling_method must be 'normal_moments'")
-        required = [sku_column, demand_column]
-        missing = [column for column in required if column not in historical_df.columns]
-        if missing:
-            raise ValueError(f"historical_df is missing required columns: {missing}")
-        values = pd.to_numeric(historical_df[demand_column], errors="coerce")
-        if values.isna().any() or not np.isfinite(values.to_numpy(dtype=float)).all():
-            raise ValueError("historical demand must be complete and finite")
-        if (values < 0).any():
-            raise ValueError("historical demand must be non-negative")
-        prepared = historical_df.copy()
-        prepared[demand_column] = values.astype(float)
-        unknown_skus = set(prepared[sku_column]) - set(self.skus)
-        if unknown_skus:
-            raise ValueError(f"historical_df contains unknown SKUs: {sorted(unknown_skus)[:5]}")
-        stats = {}
-        for sku in self.skus:
-            sku_data = prepared[prepared[sku_column] == sku][demand_column]
-            if len(sku_data) < 2:
-                raise ValueError(
-                    f"historical_df requires at least two observations for SKU {sku}"
-                )
-            stats[sku] = (float(sku_data.mean()), float(sku_data.std(ddof=1)))
-        def fn(period):
-            demands = [self.rng.normal(stats[sku][0], stats[sku][1]) for sku in self.skus]
-            return self._single_period_df(period, demands)
-        return fn
-
-    def sample_fn(self, sampler: Union[Callable, Dict[str, Callable]]) -> Callable:
-        """Returns callable(period) -> demand_df drawing from any sampler.
-
-        Each call passes ``periods=np.array([period])`` to the sampler of every
-        SKU, so samplers that carry state across periods (for example
-        autocorrelated demand) belong in ``sample``, which sees all periods at
-        once. See ``sample`` for the sampler contract.
-        """
-        samplers = self._resolve_sampler(sampler)
-        def fn(period):
-            self._validate_period(period)
-            demands = np.concatenate([
-                self._draw(s, sku, np.array([period]))
-                for sku, s in zip(self.skus, samplers)
-            ])
-            return self._single_period_df(period, demands)
-        return fn
 
     def __repr__(self) -> str:
         return (

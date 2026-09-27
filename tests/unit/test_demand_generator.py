@@ -127,8 +127,6 @@ def test_existing_generators_keep_their_random_streams():
     assert generator.normal(3, mean=10.0, std=2.0)["y"].round(6).tolist() == [
         12.202525, 7.479516, 10.676863, 6.210757, 8.920057, 10.037277,
     ]
-    fn = generator.normal_fn(mean=10.0, std=2.0)
-    assert fn(0)["y"].round(6).tolist() == [8.378866, 8.255688]
 
 
 def test_one_sampler_generates_the_whole_panel():
@@ -171,22 +169,18 @@ def test_samplers_are_reproducible_from_the_generator_seed():
     assert not first["y"].equals(other_seed["y"])
 
 
-def test_sampler_fn_receives_the_period_index():
+def test_sampler_receives_every_period_index():
     seen = []
 
     def sampler(rng, periods):
         seen.append(periods.tolist())
         return periods * 2.0
 
-    fn = _generator().sample_fn(sampler)
-    frame = fn(3)
+    frame = _generator().sample(4, sampler)
 
-    assert seen == [[3], [3]]
-    assert frame["y"].tolist() == [6.0, 6.0]
-    assert frame["period"].tolist() == [3, 3]
-    assert frame["date"].tolist() == [pd.Timestamp("2025-01-27")] * 2
-    with pytest.raises(ValueError, match="period must be an integer"):
-        fn(-1)
+    assert seen == [[0, 1, 2, 3], [0, 1, 2, 3]]
+    assert frame.loc[frame["period"] == 3, "y"].tolist() == [6.0, 6.0]
+    assert frame.loc[frame["period"] == 3, "date"].tolist() == [pd.Timestamp("2025-01-27")] * 2
 
 
 @pytest.mark.parametrize(
@@ -263,7 +257,7 @@ def test_engine_runs_on_a_poisson_sampler():
 
     result = SimulationEngine().run(
         policy=policy,
-        demand_source=generator.sample_fn(_poisson),
+        demand_source=generator.sample(10, _poisson),
         inventory=inventory,
         n_periods=10,
         period_frequency="D",
