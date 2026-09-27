@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from stockcast.core.base_policy import BasePolicy
-from stockcast.core.data_structures import _SKU_COLUMN, InventoryStateDataFrame, OrderDecision
+from stockcast.core.data_structures import InventoryStateDataFrame, OrderDecision
 from stockcast.policies._target_validation import (
     prepare_inventory_positions,
     validate_forecast_origin_and_frequency,
@@ -68,6 +68,7 @@ class PeriodicReviewPolicy(BasePolicy):
         target_provider: PeriodicReviewTargetProvider,
         forecast_origin,
         forecast_frequency: str,
+        sku_column: str = "unique_id",
     ) -> "PeriodicReviewPolicy":
         """Obtain ``s`` and ``S`` per SKU from a target provider.
 
@@ -76,6 +77,7 @@ class PeriodicReviewPolicy(BasePolicy):
             target_provider: A ``PeriodicReviewTargetProvider``.
             forecast_origin: Date of the last information the targets used.
             forecast_frequency: Period frequency, such as ``"D"``.
+            sku_column: SKU column name.
 
         Returns:
             The fitted policy (``self``).
@@ -84,7 +86,6 @@ class PeriodicReviewPolicy(BasePolicy):
             ValueError: If the provider's output is invalid (missing SKUs, negative
                 ``s``, ``S < s``) or its manifest is not JSON-serialisable.
         """
-        sku_column = _SKU_COLUMN
         if not isinstance(target_data, pd.DataFrame) or target_data.empty:
             raise ValueError("target_data must be a non-empty pandas DataFrame")
         if not isinstance(target_provider, PeriodicReviewTargetProvider):
@@ -136,6 +137,7 @@ class PeriodicReviewPolicy(BasePolicy):
     def predict(
         self,
         inventory_state_df: pd.DataFrame | InventoryStateDataFrame,
+        sku_column: str | None = None,
         *,
         current_period: int,
     ) -> OrderDecision:
@@ -143,6 +145,7 @@ class PeriodicReviewPolicy(BasePolicy):
 
         Args:
             inventory_state_df: The state before demand.
+            sku_column: SKU column; defaults to the one used at ``fit``.
             current_period: State period of the decision.
 
         Returns:
@@ -153,7 +156,7 @@ class PeriodicReviewPolicy(BasePolicy):
             raise ValueError("Policy must be fitted before prediction. Call fit() first.")
         if not isinstance(current_period, int) or isinstance(current_period, bool) or current_period < 0:
             raise ValueError("current_period must be an integer >= 0")
-        sku_column = self.sku_column_
+        sku_column = sku_column or self.sku_column_
         position_method = getattr(inventory_state_df, "inventory_position", None)
         if isinstance(inventory_state_df, InventoryStateDataFrame) or callable(position_method):
             inventory_df = inventory_state_df.inventory_position()
@@ -193,6 +196,7 @@ class PeriodicReviewPolicy(BasePolicy):
         ]]
         return OrderDecision(
             result,
+            sku_column=sku_column,
             lead_time=self.lead_time,
         )
 

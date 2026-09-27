@@ -41,6 +41,7 @@ class NoOrderPolicy(BasePolicy):
                 "order_period",
                 "expected_delivery_period",
             ]],
+            sku_column=inventory_state_df.sku_column,
             lead_time=self.lead_time,
         )
 

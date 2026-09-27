@@ -33,6 +33,7 @@ class FixedOrderPolicy(BasePolicy):
         result["expected_delivery_period"] = current_period + self.lead_time
         return OrderDecision(
             result,
+            sku_column=inventory_state_df.sku_column,
             lead_time=self.lead_time,
         )
 
@@ -219,6 +220,7 @@ def test_engine_preserves_sparse_order_decisions_with_constraints():
             )
             return OrderDecision(
                 decision.get_dataframe().iloc[[0]],
+                sku_column=decision.sku_column,
                 lead_time=decision.lead_time,
             )
 

@@ -22,7 +22,6 @@ import pandas as pd
 
 from stockcast.core.base_policy import BasePolicy
 from stockcast.core.data_structures import (
-    _SKU_COLUMN,
     InventoryStateDataFrame,
     OrderDecision,
     _require_forward_frequency,
@@ -111,6 +110,7 @@ class ReorderPointPolicy(BasePolicy):
         reorder_horizon: Optional[int] = None,
         target_probability: Optional[float] = None,
         order_up_to_column: Optional[str] = None,
+        sku_column: str = "unique_id",
     ) -> "ReorderPointPolicy":
         """Bind one external reorder point (and ``S`` for ``(s,S)``) per SKU.
 
@@ -133,8 +133,8 @@ class ReorderPointPolicy(BasePolicy):
                 ``service_level``; if given, it must equal it. Must be omitted
                 in planner mode.
             order_up_to_column: Column holding ``S`` for an ``(s,S)`` policy.
+            sku_column: SKU identifier column.
         """
-        sku_column = _SKU_COLUMN
         offset = _require_forward_frequency(forecast_frequency, "forecast_frequency")
         horizon = schedule_protection_horizon(
             self.schedule, self.lead_time, reorder_horizon, "reorder_horizon",
@@ -224,6 +224,7 @@ class ReorderPointPolicy(BasePolicy):
     def predict(
         self,
         inventory_state_df: Union[pd.DataFrame, InventoryStateDataFrame],
+        sku_column: Optional[str] = None,
         *,
         current_period: int,
     ) -> OrderDecision:
@@ -235,7 +236,7 @@ class ReorderPointPolicy(BasePolicy):
             raise ValueError("Policy must be fitted before prediction. Call fit() first.")
         if not isinstance(current_period, int) or isinstance(current_period, bool) or current_period < 0:
             raise ValueError("current_period must be an integer >= 0")
-        sku_column = self.sku_column_
+        sku_column = sku_column or self.sku_column_
         position_method = getattr(inventory_state_df, "inventory_position", None)
         if isinstance(inventory_state_df, InventoryStateDataFrame) or callable(position_method):
             inventory_df = inventory_state_df.inventory_position()
@@ -269,7 +270,7 @@ class ReorderPointPolicy(BasePolicy):
             "reorder_point", "order_period", "expected_delivery_period",
         ]]
         return OrderDecision(
-            result, lead_time=self.lead_time,
+            result, sku_column=sku_column, lead_time=self.lead_time,
         )
 
     def get_reorder_points(self) -> pd.DataFrame:

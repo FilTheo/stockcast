@@ -269,10 +269,6 @@ for _name in (
 del _name
 
 
-# The SKU identifier column of every Stockcast table.
-_SKU_COLUMN = "unique_id"
-
-
 def _pipeline_length(data) -> int:
     """Pipeline length of a complete state table, or 0 for a SKU list."""
     if not isinstance(data, pd.DataFrame) or 'in_transit' not in data.columns:
@@ -303,7 +299,7 @@ class InventoryStateDataFrame:
     methods below are also public for a caller-owned loop.
 
     Main columns:
-        - ``unique_id``: SKU identifier.
+        - ``unique_id`` (or ``sku_column``): SKU identifier.
         - ``on_hand``: units on the shelf.
         - ``in_transit``: pipeline array per SKU.
         - ``backorders``: demand owed to customers.
@@ -325,13 +321,14 @@ class InventoryStateDataFrame:
     def __init__(self,
                  data: Union[pd.DataFrame, List, np.ndarray],
                  max_lead_time: Optional[int] = None,
+                 sku_column: str = 'unique_id',
                  start_date: Optional[pd.Timestamp] = None,
                  allow_backorders: Optional[bool] = None):
         """Create a state for a fixed set of SKUs.
 
         Args:
             data: A list or array of SKU ids (then call an ``initialize_*`` method),
-                or a DataFrame with ``unique_id`` and, for a complete state,
+                or a DataFrame with the SKU column and, for a complete state,
                 ``on_hand``, ``backorders``, ``in_transit`` (NumPy arrays),
                 ``period`` and ``date``.
             max_lead_time: Pipeline length. ``None`` (default) sizes it when
@@ -340,6 +337,7 @@ class InventoryStateDataFrame:
                 declaring open orders grows it to fit. Growing only adds empty
                 slots at the far end. Give a number to fix it, for example to
                 leave room for delayed supplier deliveries.
+            sku_column: Name of the SKU column (default ``"unique_id"``).
             start_date: Opening date, if not given later to an initializer.
             allow_backorders: ``True`` (backorders) or ``False`` (lost sales). May
                 stay unset until the engine applies the policy's setting; an
@@ -352,7 +350,9 @@ class InventoryStateDataFrame:
             raise ValueError("max_lead_time must be an integer >= 0 or None")
         if allow_backorders is not None and not isinstance(allow_backorders, bool):
             raise ValueError("allow_backorders must be True, False, or unset")
-        sku_column = _SKU_COLUMN
+        if not isinstance(sku_column, str) or not sku_column.strip():
+            raise ValueError("sku_column must be a non-empty string")
+
         self.sku_column = sku_column
         self.max_lead_time = max_lead_time
         self.allow_backorders = allow_backorders
@@ -486,7 +486,8 @@ class InventoryStateDataFrame:
         auto_pipeline: bool = False,
     ) -> 'InventoryStateDataFrame':
         """Build a validated state that carries over history and open orders."""
-        state = cls(data, max_lead_time, allow_backorders=allow_backorders)
+        state = cls(data, max_lead_time, sku_column=sku_column,
+                    allow_backorders=allow_backorders)
         state._history = history
         state._open_orders = open_orders
         state._auto_pipeline = auto_pipeline
@@ -825,6 +826,7 @@ class InventoryStateDataFrame:
         *,
         on_hand_column: str = "on_hand",
         start_date: pd.Timestamp,
+        sku_column: Optional[str] = None,
     ) -> 'InventoryStateDataFrame':
         """Set counted on-hand stock; no pipeline and no backorders.
 
@@ -832,6 +834,7 @@ class InventoryStateDataFrame:
             opening_stock_df: One row per SKU with the SKU column and the stock.
             on_hand_column: Column holding the counted stock (default ``"on_hand"``).
             start_date: The opening date (the day the stock was counted).
+            sku_column: SKU column of ``opening_stock_df``; defaults to the state's.
 
         Returns:
             The state itself, for chaining.
@@ -840,7 +843,7 @@ class InventoryStateDataFrame:
             ValueError: If SKUs are missing or extra, stock is negative or not
                 finite, or the date is invalid.
         """
-        sku_column = self.sku_column
+        sku_column = sku_column or self.sku_column
         if not isinstance(opening_stock_df, pd.DataFrame) or opening_stock_df.empty:
             raise ValueError("opening_stock_df must be a non-empty pandas DataFrame")
         missing_columns = [
@@ -885,7 +888,12 @@ class InventoryStateDataFrame:
     # Order-level view of the pipeline
     # ------------------------------------------------------------------
 
-    def with_open_orders(self, open_orders: pd.DataFrame) -> 'InventoryStateDataFrame':
+    def with_open_orders(
+        self,
+        open_orders: pd.DataFrame,
+        *,
+        sku_column: Optional[str] = None,
+    ) -> 'InventoryStateDataFrame':
         """Declare the opening pipeline as explicit open orders.
 
         ``in_transit`` stores only the quantity due at each future period.
@@ -894,7 +902,7 @@ class InventoryStateDataFrame:
         Call it after ``initialize_zero`` or ``initialize_from_observed``.
 
         Required columns:
-            - ``unique_id``
+            - SKU column (``sku_column``, default the state's SKU column)
             - ``due_period``: integer state period at which the delivery is
               received, before that period's demand. It must satisfy
               ``period < due_period <= period + max_lead_time``.
@@ -918,7 +926,7 @@ class InventoryStateDataFrame:
         Returns:
             self (for method chaining, like the initializers)
         """
-        sku_column = self.sku_column
+        sku_column = sku_column or self.sku_column
         if not isinstance(open_orders, pd.DataFrame):
             raise TypeError("open_orders must be a pandas DataFrame")
         required = [sku_column, "due_period", "quantity"]
@@ -1123,7 +1131,8 @@ class InventoryStateDataFrame:
         )
 
     def fulfill_demand(self, demand_df: pd.DataFrame, *, demand_column: str = "y",
-                       date_column: str = "date") -> 'InventoryStateDataFrame':
+                       date_column: str = "date", sku_column: Optional[str] = None
+                       ) -> 'InventoryStateDataFrame':
         """Serve the current period's demand from stock.
 
         Unserved demand becomes backorders or lost sales, per ``allow_backorders``.
@@ -1133,12 +1142,13 @@ class InventoryStateDataFrame:
             demand_df: One row per SKU for the current date.
             demand_column: Column with demand (default ``"y"``).
             date_column: Column with the date; it must equal the state's date.
+            sku_column: SKU column of ``demand_df``; defaults to the state's.
 
         Returns:
             A new state.
         """
         self._validate_ready_state()
-        sku_column = self.sku_column
+        sku_column = sku_column or self.sku_column
         actual = _require_identifiers(demand_df, sku_column, "demand_df", unique=True)
         expected = _require_identifiers(self.data, self.sku_column, "inventory_state", unique=True)
         if actual - expected:
@@ -1176,8 +1186,8 @@ class InventoryStateDataFrame:
         return result
 
     def process_demand(self, demand_df: pd.DataFrame, period_frequency: str,
-                       demand_column: str = "y", date_column: Optional[str] = "date"
-                       ) -> 'InventoryStateDataFrame':
+                       demand_column: str = "y", date_column: Optional[str] = "date",
+                       sku_column: Optional[str] = None) -> 'InventoryStateDataFrame':
         """Advance, receive and serve demand in one step, without an order.
 
         A shortcut for periods without a decision, so the new period has
@@ -1189,6 +1199,7 @@ class InventoryStateDataFrame:
             period_frequency: Length of one period.
             demand_column: Column with demand.
             date_column: Column with the date.
+            sku_column: SKU column of ``demand_df``.
 
         Returns:
             A new state.
@@ -1197,7 +1208,7 @@ class InventoryStateDataFrame:
         advanced = self.advance_period(period_frequency=period_frequency,
                                        is_review_period=False)
         return advanced.fulfill_demand(demand_df, demand_column=demand_column,
-                                       date_column=date_column)
+                                       date_column=date_column, sku_column=sku_column)
 
 
 class OrderDecision:
@@ -1243,15 +1254,18 @@ class OrderDecision:
 
     def __init__(self,
                  data: pd.DataFrame,
+                 sku_column: str = 'unique_id',
                  lead_time: Optional[int] = None):
         """
         Initialize multi-SKU order decisions from DataFrame.
 
         Args:
             data: DataFrame with order data (must include unique_id column)
+            sku_column: Name of the SKU identifier column (default: 'unique_id')
             lead_time: Lead time from the policy (optional, for parameter propagation)
         """
-        sku_column = _SKU_COLUMN
+        if not isinstance(sku_column, str) or not sku_column.strip():
+            raise ValueError("sku_column must be a non-empty string")
         self.sku_column = sku_column
         self.lead_time = lead_time
 
@@ -1333,7 +1347,7 @@ class OrderLines:
     different lead times, and one order line can be delivered in parts.
 
     Columns:
-        - unique_id: SKU identifier (may repeat)
+        - unique_id (or ``sku_column``): SKU identifier (may repeat)
         - order_quantity: finite quantity >= 0 of this delivery
         - order_period: state period in which the order is placed
         - due_period: state period in which the delivery is received,
@@ -1356,8 +1370,9 @@ class OrderLines:
         ```
     """
 
-    def __init__(self, data: pd.DataFrame):
-        sku_column = _SKU_COLUMN
+    def __init__(self, data: pd.DataFrame, sku_column: str = 'unique_id'):
+        if not isinstance(sku_column, str) or not sku_column.strip():
+            raise ValueError("sku_column must be a non-empty string")
         if not isinstance(data, pd.DataFrame):
             raise TypeError("OrderLines data must be a pandas DataFrame")
         required = [sku_column, 'order_quantity', 'order_period', 'due_period']

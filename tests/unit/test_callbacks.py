@@ -41,6 +41,7 @@ class FixedPolicy(BasePolicy):
         frame["expected_delivery_period"] = current_period + self.lead_time
         return OrderDecision(
             frame,
+            sku_column=inventory_state_df.sku_column,
             lead_time=self.lead_time,
         )
 
@@ -194,6 +195,7 @@ def test_physical_adjustment_affects_only_subsequent_policy_prediction():
             frame["expected_delivery_period"] = current_period + self.lead_time
             return OrderDecision(
                 frame,
+                sku_column=inventory_state_df.sku_column,
                 lead_time=self.lead_time,
             )
 

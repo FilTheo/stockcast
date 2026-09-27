@@ -311,32 +311,29 @@ def test_integer_orders_targets_and_sku_ids_match_dataframe_path(monkeypatch):
     _run_both(monkeypatch, lambda: _run(SimulationEngine(), copy.deepcopy(policy), demand, state))
 
 
-def test_zero_max_lead_time_matches_dataframe_path(monkeypatch):
+def test_custom_sku_column_and_zero_max_lead_time_match_dataframe_path(monkeypatch):
     skus = ["x", "y"]
     state = sc.InventoryStateDataFrame(
-        pd.DataFrame({"unique_id": skus}), max_lead_time=0,
+        pd.DataFrame({"item": skus}), max_lead_time=0, sku_column="item",
         allow_backorders=True,
     ).initialize_zero(start_date=ORIGIN)
     policy = ListedPolicy(0, {"x": 3.5, "y": 1.0}, schedule=sc.PeriodicSchedule(1),
                           allow_backorders=True)
     policy.predict = lambda inventory_state_df, *, current_period, **kwargs: sc.OrderDecision(
         pd.DataFrame({
-            "unique_id": inventory_state_df.get_dataframe()["unique_id"],
+            "item": inventory_state_df.get_dataframe()["item"],
             "order_quantity": [3.5, 1.0],
             "order_period": current_period,
             "expected_delivery_period": current_period,
-        }), lead_time=0,
+        }), sku_column="item", lead_time=0,
     )
     demand = pd.DataFrame({
-        "unique_id": np.tile(skus, 6),
+        "item": np.tile(skus, 6),
         "period": np.repeat(np.arange(6), 2),
         "date": np.repeat(pd.date_range(ORIGIN + DAY, periods=6), 2),
         "y": [4.0, 0.0, 1.0, 2.0, 5.0, 1.0, 0.0, 0.0, 3.0, 3.0, 2.0, 2.0],
     })
     _run_both(monkeypatch, lambda: _run(SimulationEngine(), copy.deepcopy(policy), demand, state))
-    # The SKU column is always unique_id.
-    with pytest.raises(ValueError, match="SKU column 'unique_id' not found"):
-        sc.InventoryStateDataFrame(pd.DataFrame({"item": skus}), max_lead_time=0)
 
 
 def test_policy_reading_history_sees_identical_history(monkeypatch):
