@@ -572,11 +572,6 @@ class SupplyModel:
         """Longest possible time from order to last delivery over all suppliers."""
         return max(supplier.max_delivery_offset for supplier in self.suppliers)
 
-    @property
-    def has_delivery_outcomes(self) -> bool:
-        """Whether any supplier has a ``DeliveryOutcome``."""
-        return any(supplier.delivery is not None for supplier in self.suppliers)
-
     def to_manifest(self) -> dict:
         """Describe the suppliers, allocation, and seed for the run manifest.
         """
