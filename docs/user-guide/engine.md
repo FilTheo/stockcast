@@ -29,7 +29,7 @@ result = SimulationEngine(verbose=0).run(
 | `demand_source_name` | Optional label for the demand, stored in the manifest. |
 | `random_seed` | Optional seed behind the demand, stored in the manifest. |
 | `policy_schedule` | `{decision_period: fitted_policy}`: fresh targets at later decisions. |
-| `order_constraints` | An [`OrderingConstraints`](constraints.md) sequence. |
+| `order_constraints` | A list of [ordering constraints](constraints.md), applied in order. |
 | `callbacks` | A list of [callbacks](callbacks.md), applied in order. |
 | `supply` | A [`SupplyModel`](suppliers.md): suppliers, lead times, split deliveries. |
 | `processes` | A list of [inventory processes](processes.md), such as `ShelfLife`. |

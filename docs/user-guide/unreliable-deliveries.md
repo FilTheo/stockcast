@@ -86,11 +86,9 @@ supply = SupplyModel(
     [Supplier("wholesaler", lead_time=lead_time, delivery=ShortOrLate())],
     random_seed=7,
 )
-inventory_4 = InventoryStateDataFrame(
-    [sku], max_lead_time=4, allow_backorders=False,       # room for a 2-period delay
-).initialize_from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-    on_hand_column="on_hand", start_date=opening_date,
+inventory_4 = InventoryStateDataFrame.from_observed(
+    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), start_date=opening_date,
+    max_lead_time=4,                                      # room for a 2-period delay
 )
 
 with warnings.catch_warnings():

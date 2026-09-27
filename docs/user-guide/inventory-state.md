@@ -41,20 +41,18 @@ $$
     counts = pd.DataFrame({"unique_id": ["tea_250g", "coffee_1kg"],
                            "on_hand": [30.0, 12.0]})
 
-    state = InventoryStateDataFrame(
-        ["tea_250g", "coffee_1kg"], max_lead_time=2, allow_backorders=False,
-    ).initialize_from_observed(counts, on_hand_column="on_hand",
-                               start_date=opening_date)
+    state = InventoryStateDataFrame.from_observed(counts, start_date=opening_date)
     ```
+
+    The SKUs are the rows of `counts`. The stock column defaults to
+    `"on_hand"` (pass `on_hand_column=` for another name).
 
 === "Empty"
 
     A new product, or a what-if that starts from nothing:
 
     ```python
-    empty = InventoryStateDataFrame(
-        ["tea_250g"], max_lead_time=2, allow_backorders=False,
-    ).initialize_zero(start_date=opening_date)
+    empty = InventoryStateDataFrame(["tea_250g"]).initialize_zero(start_date=opening_date)
     ```
 
 === "A full state table"
@@ -93,9 +91,9 @@ it is used.
 | Argument | Meaning |
 |---|---|
 | `data` | A list of SKUs, or a DataFrame with a SKU column |
-| `max_lead_time` | Length of the pipeline. Must be at least the longest lead time (and, with suppliers, the longest delivery offset) |
+| `max_lead_time` | Length of the pipeline. Leave it out and it is sized when needed: a run makes room for the policy's lead time and the suppliers' longest delivery, and placing or declaring orders makes room for them. The new slots are empty. Give a number to fix it, for example to leave room for delayed deliveries |
 | `sku_column` | Name of the SKU column, default `"unique_id"` |
-| `allow_backorders` | `True` (backorders) or `False` (lost sales). Must match the policy's setting; leave it unset to take the policy's |
+| `allow_backorders` | `True` (backorders) or `False` (lost sales). Must match the policy's setting; leave it unset to take the policy's. Reading positions works without it; set it when you serve demand or place orders yourself (below) |
 | `start_date` | Opening date, if not supplied later by an initializer |
 
 ## Open orders

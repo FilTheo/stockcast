@@ -45,7 +45,6 @@ class PeriodicReviewPolicy(BasePolicy):
         lead_time: int,
         review_period: int | None = None,
         *,
-        service_level: float | None = None,
         allow_backorders: bool,
         schedule=None,
     ):
@@ -55,11 +54,10 @@ class PeriodicReviewPolicy(BasePolicy):
             lead_time: Periods from order to delivery, an integer >= 0.
             review_period: Periods between reviews, an integer >= 1, or give
                 ``schedule`` instead.
-            service_level: Optional probability the provided targets represent.
             allow_backorders: ``True`` for backorders, ``False`` for lost sales.
             schedule: A ``DecisionSchedule`` for irregular review calendars.
         """
-        super().__init__(lead_time, review_period, service_level, allow_backorders, schedule=schedule)
+        super().__init__(lead_time, review_period, None, allow_backorders, schedule=schedule)
         self.policy_name = "Periodic Review (R,s,S)"
         self.parameters_ = None
 
@@ -142,15 +140,13 @@ class PeriodicReviewPolicy(BasePolicy):
         sku_column: str | None = None,
         *,
         current_period: int,
-        return_dataframe: bool = False,
-    ) -> OrderDecision | pd.DataFrame:
+    ) -> OrderDecision:
         """Order up to ``S`` for SKUs at or below ``s``.
 
         Args:
             inventory_state_df: The state before demand.
             sku_column: SKU column; defaults to the one used at ``fit``.
             current_period: State period of the decision.
-            return_dataframe: Return a DataFrame instead of an ``OrderDecision``.
 
         Returns:
             An ``OrderDecision`` with ``order_quantity``, ``target_level``,
@@ -198,13 +194,10 @@ class PeriodicReviewPolicy(BasePolicy):
             "order_period",
             "expected_delivery_period",
         ]]
-        if return_dataframe:
-            return result
         return OrderDecision(
             result,
             sku_column=sku_column,
             lead_time=self.lead_time,
-            review_period=self.review_period,
         )
 
     def get_parameters(self) -> pd.DataFrame:

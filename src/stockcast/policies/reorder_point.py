@@ -44,6 +44,10 @@ class ReorderPointPolicy(BasePolicy):
     - ``(s,Q)``: order a fixed, explicit quantity ``Q``.
     - ``(s,S)``: order up to ``S``.
 
+    ``policy_type`` follows from the inputs: giving ``order_quantity`` makes an
+    ``(s,Q)`` policy, otherwise ``(s,S)``. Passing it states the choice and is
+    checked.
+
     Review timing comes from ``review_period`` or an explicit ``schedule``; use
     ``review_period=1`` for every-period review. ``s`` is a dated target over
     the schedule's protection window (see the module docstring).
@@ -64,7 +68,7 @@ class ReorderPointPolicy(BasePolicy):
         lead_time: int,
         review_period: Optional[int] = None,
         *,
-        policy_type: Literal["sQ", "sS"],
+        policy_type: Optional[Literal["sQ", "sS"]] = None,
         service_level: Optional[float] = None,
         order_quantity: Optional[float] = None,
         allow_backorders: bool,
@@ -73,6 +77,8 @@ class ReorderPointPolicy(BasePolicy):
         super().__init__(
             lead_time, review_period, service_level, allow_backorders, schedule=schedule,
         )
+        if policy_type is None:
+            policy_type = "sQ" if order_quantity is not None else "sS"
         if policy_type not in ("sQ", "sS"):
             raise ValueError("policy_type must be 'sQ' or 'sS'")
         self.policy_type = policy_type
@@ -221,8 +227,7 @@ class ReorderPointPolicy(BasePolicy):
         sku_column: Optional[str] = None,
         *,
         current_period: int,
-        return_dataframe: bool = False,
-    ) -> Union[OrderDecision, pd.DataFrame]:
+    ) -> OrderDecision:
         """Order when ``inventory_position <= s``.
 
         ``(s,Q)`` orders ``Q``; ``(s,S)`` orders ``max(0, S - inventory_position)``.
@@ -264,11 +269,8 @@ class ReorderPointPolicy(BasePolicy):
             sku_column, "order_quantity", "target_level", "inventory_position",
             "reorder_point", "order_period", "expected_delivery_period",
         ]]
-        if return_dataframe:
-            return result
         return OrderDecision(
             result, sku_column=sku_column, lead_time=self.lead_time,
-            review_period=self.review_period,
         )
 
     def get_reorder_points(self) -> pd.DataFrame:

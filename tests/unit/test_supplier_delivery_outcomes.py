@@ -514,8 +514,7 @@ class ExpeditingPolicy(sc.OrderUpToPolicy):
         frame["supplier_id"] = np.where(
             frame["unique_id"].map(on_hand).to_numpy() < 5, "express", "regular",
         )
-        return sc.OrderDecision(frame, lead_time=decision.lead_time,
-                                review_period=decision.review_period)
+        return sc.OrderDecision(frame, lead_time=decision.lead_time)
 
 
 class FollowPolicy(SupplierAllocation):

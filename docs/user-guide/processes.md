@@ -59,8 +59,8 @@ stock.
 
 Opening lots must add up to each SKU's opening on-hand stock.
 `opening_expiry_handling` says what to do with opening lots already expired
-at the start: `"reject"` (default), `"expire_before_initial_decision"`, or
-`"preprocessed"`.
+at the start: `"reject"` (default) stops with an error, and `"write_off"`
+removes that stock before the run and records it in the manifest.
 
 ## The same model, as a process
 

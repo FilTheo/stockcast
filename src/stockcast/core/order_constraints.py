@@ -144,7 +144,6 @@ def _make_order(template: OrderDecision, frame: pd.DataFrame) -> OrderDecision:
         frame,
         sku_column=template.sku_column,
         lead_time=template.lead_time,
-        review_period=template.review_period,
     )
 
 

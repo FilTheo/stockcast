@@ -292,8 +292,7 @@ class OrderUpToPolicy(BasePolicy):
                 inventory_state_df: Union[pd.DataFrame, InventoryStateDataFrame],
                 sku_column: Optional[str] = None,
                 *,
-                current_period: int,
-                return_dataframe: bool = False) -> Union[OrderDecision, pd.DataFrame]:
+                current_period: int) -> OrderDecision:
         """
         Calculate order quantities for each SKU.
 
@@ -306,10 +305,9 @@ class OrderUpToPolicy(BasePolicy):
                             Must have 'inventory_position' or ['on_hand', 'on_order', 'backorders']
             sku_column: Column name for SKU identifier (uses fit() column if None)
             current_period: Explicit decision period used for order and delivery timing.
-            return_dataframe: If True, return plain DataFrame instead of OrderDecision object
 
         Returns:
-            OrderDecision object (or DataFrame if return_dataframe=True) with columns:
+            OrderDecision object (``get_dataframe()`` gives the table) with columns:
                 - unique_id, order_quantity, target_level, inventory_position,
                 - reorder_point (NaN for this policy), order_period, expected_delivery_period
         """
@@ -372,16 +370,11 @@ class OrderUpToPolicy(BasePolicy):
             'expected_delivery_period'
         ]]
 
-        # Return as OrderDecision object or plain DataFrame
-        if return_dataframe:
-            return result_df
-        else:
-            return OrderDecision(
-                result_df,
-                sku_column=sku_column,
-                lead_time=self.lead_time,
-                review_period=self.review_period
-            )
+        return OrderDecision(
+            result_df,
+            sku_column=sku_column,
+            lead_time=self.lead_time,
+        )
 
     def get_target_levels(self) -> pd.DataFrame:
         """Return the fitted order-up-to level ``S`` per SKU.

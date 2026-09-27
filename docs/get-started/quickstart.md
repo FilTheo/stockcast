@@ -55,11 +55,8 @@ what is on the shelf, what is on order, and what is owed to customers.
 ```python
 from stockcast.core import InventoryStateDataFrame
 
-inventory = InventoryStateDataFrame(
-    [sku], max_lead_time=lead_time, allow_backorders=False,
-).initialize_from_observed(
+inventory = InventoryStateDataFrame.from_observed(
     pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-    on_hand_column="on_hand",
     start_date=opening_date,
 )
 ```

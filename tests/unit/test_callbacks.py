@@ -43,7 +43,6 @@ class FixedPolicy(BasePolicy):
             frame,
             sku_column=inventory_state_df.sku_column,
             lead_time=self.lead_time,
-            review_period=self.review_period,
         )
 
 
@@ -198,7 +197,6 @@ def test_physical_adjustment_affects_only_subsequent_policy_prediction():
                 frame,
                 sku_column=inventory_state_df.sku_column,
                 lead_time=self.lead_time,
-                review_period=self.review_period,
             )
 
     adjustment = ScheduledInventoryAdjustment(_schedule(quantity_delta=4.0))
@@ -504,8 +502,23 @@ def test_callback_list_and_elements_are_typed(callbacks):
 
 
 @pytest.mark.parametrize("phase", ["inventory", "order"])
-def test_callback_results_require_all_declared_columns(phase):
+def test_callback_results_require_the_quantity_column(phase):
     class MissingColumns(SimulationCallback):
+        def on_after_demand(self, context):
+            if phase == "inventory":
+                return InventoryAdjustmentResult(pd.DataFrame({"unique_id": ["A"]}))
+
+        def on_after_prediction(self, decision, context):
+            if phase == "order":
+                return OrderAdjustmentResult(pd.DataFrame({"unique_id": ["A"]}))
+
+    with pytest.raises(CallbackError, match="missing required columns"):
+        _run(SimulationEngine(), [MissingColumns()])
+
+
+@pytest.mark.parametrize("phase", ["inventory", "order"])
+def test_callback_audit_labels_are_optional(phase):
+    class Unlabelled(SimulationCallback):
         def on_after_demand(self, context):
             if phase == "inventory":
                 return InventoryAdjustmentResult(pd.DataFrame({
@@ -518,8 +531,21 @@ def test_callback_results_require_all_declared_columns(phase):
                     "unique_id": ["A"], "order_quantity": [1.0]
                 }))
 
-    with pytest.raises(CallbackError, match="missing required columns"):
-        _run(SimulationEngine(), [MissingColumns()])
+    audit = _run(SimulationEngine(), [Unlabelled()]).to_callback_audit_frame()
+    assert len(audit) == 1
+    assert audit.loc[0, "reason"] is None and audit.loc[0, "source"] is None
+
+
+def test_scheduled_callback_labels_are_optional_but_not_blank():
+    unlabelled = ScheduledOrderOverride(pd.DataFrame({
+        "unique_id": ["A"], "period": [1], "order_quantity": [2.0],
+    }))
+    audit = _run(SimulationEngine(), [unlabelled]).to_callback_audit_frame()
+    assert audit.loc[0, "reason"] is None and audit.loc[0, "source"] is None
+    with pytest.raises(ValueError, match="schedule.reason must contain nonblank strings"):
+        ScheduledOrderOverride(pd.DataFrame({
+            "unique_id": ["A"], "period": [1], "order_quantity": [2.0], "reason": [" "],
+        }))
 
 
 @pytest.mark.parametrize("phase", ["inventory", "order"])

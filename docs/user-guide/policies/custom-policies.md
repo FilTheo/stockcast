@@ -16,8 +16,7 @@ class MyPolicy(BasePolicy):
 
     def predict(self, inventory_state_df, *, current_period, **kwargs):
         ...                                           # read the state, never change it
-        return OrderDecision(orders, lead_time=self.lead_time,
-                             review_period=self.review_period)
+        return OrderDecision(orders, lead_time=self.lead_time)
 ```
 
 | Piece | What Stockcast expects |
@@ -74,8 +73,7 @@ class DaysOfCover(BasePolicy):
             "order_period": current_period,
             "expected_delivery_period": current_period + self.lead_time,
         })
-        return OrderDecision(orders, lead_time=self.lead_time,
-                             review_period=self.review_period)
+        return OrderDecision(orders, lead_time=self.lead_time)
 
 
 cover = DaysOfCover(
@@ -123,8 +121,7 @@ class CappedOrderUpTo(OrderUpToPolicy):
         decision = super().predict(inventory_state_df, current_period=current_period, **kwargs)
         frame = decision.get_dataframe()
         frame["order_quantity"] = frame["order_quantity"].clip(upper=self.cap)
-        return OrderDecision(frame, lead_time=decision.lead_time,
-                             review_period=decision.review_period)
+        return OrderDecision(frame, lead_time=decision.lead_time)
 ```
 
 !!! tip "Policy logic or a constraint?"

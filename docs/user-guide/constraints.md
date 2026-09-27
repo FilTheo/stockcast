@@ -36,18 +36,18 @@ are capacity rules: when they cut an order, the ledger's
 `capacity_violation_flag` is set.
 
 ```python
-from stockcast.core import (
-    MaximumOrderQuantity, MinimumOrderQuantity, OrderingConstraints, OrderMultiple,
-)
+from stockcast.core import MaximumOrderQuantity, MinimumOrderQuantity, OrderMultiple
 
-constraints = OrderingConstraints([
+constraints = [
     MinimumOrderQuantity(12, mode="adjust"),     # supplier minimum
     OrderMultiple(6, mode="adjust"),             # cases of 6
     MaximumOrderQuantity(60, mode="adjust"),     # at most 10 cases per order
-])
+]
 ```
 
-Pass it to the engine with `order_constraints=constraints`.
+Pass the list to the engine with `order_constraints=constraints`. Outside the
+engine, for example in a production loop, wrap it as
+`OrderingConstraints(constraints)` and call its `apply` method.
 
 ## The final order satisfies every rule
 
@@ -94,8 +94,7 @@ before demand, the policy, and the decision period), and returns a
 import numpy as np
 
 from stockcast.core import (
-    ConstraintResult, OrderDecision, OrderingConstraint, OrderingConstraints,
-    SimulationEngine,
+    ConstraintResult, OrderDecision, OrderingConstraint, SimulationEngine,
 )
 
 
@@ -128,8 +127,7 @@ class WholeCasesThatFit(OrderingConstraint):
             "capacity_violation_flag": changed & (accepted < requested),
             "binding_constraints": [self.name if flag else "" for flag in changed],
         })
-        decision = OrderDecision(frame, lead_time=order.lead_time,
-                                 review_period=order.review_period)
+        decision = OrderDecision(frame, lead_time=order.lead_time)
         return ConstraintResult(decision, audit)
 
     def to_manifest(self):
@@ -139,7 +137,7 @@ class WholeCasesThatFit(OrderingConstraint):
 
 result = SimulationEngine().run(
     policy=policy, demand_source=demand, inventory=inventory,
-    order_constraints=OrderingConstraints([WholeCasesThatFit(case_size=6, shelf_space=40)]),
+    order_constraints=[WholeCasesThatFit(case_size=6, shelf_space=40)],
     **run_settings,
 )
 events = result.to_event_frame()

@@ -167,8 +167,7 @@ def test_independent_normal_mode_is_explicit_and_records_provenance():
     decision = policy.predict(
         pd.DataFrame({"unique_id": ["A"], "inventory_position": [0.0]}),
         current_period=0,
-        return_dataframe=True,
-    )
+    ).get_dataframe()
     assert decision.loc[0, "order_quantity"] == pytest.approx(expected)
 
 
@@ -319,7 +318,7 @@ def test_reorder_point_review_timing_is_explicit():
         order_quantity=12,
         allow_backorders=False,
     )
-    with pytest.raises(ValueError, match="supply schedule or review_period"):
+    with pytest.raises(ValueError, match="give review_period or schedule"):
         ReorderPointPolicy(**arguments)
 
     assert ReorderPointPolicy(review_period=1, **arguments).review_period == 1
@@ -356,8 +355,7 @@ def test_sq_records_direct_reorder_target_and_quantity():
     decision = policy.predict(
         pd.DataFrame({"unique_id": ["A"], "inventory_position": [20.0]}),
         current_period=0,
-        return_dataframe=True,
-    )
+    ).get_dataframe()
     assert decision.loc[0, "order_quantity"] == 12.0
 
 
@@ -395,8 +393,7 @@ def test_ss_treats_order_up_to_level_as_a_policy_parameter_not_a_quantile():
     decision = policy.predict(
         pd.DataFrame({"unique_id": ["A"], "inventory_position": [20.0]}),
         current_period=0,
-        return_dataframe=True,
-    )
+    ).get_dataframe()
     assert decision.loc[0, "order_quantity"] == 20.0
 
 
@@ -441,7 +438,6 @@ def test_periodic_rss_uses_only_explicit_reorder_and_restore_targets():
     policy = PeriodicReviewPolicy(
         lead_time=1,
         review_period=2,
-        service_level=0.95,
         allow_backorders=False,
     ).fit(
         targets,
@@ -456,13 +452,11 @@ def test_periodic_rss_uses_only_explicit_reorder_and_restore_targets():
     order = policy.predict(
         pd.DataFrame({"unique_id": ["A"], "inventory_position": [8.0]}),
         current_period=0,
-        return_dataframe=True,
-    )
+    ).get_dataframe()
     no_order = policy.predict(
         pd.DataFrame({"unique_id": ["A"], "inventory_position": [15.0]}),
         current_period=0,
-        return_dataframe=True,
-    )
+    ).get_dataframe()
     assert order.loc[0, "order_quantity"] == 12.0
     assert no_order.loc[0, "order_quantity"] == 0.0
     metadata = policy.get_target_metadata()
@@ -474,7 +468,6 @@ def test_periodic_fixed_provider_supports_scalar_targets():
     policy = PeriodicReviewPolicy(
         lead_time=1,
         review_period=2,
-        service_level=0.95,
         allow_backorders=False,
     ).fit(
         pd.DataFrame({"unique_id": ["A", "B"]}),
@@ -501,7 +494,6 @@ def test_custom_periodic_provider_is_revalidated_centrally():
         PeriodicReviewPolicy(
             lead_time=1,
             review_period=2,
-            service_level=0.95,
             allow_backorders=False,
         ).fit(
             pd.DataFrame({"unique_id": ["A"]}),
@@ -527,7 +519,6 @@ def test_custom_periodic_provider_metadata_must_be_serializable():
         PeriodicReviewPolicy(
             lead_time=1,
             review_period=2,
-            service_level=0.95,
             allow_backorders=False,
         ).fit(
             pd.DataFrame({"unique_id": ["A"]}),
@@ -673,3 +664,14 @@ def test_single_order_fit_reads_the_origin_from_the_season_end():
                             forecast_frequency="D")
     assert from_origin.get_target_metadata() == from_end.get_target_metadata()
     assert from_end.get_target_metadata()["forecast_origin"] == ORIGIN.isoformat()
+
+
+def test_reorder_point_policy_type_follows_from_the_order_quantity():
+    fixed = ReorderPointPolicy(1, 1, order_quantity=12, allow_backorders=False)
+    up_to = ReorderPointPolicy(1, 1, allow_backorders=False)
+    assert (fixed.policy_type, up_to.policy_type) == ("sQ", "sS")
+    assert fixed.policy_name == "Reorder Point (sQ)"
+    with pytest.raises(ValueError, match="order_quantity applies only to an"):
+        ReorderPointPolicy(1, 1, policy_type="sS", order_quantity=12, allow_backorders=False)
+    with pytest.raises(ValueError, match="order_quantity is required"):
+        ReorderPointPolicy(1, 1, policy_type="sQ", allow_backorders=False)

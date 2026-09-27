@@ -69,6 +69,10 @@ def update_inventory_with_orders(
         # → in_transit updated, latest_order and target_level recorded
         ```
     """
+    lead_time = getattr(orders, "lead_time", None)
+    if isinstance(lead_time, int) and not isinstance(lead_time, bool) and lead_time >= 0:
+        # A state created with max_lead_time=None makes room for this order.
+        inventory_state = inventory_state._with_pipeline(lead_time)
     allow_backorders, lead_time = _validate_order_decision(inventory_state, orders, policy)
     return _apply_orders(inventory_state, orders, allow_backorders, lead_time=lead_time)
 
@@ -292,6 +296,7 @@ def _apply_orders(
         allow_backorders=allow_backorders,
         history=inventory_state._history,  # Preserve accumulated history
         open_orders=book,
+        auto_pipeline=getattr(inventory_state, "_auto_pipeline", False),
     )
 
 
@@ -345,6 +350,14 @@ def place_order_lines(
         raise TypeError("order_lines must be an OrderLines instance")
     inventory_state._validate_ready_state()
     allow_backorders = _backorder_mode(inventory_state, policy)
+    requested = order_lines.get_dataframe()
+    requested = requested[requested['order_quantity'] > 0]
+    if len(requested):
+        # A state created with max_lead_time=None makes room for these lines.
+        current_period = int(inventory_state.data['period'].iloc[0])
+        inventory_state = inventory_state._with_pipeline(
+            int(requested['due_period'].max()) - current_period
+        )
     lines = _state_order_lines(inventory_state, order_lines)
     sku_column = inventory_state.sku_column
     positive = lines[lines['order_quantity'] > 0]
@@ -389,7 +402,6 @@ def _state_order_lines(inventory_state: InventoryStateDataFrame, order_lines: Or
 def process_demand(
     inventory_state: InventoryStateDataFrame,
     demand_df: pd.DataFrame,
-    review_period: int,
     period_frequency: str,
     demand_column: str = 'y',
     date_column: str = 'date'
@@ -402,14 +414,12 @@ def process_demand(
         2. Processing demand (satisfying from on_hand)
         3. Tracking stockouts and backorders (controlled by inventory_state.allow_backorders)
         4. Shifting in_transit arrays (time advancement)
-        5. Updating review period flags
-        6. Advancing dates
+        5. Advancing dates (the new period is not a review period: no order)
 
     Args:
         inventory_state: Current multi-SKU inventory state
         demand_df: DataFrame with demand data (must include unique_id and demand columns)
                   Optional: date column for date tracking
-        review_period: Review period for determining when to place orders
         period_frequency: Explicit pandas frequency for one simulation period
         demand_column: Column name containing demand values (default: 'y')
         date_column: Column name containing dates (default: 'date')
@@ -441,7 +451,6 @@ def process_demand(
         new_inventory = process_demand(
             inventory_state=inventory,
             demand_df=demand,
-            review_period=7,
             period_frequency="D",
         )
         # → period=1, inventory updated, stockouts tracked
@@ -450,7 +459,6 @@ def process_demand(
     """
     return inventory_state.process_demand(
         demand_df=demand_df,
-        review_period=review_period,
         period_frequency=period_frequency,
         demand_column=demand_column,
         date_column=date_column

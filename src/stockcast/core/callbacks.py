@@ -48,10 +48,10 @@ class InventoryAdjustmentResult:
     """Signed on-hand changes proposed by ``on_after_demand``.
 
     Args:
-        adjustments: One row per SKU with ``unique_id``, ``quantity_delta``
-            (positive adds stock, negative removes it), ``reason`` and ``source``,
-            and optionally ``received_date`` (needed for added stock under shelf
-            life).
+        adjustments: One row per SKU with ``unique_id`` and ``quantity_delta``
+            (positive adds stock, negative removes it); optionally ``reason`` and
+            ``source`` labels for the audit, and ``received_date`` (needed for
+            added stock under shelf life).
     """
 
     def __init__(self, adjustments: pd.DataFrame):
@@ -69,9 +69,10 @@ class OrderAdjustmentResult:
     """Order quantities proposed by ``on_after_prediction``.
 
     Args:
-        adjustments: One row per SKU to change, with ``unique_id``,
-            ``order_quantity`` (the new absolute quantity, >= 0), ``reason`` and
-            ``source``. SKUs not listed keep their quantity.
+        adjustments: One row per SKU to change, with ``unique_id`` and
+            ``order_quantity`` (the new absolute quantity, >= 0); optionally
+            ``reason`` and ``source`` labels for the audit. SKUs not listed keep
+            their quantity.
     """
 
     def __init__(self, adjustments: pd.DataFrame):
@@ -159,6 +160,31 @@ class SimulationCallback:
         return {}
 
 
+AUDIT_LABELS = ("reason", "source")
+
+
+def _normalize_audit_labels(frame: pd.DataFrame, label: str) -> pd.DataFrame:
+    """Fill the optional ``reason``/``source`` audit labels.
+
+    A missing column or value is recorded as ``None``; a given value must be a
+    nonblank string.
+    """
+    frame = frame.copy()
+    for column in AUDIT_LABELS:
+        if column not in frame.columns:
+            frame[column] = None
+            continue
+        values = frame[column].astype(object).where(frame[column].notna(), None)
+        given = values.dropna()
+        if (
+            not given.map(lambda value: isinstance(value, str)).all()
+            or given.map(lambda value: not value.strip()).any()
+        ):
+            raise ValueError(f"{label}.{column} must contain nonblank strings or be missing")
+        frame[column] = values
+    return frame
+
+
 def _json_value(value):
     if isinstance(value, pd.Timestamp):
         return value.isoformat()
@@ -176,7 +202,7 @@ class _ScheduledCallback(SimulationCallback):
     def __init__(self, schedule: pd.DataFrame):
         if not isinstance(schedule, pd.DataFrame) or schedule.empty:
             raise ValueError("schedule must be a non-empty pandas DataFrame")
-        required = {"unique_id", "reason", "source"}
+        required = {"unique_id"}
         if self.value_column is not None:
             required.add(self.value_column)
         missing = sorted(required - set(schedule.columns))
@@ -184,19 +210,13 @@ class _ScheduledCallback(SimulationCallback):
             raise ValueError(f"schedule is missing required columns: {missing}")
         if "period" not in schedule.columns and "date" not in schedule.columns:
             raise ValueError("schedule requires period, date, or both")
-        allowed = required | {"period", "date"}
+        allowed = required | {"period", "date", *AUDIT_LABELS}
         extra = sorted(set(schedule.columns) - allowed)
         if extra:
             raise ValueError(f"schedule contains unsupported columns: {extra}")
         prepared = schedule.copy(deep=True)
         _require_identifiers(prepared, "unique_id", "callback schedule", unique=False)
-        for column in ("reason", "source"):
-            if (
-                prepared[column].isna().any()
-                or ~prepared[column].map(lambda value: isinstance(value, str)).all()
-                or prepared[column].str.strip().eq("").any()
-            ):
-                raise ValueError(f"schedule.{column} must contain nonblank strings")
+        prepared = _normalize_audit_labels(prepared, "schedule")
         if "period" in prepared:
             periods = pd.to_numeric(prepared["period"], errors="coerce")
             if (
@@ -245,8 +265,8 @@ class ScheduledOrderOverride(_ScheduledCallback):
 
     Args:
         schedule: One row per SKU and date (or state period), with columns
-            ``unique_id``, ``date`` and/or ``period``, and non-blank ``reason`` and
-            ``source`` strings recorded in the audit; plus ``order_quantity`` (>= 0).
+            ``unique_id``, ``date`` and/or ``period``, and optional ``reason`` and
+            ``source`` labels recorded in the audit; plus ``order_quantity`` (>= 0).
     """
 
     value_column = "order_quantity"
@@ -270,8 +290,8 @@ class ScheduledOrderMultiplier(_ScheduledCallback):
 
     Args:
         schedule: One row per SKU and date (or state period), with columns
-            ``unique_id``, ``date`` and/or ``period``, and non-blank ``reason`` and
-            ``source`` strings recorded in the audit; plus ``multiplier`` (>= 0).
+            ``unique_id``, ``date`` and/or ``period``, and optional ``reason`` and
+            ``source`` labels recorded in the audit; plus ``multiplier`` (>= 0).
     """
 
     value_column = "multiplier"
@@ -301,8 +321,8 @@ class ScheduledOrderHold(_ScheduledCallback):
 
     Args:
         schedule: One row per SKU and date (or state period), with columns
-            ``unique_id``, ``date`` and/or ``period``, and non-blank ``reason`` and
-            ``source`` strings recorded in the audit.
+            ``unique_id``, ``date`` and/or ``period``, and optional ``reason`` and
+            ``source`` labels recorded in the audit.
     """
 
     def on_after_prediction(self, decision, context):
@@ -323,8 +343,8 @@ class ScheduledInventoryAdjustment(_ScheduledCallback):
 
     Args:
         schedule: One row per SKU and date (or state period), with columns
-            ``unique_id``, ``date`` and/or ``period``, and non-blank ``reason`` and
-            ``source`` strings recorded in the audit; plus a signed ``quantity_delta`` and, for stock added
+            ``unique_id``, ``date`` and/or ``period``, and optional ``reason`` and
+            ``source`` labels recorded in the audit; plus a signed ``quantity_delta`` and, for stock added
             under shelf life, an optional ``received_date``.
     """
 

@@ -868,9 +868,8 @@ class CoverageMetric(BaseInventoryMetric):
     ``mode="forward"`` divides ending stock by an expected demand rate, taken from
     an ``expected_demand_rate`` ledger column or ``context["forward_demand_rate"]``.
     ``mode="trailing"`` divides by each SKU's average realised demand in the
-    slice. Rows with a zero rate are ignored. For slices with more than one SKU,
-    confirm the row-average grain with
-    ``context["coverage_aggregation"] = "mean_of_sku_period_ratios"``.
+    slice. Rows with a zero rate are ignored. For slices with more than one SKU
+    the result is the mean of the SKU-period ratios.
 
     Args:
         mode: ``"forward"`` or ``"trailing"``. The metric's name is
@@ -888,12 +887,12 @@ class CoverageMetric(BaseInventoryMetric):
         if period_events.empty:
             return np.nan
         _require_columns(period_events, ["unique_id", "ending_on_hand", "demand"])
-        if period_events["unique_id"].nunique() > 1 and context.get(
-            "coverage_aggregation"
+        if context.get(
+            "coverage_aggregation", "mean_of_sku_period_ratios"
         ) != "mean_of_sku_period_ratios":
             raise ValueError(
-                "multi-SKU coverage requires "
-                "coverage_aggregation='mean_of_sku_period_ratios'"
+                "coverage_aggregation must be 'mean_of_sku_period_ratios', the "
+                "only supported grain"
             )
 
         inventory = _numeric_series(period_events, "ending_on_hand")

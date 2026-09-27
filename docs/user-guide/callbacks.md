@@ -25,8 +25,8 @@ Both hooks receive a `CallbackContext` with a **copy** of the state
 
 For planned, dated events, write a small table and use a built-in callback.
 Rows match on `date` or `period` (the state period, see
-[Timing](concepts/timing.md#two-period-counters)), and every row carries a
-`reason` and a `source` for the audit trail.
+[Timing](concepts/timing.md#two-period-counters)). Optional `reason` and
+`source` columns label each row in the audit trail.
 
 | Callback | Hook | Extra column | Effect |
 |---|---|---|---|
@@ -132,8 +132,8 @@ got 6 extra packs.
 ### Rules the engine applies
 
 - **Order adjustments** name SKUs present in the decision and give finite,
-  non-negative absolute quantities, each with a non-blank `reason` and
-  `source`.
+  non-negative absolute quantities. Optional `reason` and `source` labels go
+  to the audit trail (empty when left out, never blank).
 - **Stock adjustments** give a signed `quantity_delta` per SKU. A removal
   cannot exceed on-hand stock, and stock cannot be added while the SKU has
   backorders. With shelf life, added stock needs a `received_date` so its age

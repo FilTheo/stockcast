@@ -78,9 +78,14 @@ def _paths(monkeypatch):
 def test_shelf_life_engine_reproduces_the_legacy_engine(monkeypatch, seed):
     shelf, scenario = random_scenario(seed)
     for arrays in _paths(monkeypatch):
-        expected = _outcome(lambda: LegacyShelfLifeEngine(shelf).run(**run_kwargs(scenario)))
+        expected = _outcome(
+            lambda: LegacyShelfLifeEngine(shelf).run(**run_kwargs(scenario, legacy=True))
+        )
         actual = _outcome(lambda: ShelfLifeEngine(shelf).run(**run_kwargs(scenario)))
-        _assert_same_outcome(actual, expected, f"seed {seed}, arrays={arrays}")
+        _assert_same_outcome(
+            actual, expected, f"seed {seed}, arrays={arrays}",
+            ignore_manifest_keys=("opening_expiry_handling",),
+        )
 
 
 @pytest.mark.parametrize("seed", MIGRATION_SEEDS)
@@ -95,7 +100,9 @@ def test_shelf_life_process_reproduces_the_legacy_engine(monkeypatch, seed):
         return SimulationEngine().run(**kwargs, processes=[ShelfLife(shelf, lots, handling)])
 
     for arrays in _paths(monkeypatch):
-        expected = _outcome(lambda: LegacyShelfLifeEngine(shelf).run(**run_kwargs(scenario)))
+        expected = _outcome(
+            lambda: LegacyShelfLifeEngine(shelf).run(**run_kwargs(scenario, legacy=True))
+        )
         actual = _outcome(with_process)
         _assert_same_outcome(
             actual, expected, f"seed {seed}, arrays={arrays}",
@@ -107,14 +114,17 @@ def test_shelf_life_engine_comparison_reproduces_the_legacy_engine():
     shelf, scenario = random_scenario(3)
     outcomes = []
     for engine in (LegacyShelfLifeEngine(shelf), ShelfLifeEngine(shelf)):
-        kwargs = run_kwargs(scenario)
+        kwargs = run_kwargs(scenario, legacy=isinstance(engine, LegacyShelfLifeEngine))
         policy = kwargs.pop("policy")
         comparison = engine.run_comparison(
             [policy, copy.deepcopy(policy)], labels=["a", "b"], **kwargs,
         )
         outcomes.append({label: outputs(comparison[label]) for label in ("a", "b")})
     for label in ("a", "b"):
-        assert_same_outputs(outcomes[1][label], outcomes[0][label], label)
+        assert_same_outputs(
+            outcomes[1][label], outcomes[0][label], label,
+            ignore_manifest_keys=("opening_expiry_handling",),
+        )
 
 
 def test_shelf_life_engine_keeps_its_ledger_attributes_and_settings():

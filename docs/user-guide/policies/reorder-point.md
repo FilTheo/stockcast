@@ -127,7 +127,7 @@ together.
 
 | Constructor | Meaning |
 |---|---|
-| `policy_type` | `"sQ"` or `"sS"` |
+| `policy_type` | `"sQ"` or `"sS"`; optional: giving `order_quantity` means `"sQ"`, otherwise `"sS"` |
 | `lead_time`, `review_period` / `schedule` | as for every policy |
 | `service_level` | $\alpha$ for quantile mode, `None` for planner mode |
 | `order_quantity` | $Q$; $(s, Q)$ only |

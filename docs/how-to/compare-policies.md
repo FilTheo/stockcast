@@ -29,10 +29,9 @@ demand = pd.DataFrame([
     for sku, rate in rates.items() for p, d in enumerate(dates)
 ])
 
-inventory = InventoryStateDataFrame(skus, max_lead_time=L, allow_backorders=False)
-inventory.initialize_from_observed(
+inventory = InventoryStateDataFrame.from_observed(
     pd.DataFrame({"unique_id": skus, "on_hand": [5 * r for r in rates.values()]}),
-    on_hand_column="on_hand", start_date=opening,
+    start_date=opening,
 )
 ```
 

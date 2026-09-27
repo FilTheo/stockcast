@@ -66,7 +66,6 @@ class FixedOrderPolicy(BasePolicy):
             ]],
             sku_column=inventory_state_df.sku_column,
             lead_time=self.lead_time,
-            review_period=self.review_period,
         )
 
 
@@ -332,3 +331,33 @@ def test_system_inventory_metrics_aggregate_skus_by_period():
     # Backorders served later also leave the shelf: (8 + 2) / 2 periods * 2 / 10.
     events["backorders_fulfilled"] = [1.0, 0.0, 0.0, 1.0]
     assert inventory_turns(events, {"periods_per_year": 2}) == 1.0
+
+
+def test_multi_sku_coverage_needs_no_grain_confirmation():
+    inventory = InventoryStateDataFrame(["A", "B"], max_lead_time=1).initialize_zero(
+        start_date=pd.Timestamp("2025-01-01")
+    )
+    inventory.data["on_hand"] = [4.0, 8.0]
+    policy = FixedOrderPolicy(
+        order_quantity=0.0, lead_time=1, review_period=1, allow_backorders=False,
+    )
+    demand = pd.DataFrame({
+        "unique_id": ["A", "B"],
+        "period": [0, 0],
+        "date": [pd.Timestamp("2025-01-02")] * 2,
+        "y": [2.0, 2.0],
+    })
+    result = SimulationEngine().run(
+        policy=policy, demand_source=demand, inventory=inventory, period_frequency="D",
+    )
+    evaluator = InventoryEvaluator().fit(result, window="scoring")
+    row = evaluator.evaluate(
+        [CoverageMetric(mode="forward")], groupby=[], context={"forward_demand_rate": 2.0},
+    ).iloc[0]
+    # Mean of the SKU-period ratios: (2 / 2 + 6 / 2) / 2.
+    assert row["coverage_forward"] == 2.0
+    with pytest.raises(ValueError, match="only supported grain"):
+        evaluator.evaluate(
+            [CoverageMetric(mode="forward")], groupby=[],
+            context={"forward_demand_rate": 2.0, "coverage_aggregation": "portfolio"},
+        )

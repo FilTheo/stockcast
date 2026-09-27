@@ -47,7 +47,7 @@ from stockcast.core.data_structures import (
 from stockcast.core.processes import Flow, InventoryProcess, ProcessFlows
 from stockcast.core.simulation_engine import SimulationEngine
 
-OPENING_EXPIRY_HANDLING = ("reject", "expire_before_initial_decision", "preprocessed")
+OPENING_EXPIRY_HANDLING = ("reject", "write_off")
 
 
 class FIFOLotLedger:
@@ -236,9 +236,8 @@ class ShelfLife(InventoryProcess):
             every SKU.
         opening_expiry_handling: ``"reject"`` (default) fails if an opening
             lot is already expired at the opening date;
-            ``"expire_before_initial_decision"`` writes that stock off before
-            the run (recorded in the manifest, not as a period flow);
-            ``"preprocessed"`` asserts no opening lot is expired.
+            ``"write_off"`` writes that stock off before
+            the run (recorded in the manifest, not as a period flow).
 
     ``ledger`` holds the lots of the latest run (the last branch of a
     comparison).
@@ -252,8 +251,7 @@ class ShelfLife(InventoryProcess):
         _require_shelf_life_days(shelf_life_days)
         if opening_expiry_handling not in OPENING_EXPIRY_HANDLING:
             raise ValueError(
-                "opening_expiry_handling must be 'reject', "
-                "'expire_before_initial_decision', or 'preprocessed'"
+                "opening_expiry_handling must be 'reject' or 'write_off'"
             )
         if not isinstance(opening_lots, pd.DataFrame):
             raise TypeError("opening_lots must be a pandas DataFrame")
@@ -270,7 +268,7 @@ class ShelfLife(InventoryProcess):
     def _prepare_opening(self, inventory: InventoryStateDataFrame) -> None:
         """Validate and seed the opening lots against the run's own state copy.
 
-        With ``expire_before_initial_decision`` the expired opening stock is
+        With ``write_off`` the expired opening stock is
         removed from that copy's on_hand before the run starts.
         """
         ledger = FIFOLotLedger(self.shelf_life_days)
@@ -278,20 +276,14 @@ class ShelfLife(InventoryProcess):
         opening_date = pd.Timestamp(inventory.get_dataframe()["date"].iloc[0])
         stale_units = ledger.expire(opening_date)
         handling = self.opening_expiry_handling
-        if stale_units and handling in {"reject", "preprocessed"}:
+        if stale_units and handling == "reject":
             stale_skus = _identifier_sample(stale_units)
-            if handling == "preprocessed":
-                raise ValueError(
-                    "opening_expiry_handling='preprocessed' requires opening_lots "
-                    "with no stock already expired at the opening date; "
-                    f"affected SKUs: {stale_skus}"
-                )
             raise ValueError(
                 "opening_lots contains stock already expired at the opening date; "
                 f"affected SKUs: {stale_skus}. Use "
-                "opening_expiry_handling='expire_before_initial_decision' to write it off."
+                "opening_expiry_handling='write_off' to write it off."
             )
-        if stale_units and handling == "expire_before_initial_decision":
+        if stale_units and handling == "write_off":
             for unique_id, quantity in stale_units.items():
                 mask = inventory.data[inventory.sku_column] == unique_id
                 inventory.data.loc[mask, "on_hand"] -= float(quantity)
@@ -500,9 +492,8 @@ class ShelfLifeEngine(SimulationEngine):
                 every SKU.
             opening_expiry_handling: ``"reject"`` (default) fails if an opening
                 lot is already expired at the opening date;
-                ``"expire_before_initial_decision"`` writes that stock off before
-                the run (recorded in the manifest, not as a period flow);
-                ``"preprocessed"`` asserts no opening lot is expired.
+                ``"write_off"`` writes that stock off before
+                the run (recorded in the manifest, not as a period flow).
 
         Returns:
             A ``SimulationResult``.

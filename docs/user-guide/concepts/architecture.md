@@ -76,16 +76,16 @@ Each piece is one argument; remove any of them and the rest still works.
 
 ```python
 from stockcast.core import (
-    InventoryStateDataFrame, MinimumOrderQuantity, OrderingConstraints,
+    InventoryStateDataFrame, MinimumOrderQuantity,
     OrderMultiple, ScheduledOrderHold, ShelfLife, SimulationEngine, Supplier,
     SupplyModel,
 )
 
 # Orders of at least 12 packs, in cases of 6.
-constraints = OrderingConstraints([
+constraints = [
     MinimumOrderQuantity(12, mode="adjust"),
     OrderMultiple(6, mode="adjust"),
-])
+]
 
 # The supplier is closed on 18 January: skip that review.
 holiday = ScheduledOrderHold(pd.DataFrame({
@@ -111,12 +111,8 @@ shelf_life = ShelfLife(
     }),
 )
 
-# A 3-day lead time needs three pipeline slots.
-inventory_3 = InventoryStateDataFrame(
-    [sku], max_lead_time=3, allow_backorders=False,
-).initialize_from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-    on_hand_column="on_hand", start_date=opening_date,
+inventory_3 = InventoryStateDataFrame.from_observed(
+    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), start_date=opening_date,
 )
 
 result = SimulationEngine().run(

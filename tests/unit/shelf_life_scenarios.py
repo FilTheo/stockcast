@@ -105,9 +105,9 @@ def random_scenario(seed: int):
         if max_lead else None
     )
     targets = [float(rng.randint(5, 30)) * scale + rng.choice([0.0, 0.5]) for _ in skus]
-    handling = rng.choice(["reject", "reject", "expire_before_initial_decision"])
+    handling = rng.choice(["reject", "reject", "write_off"])
     ages = list(range(shelf))
-    if handling == "expire_before_initial_decision":
+    if handling == "write_off":
         ages = ages + [shelf, shelf + 2]
     lots = split_lots(skus, on_hand, ages, rng)
     options = {
@@ -158,9 +158,19 @@ N_RANDOM_SCENARIOS = 40
 MIGRATION_SEEDS = (0, 2, 3, 4, 6, 8, 9, 12, 19, 20, 22, 25, 27, 32, 38)
 
 
-def run_kwargs(scenario: dict) -> dict:
-    """Engine ``run`` keyword arguments for a scenario (deep-copied)."""
+# The frozen legacy engine keeps the pre-release name of the write-off mode.
+LEGACY_EXPIRY_HANDLING = {"write_off": "expire_before_initial_decision"}
+
+
+def run_kwargs(scenario: dict, *, legacy: bool = False) -> dict:
+    """Engine ``run`` keyword arguments for a scenario (deep-copied).
+
+    ``legacy=True`` translates option names for ``LegacyShelfLifeEngine``.
+    """
     scenario = copy.deepcopy(scenario)
+    if legacy and "opening_expiry_handling" in scenario:
+        handling = scenario["opening_expiry_handling"]
+        scenario["opening_expiry_handling"] = LEGACY_EXPIRY_HANDLING.get(handling, handling)
     demand = scenario.pop("demand")
     n_periods = int(demand["period"].max()) + 1
     warmup = scenario.pop("warmup")

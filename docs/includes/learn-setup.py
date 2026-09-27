@@ -16,11 +16,9 @@ demand = DemandGenerator(
 ).seasonal(n_periods=56, base=6.0, amplitude=2.0, season_length=7, std=2.0)
 demand["y"] = demand["y"].round()
 
-inventory = InventoryStateDataFrame(
-    [sku], max_lead_time=lead_time, allow_backorders=False,
-).initialize_from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-    on_hand_column="on_hand", start_date=opening_date,
+inventory = InventoryStateDataFrame.from_observed(
+    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), start_date=opening_date,
+    allow_backorders=False,   # some pages step this state by hand
 )
 
 paths = np.random.default_rng(42).poisson(6.0, size=(10_000, horizon))

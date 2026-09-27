@@ -35,7 +35,6 @@ class FixedOrderPolicy(BasePolicy):
             result,
             sku_column=inventory_state_df.sku_column,
             lead_time=self.lead_time,
-            review_period=self.review_period,
         )
 
 
@@ -48,7 +47,7 @@ def _decision(skus, quantities):
         "reorder_point": [pd.NA] * len(skus),
         "order_period": [1] * len(skus),
         "expected_delivery_period": [2] * len(skus),
-    }), lead_time=1, review_period=1)
+    }), lead_time=1)
 
 
 def _inventory(skus=("A",)):
@@ -146,7 +145,7 @@ def test_custom_constraint_output_is_centrally_revalidated():
             frame = order.get_dataframe()
             frame.loc[0, "order_quantity"] = -1.0
             return ConstraintResult(
-                OrderDecision(frame, lead_time=1, review_period=1),
+                OrderDecision(frame, lead_time=1),
                 pd.DataFrame(),
             )
 
@@ -223,7 +222,6 @@ def test_engine_preserves_sparse_order_decisions_with_constraints():
                 decision.get_dataframe().iloc[[0]],
                 sku_column=decision.sku_column,
                 lead_time=decision.lead_time,
-                review_period=decision.review_period,
             )
 
     demand = pd.DataFrame({

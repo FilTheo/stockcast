@@ -50,6 +50,7 @@ from stockcast.core.callbacks import (
     InventoryAdjustmentResult,
     OrderAdjustmentResult,
     SimulationCallback,
+    _normalize_audit_labels,
 )
 from stockcast.core.data_structures import (
     InventoryStateDataFrame,
@@ -1186,7 +1187,7 @@ class SimulationEngine:
         demand_source_name: Optional[str] = None,
         random_seed: Optional[int] = None,
         policy_schedule: Optional[Mapping[int, BasePolicy]] = None,
-        order_constraints: Optional[OrderingConstraints] = None,
+        order_constraints: Optional[Union[OrderingConstraints, Sequence]] = None,
         callbacks: Optional[Sequence[SimulationCallback]] = None,
         supply: Optional[SupplyModel] = None,
         processes: Optional[Sequence[InventoryProcess]] = None,
@@ -1226,7 +1227,8 @@ class SimulationEngine:
                 policies for later decisions. Each must match ``policy``'s class and
                 configuration, with a forecast origin equal to the decision's
                 information date.
-            order_constraints: An ``OrderingConstraints`` sequence.
+            order_constraints: A list of ``OrderingConstraint`` objects, applied
+                in order (or an ``OrderingConstraints`` holding them).
             callbacks: ``SimulationCallback`` objects, applied in order.
             supply: A ``SupplyModel`` for suppliers, random lead times and split or
                 unreliable deliveries. ``None``: one delivery ``lead_time`` periods
@@ -1281,8 +1283,13 @@ class SimulationEngine:
             not isinstance(random_seed, int) or isinstance(random_seed, bool)
         ):
             raise ValueError("random_seed must be an integer or explicit None")
+        if isinstance(order_constraints, (list, tuple)):
+            order_constraints = OrderingConstraints(order_constraints)
         if order_constraints is not None and not isinstance(order_constraints, OrderingConstraints):
-            raise TypeError("order_constraints must be an OrderingConstraints instance")
+            raise TypeError(
+                "order_constraints must be a list of OrderingConstraint objects "
+                "or an OrderingConstraints instance"
+            )
         if supply is not None and not isinstance(supply, SupplyModel):
             raise TypeError("supply must be a SupplyModel instance or None")
         # Engine-owned processes (ShelfLifeEngine) come first; they are
@@ -1327,6 +1334,13 @@ class SimulationEngine:
         # untouched, while result.history contains snapshots from this run.
         inventory = copy.deepcopy(inventory)
         inventory.clear_history()
+        # A state created with max_lead_time=None gets exactly the pipeline
+        # this run needs; within the run it behaves like a fixed one.
+        needed = max(
+            policy.lead_time, supply.max_delivery_offset if supply is not None else 0,
+        )
+        inventory = inventory._with_pipeline(needed)
+        inventory._auto_pipeline = False
         if (
             inventory.allow_backorders is not None
             and inventory.allow_backorders != policy.allow_backorders
@@ -1834,14 +1848,7 @@ class SimulationEngine:
 
     @staticmethod
     def _validated_reason_source(frame: pd.DataFrame, label: str) -> pd.DataFrame:
-        for column in ("reason", "source"):
-            if (
-                frame[column].isna().any()
-                or not frame[column].map(lambda value: isinstance(value, str)).all()
-                or frame[column].str.strip().eq("").any()
-            ):
-                raise ValueError(f"{label}.{column} must contain nonblank strings")
-        return frame
+        return _normalize_audit_labels(frame, label)
 
     def _run_inventory_callbacks(self, inventory, *, period, run_window) -> dict:
         aggregate = {}
@@ -1881,8 +1888,8 @@ class SimulationEngine:
 
     def _validate_inventory_adjustment_result(self, result, inventory) -> pd.DataFrame:
         frame = result.get_dataframe()
-        required = {"unique_id", "quantity_delta", "reason", "source"}
-        allowed = required | {"received_date"}
+        required = {"unique_id", "quantity_delta"}
+        allowed = required | {"received_date", "reason", "source"}
         missing = sorted(required - set(frame.columns))
         extra = sorted(set(frame.columns) - allowed)
         if missing:
@@ -2017,7 +2024,6 @@ class SimulationEngine:
                 adjusted.get_dataframe(),
                 sku_column=adjusted.sku_column,
                 lead_time=adjusted.lead_time,
-                review_period=adjusted.review_period,
             )
             try:
                 result = callback.on_after_prediction(decision_view, context)
@@ -2044,9 +2050,9 @@ class SimulationEngine:
         self, decision, result, inventory, callback, position, context
     ) -> tuple[OrderDecision, list[dict]]:
         frame = result.get_dataframe()
-        required = {"unique_id", "order_quantity", "reason", "source"}
+        required = {"unique_id", "order_quantity"}
         missing = sorted(required - set(frame.columns))
-        extra = sorted(set(frame.columns) - required)
+        extra = sorted(set(frame.columns) - required - {"reason", "source"})
         if missing:
             raise ValueError(f"order adjustment is missing required columns: {missing}")
         if extra:
@@ -2090,7 +2096,6 @@ class SimulationEngine:
             output,
             sku_column=decision.sku_column,
             lead_time=decision.lead_time,
-            review_period=decision.review_period,
         ), audit
 
     @staticmethod
@@ -2826,7 +2831,7 @@ class SimulationEngine:
         random_seed: Optional[int] = None,
         labels: Optional[List[str]] = None,
         policy_schedules: Optional[List[Optional[Mapping[int, BasePolicy]]]] = None,
-        order_constraints: Optional[OrderingConstraints] = None,
+        order_constraints: Optional[Union[OrderingConstraints, Sequence]] = None,
         callbacks: Optional[Sequence[SimulationCallback]] = None,
         supply: Optional[SupplyModel] = None,
         processes: Optional[Sequence[InventoryProcess]] = None,

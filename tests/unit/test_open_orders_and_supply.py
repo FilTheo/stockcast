@@ -280,7 +280,6 @@ def _decision(state, quantities, lead):
             "expected_delivery_period": period + lead,
         }),
         lead_time=lead,
-        review_period=1,
     )
 
 

@@ -89,9 +89,8 @@ backorders served later are recorded separately in `backorders_fulfilled`.
 Two grains appear here on purpose. `avg_on_hand` is a mean over SKU-period
 rows ("a typical SKU holds…"); `peak_ending_on_hand` and
 `ending_on_hand_variance` look at the **portfolio total** per period ("the
-warehouse holds…"). For more than one SKU, `CoverageMetric` asks you to confirm
-the row-average grain with
-`context["coverage_aggregation"] = "mean_of_sku_period_ratios"`.
+warehouse holds…"). For more than one SKU, `CoverageMetric` is a mean over
+SKU-period ratios, like `avg_on_hand`.
 
 ## Costs
 

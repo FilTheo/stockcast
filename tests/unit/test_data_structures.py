@@ -43,7 +43,6 @@ class NoOrderPolicy(BasePolicy):
             ]],
             sku_column=inventory_state_df.sku_column,
             lead_time=self.lead_time,
-            review_period=self.review_period,
         )
 
 
@@ -145,7 +144,7 @@ def test_negative_demand_is_rejected():
     demand = pd.DataFrame({"unique_id": ["A"], "y": [-1.0]})
 
     with pytest.raises(ValueError, match="demand_df.y"):
-        process_demand(inventory, demand, review_period=1, period_frequency="D")
+        process_demand(inventory, demand, period_frequency="D")
 
 
 def test_duplicate_demand_rows_are_rejected():
@@ -155,7 +154,7 @@ def test_duplicate_demand_rows_are_rejected():
     demand = pd.DataFrame({"unique_id": ["A", "A"], "y": [1.0, 2.0]})
 
     with pytest.raises(ValueError, match="duplicate"):
-        process_demand(inventory, demand, review_period=1, period_frequency="D")
+        process_demand(inventory, demand, period_frequency="D")
 
 
 def test_unknown_demand_sku_is_rejected():
@@ -165,7 +164,7 @@ def test_unknown_demand_sku_is_rejected():
     demand = pd.DataFrame({"unique_id": ["B"], "y": [1.0]})
 
     with pytest.raises(ValueError, match="unknown SKUs"):
-        process_demand(inventory, demand, review_period=1, period_frequency="D")
+        process_demand(inventory, demand, period_frequency="D")
 
 
 @pytest.mark.parametrize(
@@ -253,7 +252,6 @@ def test_multiple_order_events_accumulate_direct_period_flow():
                 "expected_delivery_period": [1],
             }),
             lead_time=1,
-            review_period=1,
         )
 
     inventory = update_inventory_with_orders(inventory, decision(2.0))
@@ -277,7 +275,6 @@ def test_expected_delivery_metadata_must_match_physical_lead_time():
             "expected_delivery_period": [1],
         }),
         lead_time=2,
-        review_period=1,
     )
 
     with pytest.raises(ValueError, match=r"must equal order_period \+ lead_time"):
@@ -485,7 +482,72 @@ def test_plot_inventory_accepts_numeric_sku_scalar():
     assert plot_inventory(result, sku=101) is not None
 
 
-@pytest.mark.parametrize("data", [[], {}, pd.DataFrame({"unique_id": []})])
+@pytest.mark.parametrize("data", [[], pd.DataFrame({"unique_id": []})])
 def test_empty_inventory_sku_universe_is_rejected(data):
     with pytest.raises(ValueError, match="SKU universe must be non-empty"):
         InventoryStateDataFrame(data, max_lead_time=1)
+
+
+def _counted(on_hand=(40.0,), **kwargs):
+    skus = ["a", "b", "c"][:len(on_hand)]
+    return InventoryStateDataFrame.from_observed(
+        pd.DataFrame({"unique_id": skus, "on_hand": list(on_hand)}),
+        start_date=pd.Timestamp("2026-03-23"), **kwargs,
+    )
+
+
+def test_from_observed_equals_the_two_step_initializer():
+    one_step = _counted((40.0, 12.0), max_lead_time=2, allow_backorders=False)
+    two_step = InventoryStateDataFrame(
+        ["a", "b"], max_lead_time=2, allow_backorders=False,
+    ).initialize_from_observed(
+        pd.DataFrame({"unique_id": ["a", "b"], "on_hand": [40.0, 12.0]}),
+        on_hand_column="on_hand", start_date=pd.Timestamp("2026-03-23"),
+    )
+    pd.testing.assert_frame_equal(one_step.get_dataframe(), two_step.get_dataframe())
+    assert one_step.max_lead_time == two_step.max_lead_time == 2
+    with pytest.raises(ValueError, match="duplicate|unique"):
+        InventoryStateDataFrame.from_observed(
+            pd.DataFrame({"unique_id": ["a", "a"], "on_hand": [1.0, 2.0]}),
+            start_date=pd.Timestamp("2026-03-23"),
+        )
+
+
+def test_unsized_pipeline_grows_only_with_empty_far_slots():
+    state = _counted(allow_backorders=False)
+    assert state.max_lead_time == 0
+    decision = OrderDecision(
+        pd.DataFrame({
+            "unique_id": ["a"], "order_quantity": [5.0],
+            "order_period": [0], "expected_delivery_period": [3],
+        }),
+        lead_time=3,
+    )
+    assert repr(decision).endswith("lead_time=3)")
+    ordered = update_inventory_with_orders(state, decision)
+    assert ordered.max_lead_time == 3
+    assert ordered.data["in_transit"].iloc[0].tolist() == [0.0, 0.0, 5.0]
+    assert state.max_lead_time == 0  # the caller's state is unchanged
+    fixed = _counted(max_lead_time=2, allow_backorders=False)
+    with pytest.raises(ValueError, match="must be >= orders.lead_time"):
+        update_inventory_with_orders(fixed, decision)
+
+
+def test_unsized_pipeline_fits_declared_open_orders():
+    state = _counted().with_open_orders(
+        pd.DataFrame({"unique_id": ["a"], "due_period": [3], "quantity": [4.0]})
+    )
+    assert state.max_lead_time == 3
+    assert state.data["in_transit"].iloc[0].tolist() == [0.0, 0.0, 4.0]
+    with pytest.raises(ValueError, match="due_period must satisfy"):
+        _counted(max_lead_time=2).with_open_orders(
+            pd.DataFrame({"unique_id": ["a"], "due_period": [3], "quantity": [4.0]})
+        )
+
+
+def test_positions_can_be_read_before_the_shortage_mode_is_set():
+    state = _counted((5.0,))
+    assert state.allow_backorders is None
+    assert state.inventory_position()["inventory_position"].tolist() == [5.0]
+    with pytest.raises(ValueError, match="allow_backorders must be explicitly supplied"):
+        state.advance_period(period_frequency="D", is_review_period=False)

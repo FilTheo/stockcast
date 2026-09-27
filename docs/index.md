@@ -159,9 +159,8 @@ demand = DemandGenerator([sku], start_date=opening + pd.Timedelta(days=1),
                          period_frequency="D", random_seed=3,
                          negative_demand_handling="clip_zero").seasonal(
     n_periods=56, base=6.0, amplitude=2.0, season_length=7, std=2.0)
-inventory = InventoryStateDataFrame([sku], max_lead_time=2, allow_backorders=False)
-inventory.initialize_from_observed(pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-                                   on_hand_column="on_hand", start_date=opening)
+inventory = InventoryStateDataFrame.from_observed(
+    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), start_date=opening)
 
 # A forecast target: the 95% quantile of total demand over the next 6 days.
 paths = np.random.default_rng(42).poisson(6.0, size=(10_000, 6))

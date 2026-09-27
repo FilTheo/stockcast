@@ -39,7 +39,6 @@ class FixedOrderPolicy(BasePolicy):
             ]],
             sku_column=inventory_state_df.sku_column,
             lead_time=self.lead_time,
-            review_period=self.review_period,
         )
 
 
@@ -736,3 +735,26 @@ def test_optional_labels_are_recorded_when_given():
             policy=_order_up_to(), demand_source=_daily_demand([3, 5]),
             inventory=_inventory(), demand_source_name=" ",
         )
+
+
+def test_unsized_pipeline_matches_an_explicitly_sized_one():
+    from stockcast.core import Supplier, SupplyModel
+
+    demand = _daily_demand([3, 5, 2, 4, 6, 1])
+    counted = pd.DataFrame({"unique_id": ["A"], "on_hand": [6.0]})
+    opening = pd.Timestamp("2025-01-01")
+    for supply, size in ((None, 1), (SupplyModel([Supplier("far", lead_time=3)]), 3)):
+        unsized = InventoryStateDataFrame.from_observed(counted, start_date=opening)
+        sized = InventoryStateDataFrame.from_observed(
+            counted, start_date=opening, max_lead_time=size,
+        )
+        runs = [
+            SimulationEngine().run(
+                policy=_order_up_to(), demand_source=demand, inventory=state, supply=supply,
+            )
+            for state in (unsized, sized)
+        ]
+        pd.testing.assert_frame_equal(runs[0].to_event_frame(), runs[1].to_event_frame())
+        assert runs[0].run_settings == runs[1].run_settings
+        assert _stable(runs[0])[2] == _stable(runs[1])[2]
+        assert unsized.max_lead_time == 0  # the caller's state is unchanged

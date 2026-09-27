@@ -71,9 +71,10 @@ The pieces:
 
 **Pipeline length**
 
-:   The state's `max_lead_time` must cover `supply.max_delivery_offset`, the
-    longest lead time plus the longest partial-delivery delay (here
-    $6 + 2 = 8$).
+:   The state's pipeline must cover `supply.max_delivery_offset`, the longest
+    lead time plus the longest partial-delivery delay (here $6 + 2 = 8$). A
+    state created without `max_lead_time` is sized to it automatically; an
+    explicit `max_lead_time` must be at least that long.
 
 ## Run with suppliers
 
@@ -88,11 +89,9 @@ import warnings
 
 from stockcast.core import InventoryStateDataFrame, SimulationEngine
 
-inventory_8 = InventoryStateDataFrame(
-    [sku], max_lead_time=supply.max_delivery_offset, allow_backorders=False,
-).initialize_from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-    on_hand_column="on_hand", start_date=opening_date,
+inventory_8 = InventoryStateDataFrame.from_observed(   # pipeline sized to the longest delivery
+    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), start_date=opening_date,
+    allow_backorders=False,   # the manual loop below serves demand itself
 )
 
 with warnings.catch_warnings():
@@ -232,8 +231,7 @@ class ExpediteWhenLow(OrderUpToPolicy):
         on_hand = inventory_state_df.get_dataframe().set_index("unique_id")["on_hand"]
         low = frame["unique_id"].map(on_hand) < 15
         frame["supplier_id"] = low.map({True: "express", False: "regular"})
-        return OrderDecision(frame, lead_time=decision.lead_time,
-                             review_period=decision.review_period)
+        return OrderDecision(frame, lead_time=decision.lead_time)
 
 
 class FollowPolicy(SupplierAllocation):

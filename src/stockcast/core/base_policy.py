@@ -55,8 +55,7 @@ class BasePolicy:
                     "order_period": current_period,
                     "expected_delivery_period": current_period + self.lead_time,
                 })
-                return OrderDecision(orders, lead_time=self.lead_time,
-                                     review_period=self.review_period)
+                return OrderDecision(orders, lead_time=self.lead_time)
         ```
     """
 
@@ -91,7 +90,7 @@ class BasePolicy:
             raise ValueError("review_period must be an integer >= 1")
         if schedule is None:
             if review_period is None:
-                raise ValueError("supply schedule or review_period")
+                raise ValueError("give review_period or schedule")
             schedule = PeriodicSchedule(review_period)
         if not isinstance(schedule, DecisionSchedule):
             raise TypeError("schedule must be a DecisionSchedule")

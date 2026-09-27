@@ -62,11 +62,9 @@ policy = PeriodicReviewPolicy(
     forecast_frequency="D",
 )
 
-state = InventoryStateDataFrame(
-    ["tea_250g", "coffee_1kg"], max_lead_time=2, allow_backorders=False,
-).initialize_from_observed(
+state = InventoryStateDataFrame.from_observed(
     pd.DataFrame({"unique_id": ["tea_250g", "coffee_1kg"], "on_hand": [22.0, 14.0]}),
-    on_hand_column="on_hand", start_date=opening_date,
+    start_date=opening_date,
 )
 policy.predict(state, current_period=0).get_dataframe()[
     ["unique_id", "inventory_position", "reorder_point", "target_level", "order_quantity"]]

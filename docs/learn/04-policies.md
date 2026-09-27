@@ -64,11 +64,8 @@ every week without touching its configuration.
 Give the policy a state and it returns an `OrderDecision`:
 
 ```python
-inventory = InventoryStateDataFrame(
-    [sku], max_lead_time=lead_time, allow_backorders=False,
-).initialize_from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-    on_hand_column="on_hand", start_date=opening_date,
+inventory = InventoryStateDataFrame.from_observed(
+    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), start_date=opening_date,
 )
 
 decision = policy.predict(inventory, current_period=0)
@@ -140,8 +137,7 @@ class DaysOfCover(BasePolicy):
             "order_period": current_period,
             "expected_delivery_period": current_period + self.lead_time,
         })
-        return OrderDecision(orders, lead_time=self.lead_time,
-                             review_period=self.review_period)
+        return OrderDecision(orders, lead_time=self.lead_time)
 
 
 cover = DaysOfCover(8, lead_time=2, review_period=4, allow_backorders=False).fit(

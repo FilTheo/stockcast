@@ -56,11 +56,8 @@ policy.fit(
 )
 
 # The shelf today: 40 packs.
-shelf = InventoryStateDataFrame(["coffee"], max_lead_time=lead_time)
-shelf.initialize_from_observed(
-    pd.DataFrame({"unique_id": ["coffee"], "on_hand": [40]}),
-    on_hand_column="on_hand",
-    start_date=today,
+shelf = InventoryStateDataFrame.from_observed(
+    pd.DataFrame({"unique_id": ["coffee"], "on_hand": [40]}), start_date=today,
 )
 
 # Demand over the next 8 weeks: the sales the store will face.

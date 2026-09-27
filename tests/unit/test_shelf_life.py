@@ -43,7 +43,6 @@ class OrderOncePolicy(BasePolicy):
             ]],
             sku_column=inventory_state_df.sku_column,
             lead_time=self.lead_time,
-            review_period=self.review_period,
         )
 
 
@@ -352,9 +351,9 @@ def test_expired_opening_lots_reject_by_default_or_write_off_explicitly():
         "random_seed": None,
         "opening_lots": stale_lots,
     }
-    with pytest.raises(ValueError, match="already expired"):
+    with pytest.raises(ValueError, match="already expired.*'write_off'"):
         ShelfLifeEngine(shelf_life_days=3).run(**kwargs)
-    with pytest.raises(ValueError, match="preprocessed.*no stock already expired"):
+    with pytest.raises(ValueError, match="must be 'reject' or 'write_off'"):
         ShelfLifeEngine(shelf_life_days=3).run(
             **kwargs,
             opening_expiry_handling="preprocessed",
@@ -362,7 +361,7 @@ def test_expired_opening_lots_reject_by_default_or_write_off_explicitly():
 
     result = ShelfLifeEngine(shelf_life_days=3).run(
         **kwargs,
-        opening_expiry_handling="expire_before_initial_decision",
+        opening_expiry_handling="write_off",
     )
     assert result.run_manifest["run_settings"]["opening_expired_units"] == [
         {"unique_id": "A", "quantity": 5.0}
@@ -381,10 +380,9 @@ def test_expired_opening_lots_reject_by_default_or_write_off_explicitly():
             **kwargs,
             "inventory": clean_inventory,
             "opening_lots": clean_lots,
-            "opening_expiry_handling": "preprocessed",
         }
     )
-    assert verified.run_manifest["run_settings"]["opening_expiry_handling"] == "preprocessed"
+    assert verified.run_manifest["run_settings"]["opening_expiry_handling"] == "reject"
     assert verified.run_manifest["run_settings"]["opening_expired_units"] == []
 
 

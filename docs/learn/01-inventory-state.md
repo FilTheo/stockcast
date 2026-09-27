@@ -39,14 +39,11 @@ from stockcast.core import InventoryStateDataFrame
 sku = "tea_250g"
 opening_date = pd.Timestamp("2026-01-05")
 
-inventory = InventoryStateDataFrame(
-    [sku],                    # the SKUs this state tracks
-    max_lead_time=2,          # pipeline length: the longest lead time you need
+inventory = InventoryStateDataFrame.from_observed(
+    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),   # one row per SKU
+    start_date=opening_date,  # the day the shelf was counted
+    max_lead_time=2,          # pipeline length (optional; shown here to see the slots)
     allow_backorders=False,   # unserved demand is lost, not owed
-).initialize_from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-    on_hand_column="on_hand",
-    start_date=opening_date,
 )
 
 inventory.inventory_position()[["unique_id", "on_hand", "in_transit",
@@ -65,18 +62,17 @@ Nothing is on order yet, so the position equals the 30 packs on the shelf.
 `in_transit` is a small array per SKU. **Slot $i$ holds the units that arrive
 $i + 1$ periods from now**, before that period's demand. With
 `max_lead_time=2` there are two slots: "arrives tomorrow" and "arrives the day
-after".
+after". Leave `max_lead_time` out and Stockcast sizes the pipeline when it is
+needed: a simulation makes room for the policy's lead time, and placing or
+declaring an order makes room for its delivery.
 
 Suppose the shop placed an order of 12 packs yesterday and it arrives the day
 after tomorrow. You can declare that opening order explicitly:
 
 ```python
-inventory_with_order = InventoryStateDataFrame(
-    [sku], max_lead_time=2, allow_backorders=False,
-).initialize_from_observed(
+inventory_with_order = InventoryStateDataFrame.from_observed(
     pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-    on_hand_column="on_hand",
-    start_date=opening_date,
+    start_date=opening_date, max_lead_time=2, allow_backorders=False,
 ).with_open_orders(pd.DataFrame({
     "unique_id": [sku],
     "due_period": [2],        # periods are counted from the opening state (period 0)
