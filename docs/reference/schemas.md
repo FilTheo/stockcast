@@ -7,7 +7,7 @@ keep their names and meanings; new columns may be added.
 
 | Column | Type | Meaning |
 |---|---|---|
-| `unique_id` | hashable | SKU identifier (the state's `sku_column`) |
+| `unique_id` | hashable | SKU identifier |
 | `period` | int | demand period, `0 … n_periods − 1` |
 | `date` | timestamp | opening date $+ (\text{period} + 1)\,\Delta$ |
 | `y` | float $\ge 0$ | units demanded |

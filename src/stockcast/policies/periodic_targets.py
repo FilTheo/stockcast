@@ -48,7 +48,7 @@ class PeriodicReviewTargetProvider(ABC):
 
         Args:
             target_data: The table passed to ``PeriodicReviewPolicy.fit``.
-            sku_column: SKU column name.
+            sku_column: The SKU column, always ``"unique_id"``.
 
         Returns:
             A ``PeriodicReviewTargets``. Stockcast then checks that every value is

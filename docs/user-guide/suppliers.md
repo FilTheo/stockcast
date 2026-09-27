@@ -236,8 +236,8 @@ class ExpediteWhenLow(OrderUpToPolicy):
 
 class FollowPolicy(SupplierAllocation):
     def allocate(self, orders, context):
-        chosen = context.decision.set_index(context.sku_column)["supplier_id"]
-        return orders.assign(supplier_id=orders[context.sku_column].map(chosen))
+        chosen = context.decision.set_index("unique_id")["supplier_id"]
+        return orders.assign(supplier_id=orders["unique_id"].map(chosen))
 ```
 
 The engine checks the allocation: known suppliers, no duplicates, no negative

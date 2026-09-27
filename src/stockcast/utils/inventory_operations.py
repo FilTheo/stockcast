@@ -368,17 +368,14 @@ def place_order_lines(
             'order_quantity': totals.to_numpy(dtype=float),
             'target_level': np.nan,
         }),
-        sku_column=sku_column,
     )
     return _apply_orders(inventory_state, orders, allow_backorders, lines=positive)
 
 
 def _state_order_lines(inventory_state: InventoryStateDataFrame, order_lines: OrderLines) -> pd.DataFrame:
-    """Validate order lines against a state; return them keyed by the state SKU column."""
+    """Validate order lines against a state."""
     lines = order_lines.get_dataframe()
     sku_column = inventory_state.sku_column
-    if order_lines.sku_column != sku_column:
-        lines = lines.rename(columns={order_lines.sku_column: sku_column})
     inventory_skus = _require_identifiers(
         inventory_state.data, sku_column, 'inventory_state', unique=True,
     )

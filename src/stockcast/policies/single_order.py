@@ -101,7 +101,6 @@ class SingleOrderPolicy(OrderUpToPolicy):
         forecast_origin=None,
         target_end_date_column=None,
         target_probability=None,
-        sku_column="unique_id",
     ):
         """Bind the season target.
 
@@ -118,7 +117,6 @@ class SingleOrderPolicy(OrderUpToPolicy):
                 season: ``forecast_origin + (lead_time + selling_horizon)`` periods.
             target_probability: Defaults to ``service_level``; if given, it must
                 equal it.
-            sku_column: SKU column name.
 
         Returns:
             The fitted policy (``self``).
@@ -137,7 +135,6 @@ class SingleOrderPolicy(OrderUpToPolicy):
             target_end_date_column=target_end_date_column,
             target_probability=target_probability,
             protection_horizon=self.selling_horizon,
-            sku_column=sku_column,
         )
         if origin is None:
             origin = (

@@ -13,6 +13,7 @@ from statistics import NormalDist
 from typing import Optional, Union
 
 from stockcast.core.data_structures import (
+    _SKU_COLUMN,
     InventoryStateDataFrame,
     OrderDecision,
     _require_forward_frequency,
@@ -91,7 +92,6 @@ class OrderUpToPolicy(BasePolicy):
         target_end_date_column: Optional[str] = None,
         target_probability: Optional[float] = None,
         protection_horizon: Optional[int] = None,
-        sku_column: str = 'unique_id',
         mean_column: Optional[str] = None,
         std_column: Optional[str] = None,
         forecast_date_column: Optional[str] = None,
@@ -134,7 +134,6 @@ class OrderUpToPolicy(BasePolicy):
                 schedules (and must equal it if given). Nonperiodic schedules
                 require an explicit horizon, checked at each decision against
                 its next opportunity or terminal window.
-            sku_column: SKU identifier column.
             mean_column: Marginal forecast mean column for mean/std mode.
             std_column: Marginal forecast standard deviation column for
                 mean/std mode. It is required; Stockcast never invents it.
@@ -143,6 +142,7 @@ class OrderUpToPolicy(BasePolicy):
         Returns:
             self (for method chaining)
         """
+        sku_column = _SKU_COLUMN
         protection_period = schedule_protection_horizon(
             self.schedule, self.lead_time, protection_horizon, "protection_horizon",
         )
@@ -290,7 +290,6 @@ class OrderUpToPolicy(BasePolicy):
 
     def predict(self,
                 inventory_state_df: Union[pd.DataFrame, InventoryStateDataFrame],
-                sku_column: Optional[str] = None,
                 *,
                 current_period: int) -> OrderDecision:
         """
@@ -303,7 +302,6 @@ class OrderUpToPolicy(BasePolicy):
         Args:
             inventory_state_df: InventoryStateDataFrame object or DataFrame with inventory data
                             Must have 'inventory_position' or ['on_hand', 'on_order', 'backorders']
-            sku_column: Column name for SKU identifier (uses fit() column if None)
             current_period: Explicit decision period used for order and delivery timing.
 
         Returns:
@@ -316,8 +314,7 @@ class OrderUpToPolicy(BasePolicy):
         if not isinstance(current_period, int) or isinstance(current_period, bool) or current_period < 0:
             raise ValueError("current_period must be an integer >= 0")
 
-        if sku_column is None:
-            sku_column = self.sku_column_
+        sku_column = self.sku_column_
 
         # Always use pre-computed target levels from fit().
         # For updated targets (e.g., reforecasting), call fit() again with new forecasts.
@@ -372,7 +369,6 @@ class OrderUpToPolicy(BasePolicy):
 
         return OrderDecision(
             result_df,
-            sku_column=sku_column,
             lead_time=self.lead_time,
         )
 

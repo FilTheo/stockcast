@@ -142,7 +142,6 @@ def _validated_order_frame(order: OrderDecision, context: ConstraintContext) -> 
 def _make_order(template: OrderDecision, frame: pd.DataFrame) -> OrderDecision:
     return OrderDecision(
         frame,
-        sku_column=template.sku_column,
         lead_time=template.lead_time,
     )
 

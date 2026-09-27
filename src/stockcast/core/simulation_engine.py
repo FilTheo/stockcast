@@ -2014,7 +2014,6 @@ class SimulationEngine:
             )
             decision_view = OrderDecision(
                 adjusted.get_dataframe(),
-                sku_column=adjusted.sku_column,
                 lead_time=adjusted.lead_time,
             )
             try:
@@ -2086,7 +2085,6 @@ class SimulationEngine:
             ))
         return OrderDecision(
             output,
-            sku_column=decision.sku_column,
             lead_time=decision.lead_time,
         ), audit
 
@@ -2210,7 +2208,7 @@ class SimulationEngine:
                 'due_period': pd.Series(dtype='int64'),
                 'order_line': pd.Series(dtype='int64'),
             })
-        lines = _state_order_lines(inventory, OrderLines(deliveries, sku_column=sku_column))
+        lines = _state_order_lines(inventory, OrderLines(deliveries))
         return _apply_orders(
             inventory, orders, allow_backorders,
             lines=lines[lines['order_quantity'] > 0],

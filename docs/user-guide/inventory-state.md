@@ -11,7 +11,7 @@ One row per SKU. The columns that matter most:
 
 | Column | Meaning |
 |---|---|
-| `unique_id` | The SKU (the name is configurable with `sku_column`). |
+| `unique_id` | The SKU. Every Stockcast table uses this column name. |
 | `on_hand` | Units on the shelf. |
 | `in_transit` | A NumPy array of length `max_lead_time`. Slot $k$ holds the units arriving $k + 1$ periods from now. |
 | `backorders` | Demand owed to customers. |
@@ -89,9 +89,8 @@ it is used.
 
 | Argument | Meaning |
 |---|---|
-| `data` | A list of SKUs, or a DataFrame with a SKU column |
+| `data` | A list of SKUs, or a DataFrame with `unique_id` |
 | `max_lead_time` | Length of the pipeline. Leave it out and it is sized when needed: a run makes room for the policy's lead time and the suppliers' longest delivery, and placing or declaring orders makes room for them. The new slots are empty. Give a number to fix it, for example to leave room for delayed deliveries |
-| `sku_column` | Name of the SKU column, default `"unique_id"` |
 | `allow_backorders` | `True` (backorders) or `False` (lost sales). Must match the policy's setting; leave it unset to take the policy's. Reading positions works without it; set it when you serve demand or place orders yourself (below) |
 | `start_date` | Opening date, if not supplied later by an initializer |
 

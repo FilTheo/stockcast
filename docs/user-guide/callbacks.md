@@ -97,7 +97,7 @@ class TopUpWhenLow(SimulationCallback):
 
     def on_after_prediction(self, decision, context):
         orders = decision.get_dataframe()
-        stock = context.inventory.set_index(context.sku_column)["on_hand"]
+        stock = context.inventory.set_index("unique_id")["on_hand"]
         low = orders["unique_id"].map(stock) < self.floor
         if not low.any():
             return None
