@@ -66,7 +66,7 @@ def test_public_export_sets_are_frozen_for_0_1():
         "terminal_pipeline_cost", "terminal_pipeline_units", "total_cost", "waste_cost",
     ]
     assert utils.__all__ == [
-        "update_inventory_with_orders", "process_demand", "DemandGenerator",
+        "update_inventory_with_orders", "DemandGenerator",
         "place_order_lines",
     ]
     assert visualization.__all__ == [

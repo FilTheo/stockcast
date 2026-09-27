@@ -8,4 +8,3 @@ Demand generation and the primitives for a caller-owned loop. Guides: [Demand an
 
 ::: stockcast.utils.place_order_lines
 
-::: stockcast.utils.process_demand

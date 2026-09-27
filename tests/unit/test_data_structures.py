@@ -6,7 +6,7 @@ from stockcast import InventoryStateDataFrame, OrderUpToPolicy, SimulationEngine
 from stockcast.core.base_policy import BasePolicy
 from stockcast.core.data_structures import OrderDecision
 from stockcast.policies import ReorderPointPolicy
-from stockcast.utils import process_demand, update_inventory_with_orders
+from stockcast.utils import update_inventory_with_orders
 from stockcast.visualization import (
     plot_demand_vs_orders,
     plot_inventory,
@@ -144,7 +144,7 @@ def test_negative_demand_is_rejected():
     demand = pd.DataFrame({"unique_id": ["A"], "y": [-1.0]})
 
     with pytest.raises(ValueError, match="demand_df.y"):
-        process_demand(inventory, demand, period_frequency="D")
+        inventory.process_demand(demand, period_frequency="D")
 
 
 def test_duplicate_demand_rows_are_rejected():
@@ -154,7 +154,7 @@ def test_duplicate_demand_rows_are_rejected():
     demand = pd.DataFrame({"unique_id": ["A", "A"], "y": [1.0, 2.0]})
 
     with pytest.raises(ValueError, match="duplicate"):
-        process_demand(inventory, demand, period_frequency="D")
+        inventory.process_demand(demand, period_frequency="D")
 
 
 def test_unknown_demand_sku_is_rejected():
@@ -164,7 +164,7 @@ def test_unknown_demand_sku_is_rejected():
     demand = pd.DataFrame({"unique_id": ["B"], "y": [1.0]})
 
     with pytest.raises(ValueError, match="unknown SKUs"):
-        process_demand(inventory, demand, period_frequency="D")
+        inventory.process_demand(demand, period_frequency="D")
 
 
 @pytest.mark.parametrize(
