@@ -80,7 +80,7 @@ value. `negative_demand_handling="clip_zero"` clips those draws to zero and
 tells you with a warning. The default, `"raise"`, stops instead.
 
 The generator also offers `constant`, `normal`, `trend`,
-`from_historical` (normal draws that match the mean and spread of your own
+`normal_from_history` (normal draws that match the mean and spread of your own
 history), and `sample`, which draws from any distribution you write as a small
 function.
 

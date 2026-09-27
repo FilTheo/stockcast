@@ -101,17 +101,20 @@ def test_historical_sampling_rejects_implicit_fallbacks():
     })
 
     with pytest.raises(ValueError, match="at least two observations"):
-        generator.from_historical(
-            one_observation,
-            n_periods=2,
-            sampling_method="normal_moments",
-        )
-    with pytest.raises(ValueError, match="sampling_method"):
-        generator.from_historical(
-            one_observation,
-            n_periods=2,
-            sampling_method="automatic",
-        )
+        generator.normal_from_history(one_observation, n_periods=2)
+
+
+def test_normal_from_history_is_normal_with_historical_moments():
+    history = pd.DataFrame({
+        "unique_id": ["A"] * 4 + ["B"] * 4,
+        "y": [4.0, 6.0, 5.0, 9.0, 20.0, 18.0, 25.0, 21.0],
+    })
+    stats = history.groupby("unique_id")["y"].agg(["mean", "std"])
+    from_history = _generator().normal_from_history(history, n_periods=5)
+    direct = _generator().normal(
+        5, mean=stats["mean"].to_dict(), std=stats["std"].to_dict(),
+    )
+    pd.testing.assert_frame_equal(from_history, direct)
 
 
 def _poisson(rng, periods):

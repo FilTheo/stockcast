@@ -111,7 +111,7 @@ Name: y, dtype: float64
 | `normal(n_periods, mean, std)` | $\mu + \varepsilon_t$ |
 | `seasonal(n_periods, base, amplitude, season_length, std)` | $b + a \sin(2\pi t / m) + \varepsilon_t$ |
 | `trend(n_periods, initial, growth_rate, std)` | $y_0 + g\,t + \varepsilon_t$ |
-| `from_historical(historical_df, n_periods, sampling_method="normal_moments")` | $\hat\mu + \varepsilon_t$ with $\hat\mu, \hat\sigma$ from your history |
+| `normal_from_history(historical_df, n_periods)` | $\hat\mu + \varepsilon_t$ with $\hat\mu, \hat\sigma$ from your history |
 | `sample(n_periods, sampler)` | whatever your sampler draws: any distribution, any pattern |
 
 with $\varepsilon_t \sim \mathcal{N}(0, \sigma^2)$ drawn from the generator's

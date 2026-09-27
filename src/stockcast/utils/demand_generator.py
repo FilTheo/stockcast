@@ -357,26 +357,23 @@ class DemandGenerator:
 
         return self._build_df(n_periods, arrays)
 
-    def from_historical(
+    def normal_from_history(
         self,
         historical_df: pd.DataFrame,
         n_periods: int,
-        sampling_method: str,
         demand_column: str = 'y',
         sku_column: str = 'unique_id',
     ) -> pd.DataFrame:
         """
-        Generate synthetic demand by sampling from per-SKU historical statistics.
+        Normal demand with each SKU's historical mean and standard deviation.
 
-        Computes mean and std of demand per SKU from historical data,
-        then generates normally distributed demand with those parameters.
+        The same as ``normal`` with ``mean`` and ``std`` estimated per SKU from
+        ``historical_df`` (sample standard deviation, ``ddof=1``). For any other
+        distribution, for example resampling the history itself, use ``sample``.
 
         Args:
             historical_df: DataFrame with historical demand data.
             n_periods: Number of periods to generate.
-            sampling_method: How to sample from the history. Only
-                ``"normal_moments"`` is supported: normal draws with each SKU's
-                historical mean and sample standard deviation (``ddof=1``).
             demand_column: Column name for demand values.
             sku_column: Column name for SKU identifiers.
 
@@ -384,8 +381,6 @@ class DemandGenerator:
             DataFrame with columns [unique_id, y, period, date].
         """
         self._validate_n_periods(n_periods)
-        if sampling_method != "normal_moments":
-            raise ValueError("sampling_method must be 'normal_moments'")
         required = [sku_column, demand_column]
         missing = [column for column in required if column not in historical_df.columns]
         if missing:
