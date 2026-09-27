@@ -81,8 +81,7 @@ Two weeks of warm-up let both policies settle before scoring starts:
 
 ```python
 comparison = SimulationEngine().run_comparison(
-    policies=[order_up_to, reorder_point],
-    labels=["(R, S) every 4 days", "(s, S) daily check"],
+    policies={"(R, S) every 4 days": order_up_to, "(s, S) daily check": reorder_point},
     demand_source=demand, inventory=inventory, warmup_periods=14, random_seed=5,
 )
 ```

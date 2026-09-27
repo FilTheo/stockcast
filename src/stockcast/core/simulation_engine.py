@@ -2814,7 +2814,7 @@ class SimulationEngine:
 
     def run_comparison(
         self,
-        policies: List[BasePolicy],
+        policies: Union[List[BasePolicy], Mapping[str, BasePolicy]],
         demand_source: Union[pd.DataFrame, Callable],
         inventory: InventoryStateDataFrame,
         n_periods: Optional[int] = None,
@@ -2827,7 +2827,10 @@ class SimulationEngine:
         demand_source_name: Optional[str] = None,
         random_seed: Optional[int] = None,
         labels: Optional[List[str]] = None,
-        policy_schedules: Optional[List[Optional[Mapping[int, BasePolicy]]]] = None,
+        policy_schedules: Optional[Union[
+            List[Optional[Mapping[int, BasePolicy]]],
+            Mapping[str, Mapping[int, BasePolicy]],
+        ]] = None,
         order_constraints: Optional[Union[OrderingConstraints, Sequence]] = None,
         callbacks: Optional[Sequence[SimulationCallback]] = None,
         supply: Optional[SupplyModel] = None,
@@ -2844,13 +2847,28 @@ class SimulationEngine:
         ``allow_backorders`` unset.
 
         Args:
-            policies: Fitted policies.
-            labels: Names for the results; defaults to the policies' names.
-            policy_schedules: One ``policy_schedule`` (or ``None``) per policy.
+            policies: Fitted policies, as a list or as ``{label: policy}``.
+            labels: Names for the results of a list of policies; defaults to the
+                policies' names. Not used with a dict, whose keys are the labels.
+            policy_schedules: One ``policy_schedule`` (or ``None``) per policy, in
+                the same order; with a dict of policies, also
+                ``{label: policy_schedule}`` for the labels that have one.
 
         Returns:
             A ``ComparisonResult`` keyed by label.
+
+        Example:
+            ```python
+            comparison = SimulationEngine().run_comparison(
+                {"order-up-to": order_up_to, "reorder point": reorder_point},
+                demand, inventory,
+            )
+            comparison["order-up-to"].to_event_frame()
+            ```
         """
+        policies, labels, policy_schedules = self._comparison_branches(
+            policies, labels, policy_schedules,
+        )
         return self._run_comparison(
             policies, demand_source, inventory, n_periods,
             period_frequency=period_frequency,
@@ -3078,6 +3096,29 @@ class SimulationEngine:
                 f"forecast frequencies {sorted(frequencies)}"
             )
         return frequencies.pop()
+
+    @staticmethod
+    def _comparison_branches(policies, labels, policy_schedules):
+        """Turn ``{label: policy}`` into the list form; lists pass unchanged."""
+        if not isinstance(policies, Mapping):
+            if isinstance(policy_schedules, Mapping):
+                raise TypeError(
+                    "policy_schedules may be a {label: schedule} dict only when "
+                    "policies is a {label: policy} dict"
+                )
+            return policies, labels, policy_schedules
+        if labels is not None:
+            raise ValueError(
+                "with policies as a {label: policy} dict the keys are the labels; "
+                "do not also pass labels="
+            )
+        labels = list(policies.keys())
+        if isinstance(policy_schedules, Mapping):
+            unknown = sorted(map(str, set(policy_schedules) - set(labels)))
+            if unknown:
+                raise ValueError(f"policy_schedules has labels with no policy: {unknown}")
+            policy_schedules = [policy_schedules.get(label) for label in labels]
+        return list(policies.values()), labels, policy_schedules
 
     @staticmethod
     def _deduplicate_labels(labels: List[str]) -> List[str]:

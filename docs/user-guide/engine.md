@@ -139,12 +139,12 @@ its inputs.
 
 ## `run_comparison`
 
-`run_comparison` runs several fitted policies on the same experiment:
+`run_comparison` runs several fitted policies on the same experiment. Name
+each one with a dict:
 
 ```python
 comparison = SimulationEngine().run_comparison(
-    policies=[tea_policy(0.80), tea_policy(0.95)],
-    labels=["80%", "95%"],
+    policies={"80%": tea_policy(0.80), "95%": tea_policy(0.95)},
     demand_source=demand,
     inventory=inventory,
     **run_settings,
@@ -159,12 +159,16 @@ policy
 95%      1.000000                           18.607143
 ```
 
+A list works too: `policies=[a, b]` with `labels=["80%", "95%"]`, or
+without `labels` to use the policies' names.
+
 - The demand is built once and shared by every branch.
 - Each branch starts from its own copy of the opening state.
 - Constraints, callbacks, suppliers, and processes apply to every branch;
   callbacks and processes are reset between branches, and random supplier
   lead times are drawn once and shared.
-- `policy_schedules=[...]` gives each branch its own refits.
+- `policy_schedules` gives each branch its own refits: one per policy in
+  list order, or `{label: schedule}` with a dict of policies.
 
 `comparison[label]` is a normal `SimulationResult`; iterate over `comparison`
 for the labels.

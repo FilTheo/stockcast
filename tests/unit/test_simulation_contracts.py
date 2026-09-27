@@ -812,3 +812,41 @@ def test_float_residue_shortage_is_not_flagged(monkeypatch, arrays, backorders):
     assert not events["backorder_flag"].iloc[0]
     validate_event_frame(events)
     InventoryEvaluator().fit(result)
+
+
+def test_comparison_accepts_a_label_to_policy_dict():
+    demand = _daily_demand([3, 5, 2, 4])
+    as_list = SimulationEngine().run_comparison(
+        [_order_up_to(), _order_up_to()], demand, _inventory(), labels=["a", "b"],
+    )
+    as_dict = SimulationEngine().run_comparison(
+        {"a": _order_up_to(), "b": _order_up_to()}, demand, _inventory(),
+    )
+    for label in ("a", "b"):
+        pd.testing.assert_frame_equal(
+            as_dict[label].to_event_frame(), as_list[label].to_event_frame(),
+        )
+    with pytest.raises(ValueError, match="do not also pass labels"):
+        SimulationEngine().run_comparison(
+            {"a": _order_up_to()}, demand, _inventory(), labels=["a"],
+        )
+    with pytest.raises(ValueError, match="labels with no policy"):
+        SimulationEngine().run_comparison(
+            {"a": _order_up_to()}, demand, _inventory(), policy_schedules={"z": {}},
+        )
+    with pytest.raises(TypeError, match="only when policies is a"):
+        SimulationEngine().run_comparison(
+            [_order_up_to()], demand, _inventory(), policy_schedules={"a": {}},
+        )
+    with pytest.raises(ValueError, match="non-empty list"):
+        SimulationEngine().run_comparison({}, demand, _inventory())
+
+
+def test_comparison_dict_maps_schedules_by_label():
+    first, second, schedule = object(), object(), {4: object()}
+    policies, labels, schedules = SimulationEngine._comparison_branches(
+        {"a": first, "b": second}, None, {"b": schedule},
+    )
+    assert (policies, labels, schedules) == ([first, second], ["a", "b"], [None, schedule])
+    listed = ([first], ["x"], [None])
+    assert SimulationEngine._comparison_branches(*listed) == listed
