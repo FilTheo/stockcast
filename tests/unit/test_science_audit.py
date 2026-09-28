@@ -308,7 +308,10 @@ def test_independent_normal_target_and_critical_fractile():
     assert policy.get_target_levels()["target_level"].iloc[0] == pytest.approx(expected)
     assert newsvendor_critical_fractile(
         selling_price=10, purchase_cost=4, salvage_value=2) == pytest.approx(0.75)
-    for p, c, v in [(4, 4, 1), (10, 2, 3), (10, 4, -1)]:
+    # A negative salvage value is a disposal cost: (10 - 4) / (10 + 1).
+    assert newsvendor_critical_fractile(
+        selling_price=10, purchase_cost=4, salvage_value=-1) == pytest.approx(6 / 11)
+    for p, c, v in [(4, 4, 1), (10, 2, 3), (10, 4, 4), (10, 4, float("-inf"))]:
         with pytest.raises(ValueError):
             newsvendor_critical_fractile(selling_price=p, purchase_cost=c, salvage_value=v)
 

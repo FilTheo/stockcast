@@ -28,7 +28,7 @@ lead_time, review_period = 2, 4
 
 demand = DemandGenerator(
     [sku],
-    start_date=opening_date + pd.Timedelta(days=1),  # first sales day
+    first_date=opening_date + pd.Timedelta(days=1),  # first sales day
     freq="D",
     random_seed=3,
     negative_demand_handling="clip_zero",

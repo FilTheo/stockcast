@@ -80,7 +80,7 @@ HORIZON = LEAD_TIME + REVIEW_PERIOD
 def tea_demand(n_periods=56):
     demand = DemandGenerator(
         [SKU],
-        start_date=OPENING + pd.Timedelta(days=1),
+        first_date=OPENING + pd.Timedelta(days=1),
         freq="D",
         random_seed=3,
         negative_demand_handling="clip_zero",

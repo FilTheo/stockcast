@@ -125,9 +125,10 @@ class OrderUpToPolicy(BasePolicy):
         The period length is the policy's ``freq``. Without it, mean/std mode
         reads it from the forecast dates when every SKU has at least three
         evenly spaced dates on a standard calendar (daily, weekly, monthly,
-        quarterly or yearly, with any step such as ``"2D"``; daily dates must
-        include a Saturday or Sunday, as weekdays alone fit business days
-        too); a direct target has one date per SKU, so it needs ``freq``.
+        quarterly or yearly, with any step such as ``"2D"``; day steps need a
+        Saturday or Sunday among the dates when weekdays alone would fit a
+        business-day step too); a direct target has one date per SKU, so it
+        needs ``freq``.
 
         Args:
             forecast_df: Target or forecast DataFrame.
@@ -434,9 +435,8 @@ class OrderUpToPolicy(BasePolicy):
     def __repr__(self) -> str:
         """String representation of the policy."""
         fitted_status = "fitted" if self.fitted_ else "not fitted"
-        backorder_mode = "backorders" if self.allow_backorders else "lost_sales"
         return (f"OrderUpToPolicy(lead_time={self.lead_time}, "
                 f"review_period={self.review_period}, "
                 f"service_level={self.service_level}, "
-                f"allow_backorders={backorder_mode}, "
+                f"allow_backorders={self.allow_backorders}, "
                 f"status={fitted_status})")

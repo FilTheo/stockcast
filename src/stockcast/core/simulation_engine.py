@@ -1616,6 +1616,9 @@ class SimulationEngine:
             policy_schedule=policy_schedule,
             update_log=update_log,
         )
+        # Ledger periods are whole numbers (the state holds one integer period),
+        # whatever dtype the opening state stored them in.
+        event_frame['period'] = event_frame['period'].astype('int64')
 
         resolved_commit = self._repository_commit()
         run_settings = {
@@ -2972,6 +2975,17 @@ class SimulationEngine:
                 for label, values in (("missing", missing), ("outside the run", extra))
                 if values
             ]
+            opening = pd.to_datetime(inventory.get_dataframe()['date'], errors='coerce')
+            if missing and opening.notna().all() and opening.nunique() == 1:
+                # Name the missing dates too: a gap is usually a missing date
+                # (a week without sales) rather than a period number.
+                stamps = [opening.iloc[0] + (period + 1) * period_offset for period in missing[:5]]
+                dates = [
+                    str(stamp.date()) if stamp == stamp.normalize() else str(stamp)
+                    for stamp in stamps
+                ]
+                label = "date" if len(missing) == 1 else "dates"
+                problems[0] += f" ({label} {', '.join(dates)}{' ...' if len(missing) > 5 else ''})"
             raise ValueError(
                 f"demand_source must have every period 0..{max(n_periods - 1, 0)}, "
                 "counted from the inventory's opening date (period 0 is the first "

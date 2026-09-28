@@ -1030,7 +1030,36 @@ def test_weekday_only_dates_fit_business_days_too_and_need_freq(first, periods):
     assert _normal_fit(frame, freq="D").get_target_metadata()["forecast_frequency"] == "D"
 
 
+@pytest.mark.parametrize("dates, message", [
+    # Monday, Wednesday, Friday: every other day, or every other business day.
+    (["2025-01-06", "2025-01-08", "2025-01-10"], "fit both 2D and 2B"),
+    # Friday, Wednesday, Monday: every 5 days, or every 3 business days.
+    (["2025-01-03", "2025-01-08", "2025-01-13"], "fit both 5D and 3B"),
+])
+def test_weekday_only_multi_day_steps_that_fit_business_days_need_freq(dates, message):
+    frame = _steps(pd.to_datetime(dates))
+    with pytest.raises(ValueError, match=f"freq is required: .*{message} periods"):
+        _normal_fit(frame)
+
+
+@pytest.mark.parametrize("dates, freq", [
+    (["2025-01-06", "2025-01-08", "2025-01-10", "2025-01-12"], "2D"),  # ends on a Sunday
+    (["2025-01-07", "2025-01-10", "2025-01-13"], "3D"),  # Tue, Fri, Mon: no business-day step
+])
+def test_multi_day_steps_that_only_days_fit_are_read(dates, freq):
+    assert _normal_fit(_steps(pd.to_datetime(dates))).get_target_metadata()["forecast_frequency"] == freq
+
+
 @pytest.mark.parametrize("first, periods", [("2025-01-09", 3), ("2025-01-06", 7)])
 def test_daily_dates_with_a_weekend_day_give_daily(first, periods):
     frame = _steps(pd.date_range(first, periods=periods, freq="D"))
     assert _normal_fit(frame).get_target_metadata()["forecast_frequency"] == "D"
+
+
+def test_policy_reprs_show_the_shortage_mode_as_a_boolean():
+    from stockcast.policies import OrderUpToPolicy
+
+    assert "allow_backorders=False" in repr(OrderUpToPolicy(1, 1, allow_backorders=False))
+    assert "allow_backorders=True" in repr(
+        ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=True)
+    )

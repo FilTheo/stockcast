@@ -113,7 +113,7 @@ later = {
     10: fit_for(10, horizon=4),                              # last decision: covers to the end
 }
 
-demand = DemandGenerator([sku], start_date=opening_date + pd.Timedelta(days=1),
+demand = DemandGenerator([sku], first_date=opening_date + pd.Timedelta(days=1),
                          freq="D", random_seed=3).constant(n_periods=14, value=6.0)
 inventory = InventoryStateDataFrame.from_observed(
     pd.DataFrame({"unique_id": [sku], "on_hand": [20.0]}), start_date=opening_date)

@@ -138,8 +138,10 @@ they count periods of that length. With per-step forecasts (the
 independent-normal mode) you may leave it out: Stockcast reads it from the
 step dates when every SKU has at least three of them, evenly spaced on a
 daily, weekly, monthly, quarterly or yearly calendar (steps such as `"2D"`
-included). Daily steps need a Saturday or Sunday among them, since weekdays
-alone could just as well be business days. A one-row target has a single date per SKU, so it needs `freq`.
+included). Day steps need a Saturday or Sunday among them when weekdays
+alone could just as well be business days: Monday, Tuesday, Wednesday could
+be daily or business-daily, and Monday, Wednesday, Friday could be `"2D"` or
+`"2B"`. A one-row target has a single date per SKU, so it needs `freq`.
 
 The `date` column of a forecast table is the last period each row covers:
 the window's last day for a one-row target, the step's own day for a

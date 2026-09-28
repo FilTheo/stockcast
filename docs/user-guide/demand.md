@@ -112,7 +112,7 @@ from stockcast.utils import DemandGenerator
 
 generator = DemandGenerator(
     ["tea_250g", "coffee_1kg"],
-    start_date=opening_date + pd.Timedelta(days=1),   # date of period 0
+    first_date=opening_date + pd.Timedelta(days=1),   # date of period 0
     freq="D",
     random_seed=7,
     negative_demand_handling="clip_zero",

@@ -65,7 +65,7 @@ def poisson(rng, periods):
 
 
 generator = DemandGenerator(
-    ["coffee", "tea"], start_date="2026-01-05", freq="W-MON", random_seed=0,
+    ["coffee", "tea"], first_date="2026-01-05", freq="W-MON", random_seed=0,
 )
 sales = generator.sample(20, poisson)
 sales.head(3)

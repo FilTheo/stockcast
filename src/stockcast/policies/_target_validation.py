@@ -367,14 +367,27 @@ def _steps_from_origin(dates: pd.Series, origin: pd.Timestamp, offset) -> pd.Ser
     return steps.astype(int)
 
 
+def _business_day_step(dates) -> Optional[int]:
+    """The business-day step of weekday-only, evenly business-spaced dates, else None."""
+    days = pd.DatetimeIndex(pd.to_datetime(pd.Series(dates)).unique()).sort_values()
+    if (days.dayofweek >= 5).any():
+        return None
+    steps = np.unique(np.busday_count(
+        days[:-1].values.astype("datetime64[D]"), days[1:].values.astype("datetime64[D]"),
+    ))
+    return int(steps[0]) if len(steps) == 1 else None
+
+
 def infer_step_frequency(forecast_df: pd.DataFrame, sku_column: str, date_column: str):
     """Read the period length from per-step forecast dates, or raise.
 
     Every SKU needs at least three evenly spaced dates on one standard
-    calendar (``_standard_frequency``), the same for all SKUs. Daily periods
-    also need a Saturday or Sunday among the dates: consecutive weekdays fit
-    business days as well. Anything else, such as business days (dates that
-    skip a weekend), is refused rather than guessed.
+    calendar (``_standard_frequency``), the same for all SKUs. Day steps
+    (``D``, ``2D``, ...) are refused when every date is a weekday and the
+    dates are also evenly spaced in business days, since a business-day step
+    fits them as well (consecutive weekdays, or Monday, Wednesday, Friday); a
+    Saturday or Sunday among the dates settles it. Anything else, such as
+    business days (dates that skip a weekend), is refused rather than guessed.
     """
     ask = 'create the policy with freq, for example OrderUpToPolicy(..., freq="D")'
     found = set()
@@ -390,15 +403,15 @@ def infer_step_frequency(forecast_df: pd.DataFrame, sku_column: str, date_column
                 "a calendar Stockcast reads from dates (daily, weekly, monthly, "
                 "quarterly or yearly)"
             )
-        elif (
-            type(offset) is pd.offsets.Day
-            and offset.n == 1
-            and not (pd.to_datetime(rows[date_column]).dt.dayofweek >= 5).any()
+        elif type(offset) is pd.offsets.Day and (
+            business_step := _business_day_step(rows[date_column])
         ):
-            # Consecutive weekdays fit business days too; a weekend date (any
-            # seven consecutive days include one) shows the periods are days.
+            # Weekday-only dates evenly spaced in business days fit a
+            # business-day step too; a weekend date would show they are days.
+            days = "daily" if offset.n == 1 else offset.freqstr
+            business = "business-day" if business_step == 1 else f"{business_step}B"
             reason = (
-                f"the forecast dates of SKU {sku!r} fit both daily and business-day "
+                f"the forecast dates of SKU {sku!r} fit both {days} and {business} "
                 "periods (none falls on a Saturday or Sunday)"
             )
         else:

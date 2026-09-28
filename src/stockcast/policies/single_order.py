@@ -19,13 +19,15 @@ def newsvendor_critical_fractile(*, selling_price, purchase_cost, salvage_value)
     Args:
         selling_price: ``p``.
         purchase_cost: ``c``.
-        salvage_value: ``v`` for each unsold unit.
+        salvage_value: ``v`` for each unsold unit. Negative for a disposal
+            cost, for example ``-1`` when each leftover unit costs 1 to
+            dispose of.
 
     Returns:
         The probability, between 0 and 1.
 
     Raises:
-        ValueError: Unless ``p > c > v >= 0``.
+        ValueError: Unless ``p > c > v``.
 
     Example:
         ```python
@@ -35,14 +37,14 @@ def newsvendor_critical_fractile(*, selling_price, purchase_cost, salvage_value)
     """
     values = (selling_price, purchase_cost, salvage_value)
     if any(isinstance(value, bool) for value in values):
-        raise ValueError("costs must be finite numbers satisfying p > c > v >= 0")
+        raise ValueError("costs must be finite numbers satisfying p > c > v")
     try:
         p, c, v = map(float, values)
     except (TypeError, ValueError) as exc:
         raise ValueError("costs must be finite numbers") from exc
-    if not all(math.isfinite(value) for value in (p, c, v)) or not p > c > v >= 0:
+    if not all(math.isfinite(value) for value in (p, c, v)) or not p > c > v:
         raise ValueError(
-            "costs must satisfy selling_price > purchase_cost > salvage_value >= 0"
+            "costs must satisfy selling_price > purchase_cost > salvage_value"
         )
     return (p - c) / (p - v)
 

@@ -111,7 +111,7 @@ def test_missing_calendar_period_is_rejected():
         "date": [pd.Timestamp("2025-01-02"), pd.Timestamp("2025-01-04")],
         "y": [1.0, 1.0],
     })
-    with pytest.raises(ValueError, match=r"every period 0..2, .* missing \[1\]"):
+    with pytest.raises(ValueError, match=r"every period 0..2, .* missing \[1\] \(date 2025-01-03\)"):
         SimulationEngine().run(
             _policy(),
             demand,
@@ -120,6 +120,14 @@ def test_missing_calendar_period_is_rejected():
             freq="D",
             **_run_contract(3),
         )
+    # A weekly table without one week names the week's date.
+    weekly = pd.DataFrame({
+        "unique_id": "A",
+        "date": pd.to_datetime(["2025-01-08", "2025-01-15", "2025-01-29"]),
+        "y": 1.0,
+    })
+    with pytest.raises(ValueError, match=r"missing \[2\] \(date 2025-01-22\)"):
+        SimulationEngine().run(_policy(), weekly, _inventory(), n_periods=4, freq="W-WED")
 
 
 def test_missing_dates_are_never_derived_from_an_assumed_frequency():
@@ -453,7 +461,7 @@ def test_run_windows_control_scoring_and_settlement_ordering():
 def test_clipped_demand_diagnostics_are_recorded_in_run_manifest():
     generator = DemandGenerator(
         ["A"],
-        start_date=pd.Timestamp("2025-01-02"),
+        first_date=pd.Timestamp("2025-01-02"),
         freq="D",
         random_seed=1,
         negative_demand_handling="clip_zero",
@@ -996,7 +1004,7 @@ def test_shifted_table_in_run_comparison_records_the_shift_in_every_branch():
 
 def test_generator_history_slice_runs_with_its_own_period_numbers():
     generator = DemandGenerator(
-        ["coffee", "tea"], start_date="2026-01-05", freq="W-MON", random_seed=0,
+        ["coffee", "tea"], first_date="2026-01-05", freq="W-MON", random_seed=0,
     )
     sales = generator.sample(20, lambda rng, periods: rng.poisson(20, periods.size))
     future = sales[sales["date"] > "2026-03-23"]
@@ -1112,7 +1120,7 @@ def test_old_frequency_argument_names_are_rejected():
             [_levels(False)], _daily_demand([3, 5]), _inventory(), period_frequency="D",
         )
     with pytest.raises(TypeError, match="period_frequency"):
-        DemandGenerator(["A"], start_date="2025-01-02", period_frequency="D", random_seed=0)
+        DemandGenerator(["A"], first_date="2025-01-02", period_frequency="D", random_seed=0)
     with pytest.raises(TypeError, match="period_frequency"):
         _inventory().advance_period(period_frequency="D", is_review_period=True)
 
@@ -1208,3 +1216,11 @@ def test_look_ahead_error_names_the_column_the_origin_came_from():
     )
     with pytest.raises(ValueError, match=message):
         SimulationEngine().run(policy, _daily_demand([3, 5]), _inventory())
+
+
+def test_ledger_periods_are_integers_whatever_the_opening_state_stored():
+    # initialize_zero stores the opening period as 0.0; the ledger counts whole periods.
+    result = SimulationEngine().run(_levels(False), _daily_demand([3, 5, 2]), _inventory(), freq="D")
+    ledger = result.to_event_frame()
+    assert ledger["period"].dtype == "int64"
+    assert ledger["period"].tolist() == [1, 2, 3]

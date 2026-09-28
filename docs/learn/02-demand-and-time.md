@@ -54,7 +54,7 @@ opening_date = pd.Timestamp("2026-01-05")
 
 demand = DemandGenerator(
     [sku],
-    start_date=opening_date + pd.Timedelta(days=1),   # date of period 0
+    first_date=opening_date + pd.Timedelta(days=1),   # date of period 0
     freq="D",
     random_seed=3,
     negative_demand_handling="clip_zero",

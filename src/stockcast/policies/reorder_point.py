@@ -609,9 +609,8 @@ class ReorderPointPolicy(BasePolicy):
 
     def __repr__(self) -> str:
         status = "fitted" if self.fitted_ else "not fitted"
-        mode = "backorders" if self.allow_backorders else "lost_sales"
         return (
             f"ReorderPointPolicy({self.policy_type}, lead_time={self.lead_time}, "
             f"schedule={self.schedule.to_manifest()}, service_level={self.service_level}, "
-            f"allow_backorders={mode}, status={status})"
+            f"allow_backorders={self.allow_backorders}, status={status})"
         )

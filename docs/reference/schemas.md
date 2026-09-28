@@ -29,7 +29,7 @@ columns are listed in `stockcast.evaluation.CANONICAL_EVENT_COLUMNS`.
 | `unique_id` | SKU |
 | `event_type` | always `"period"`: one row per SKU and demand period |
 | `demand_period` | zero-based demand period of the run, counted from the opening date |
-| `period` | state period (opening period + demand period + 1) |
+| `period` | state period (opening period + demand period + 1), an integer |
 | `date` | the period's date |
 | `policy` | the policy's name |
 | `run_window` | `"warmup"`, `"scoring"`, or `"settlement"` |

@@ -7,7 +7,7 @@ from stockcast.utils import DemandGenerator
 def _generator(**kwargs):
     return DemandGenerator(
         ["A", "B"],
-        start_date="2025-01-06",
+        first_date="2025-01-06",
         freq="W-MON",
         random_seed=17,
         negative_demand_handling="raise",
@@ -21,7 +21,7 @@ def test_generator_requires_explicit_reproducibility_and_calendar_inputs():
     with pytest.raises(ValueError, match="freq"):
         DemandGenerator(
             ["A"],
-            start_date="2025-01-01",
+            first_date="2025-01-01",
             freq="not-a-frequency",
             random_seed=1,
             negative_demand_handling="raise",
@@ -29,16 +29,26 @@ def test_generator_requires_explicit_reproducibility_and_calendar_inputs():
     with pytest.raises(ValueError, match="one identifier type"):
         DemandGenerator(
             ["1", 2],
-            start_date="2025-01-01",
+            first_date="2025-01-01",
             freq="D",
             random_seed=1,
             negative_demand_handling="raise",
         )
+    # first_date is the date of period 0; the former name is not an alias.
+    with pytest.raises(TypeError, match="start_date"):
+        DemandGenerator(["A"], start_date="2025-01-01", freq="D", random_seed=1)
+    with pytest.raises(ValueError, match="first_date must be a valid timestamp"):
+        DemandGenerator(["A"], first_date="not a date", freq="D", random_seed=1)
+    generator = DemandGenerator(["A"], first_date="2025-01-02", freq="D", random_seed=1)
+    assert generator.constant(2, 1.0)["date"].tolist() == [
+        pd.Timestamp("2025-01-02"), pd.Timestamp("2025-01-03"),
+    ]
+    assert "first_date=2025-01-02" in repr(generator)
     for frequency in ["0D", "-1D"]:
         with pytest.raises(ValueError, match="advance time strictly forward"):
             DemandGenerator(
                 ["A"],
-                start_date="2025-01-01",
+                first_date="2025-01-01",
                 freq=frequency,
                 random_seed=1,
                 negative_demand_handling="raise",
@@ -60,20 +70,20 @@ def test_generator_uses_declared_frequency_and_complete_sku_parameters():
 def test_negative_draw_handling_is_explicit():
     default_rejecting = DemandGenerator(
         ["A"],
-        start_date="2025-01-01",
+        first_date="2025-01-01",
         freq="D",
         random_seed=1,
     )
     rejecting = DemandGenerator(
         ["A"],
-        start_date="2025-01-01",
+        first_date="2025-01-01",
         freq="D",
         random_seed=1,
         negative_demand_handling="raise",
     )
     clipping = DemandGenerator(
         ["A"],
-        start_date="2025-01-01",
+        first_date="2025-01-01",
         freq="D",
         random_seed=1,
         negative_demand_handling="clip_zero",
@@ -163,7 +173,7 @@ def test_samplers_are_reproducible_from_the_generator_seed():
     second = _generator().sample(10, _poisson)
     other_seed = DemandGenerator(
         ["A", "B"],
-        start_date="2025-01-06",
+        first_date="2025-01-06",
         freq="W-MON",
         random_seed=18,
     ).sample(10, _poisson)
@@ -212,7 +222,7 @@ def test_negative_sampler_draws_follow_negative_demand_handling():
 
     clipping = DemandGenerator(
         ["A", "B"],
-        start_date="2025-01-06",
+        first_date="2025-01-06",
         freq="W-MON",
         random_seed=17,
         negative_demand_handling="clip_zero",
@@ -235,7 +245,7 @@ def test_engine_runs_on_a_poisson_sampler():
     opening_date = pd.Timestamp("2025-01-01")
     generator = DemandGenerator(
         skus,
-        start_date=opening_date + pd.Timedelta(days=1),
+        first_date=opening_date + pd.Timedelta(days=1),
         freq="D",
         random_seed=5,
     )

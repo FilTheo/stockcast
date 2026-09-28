@@ -32,7 +32,7 @@ def _poisson(rng, periods):
 
 def _demand(demand_column="y", **columns):
     generator = DemandGenerator(
-        SKUS, start_date=OPENING + pd.Timedelta(days=1), freq="D", random_seed=1,
+        SKUS, first_date=OPENING + pd.Timedelta(days=1), freq="D", random_seed=1,
         demand_column=demand_column, **columns,
     )
     return generator.sample(14, _poisson)
@@ -174,8 +174,8 @@ def test_engine_rejects_missing_or_ambiguous_named_columns(frame, message):
     lambda: SimulationEngine(date_column="period"),
     lambda: SimulationEngine(demand_column=""),
     lambda: SimulationEngine(sku_column=3),
-    lambda: DemandGenerator(SKUS, start_date=OPENING, freq="D", random_seed=0, date_column="y"),
-    lambda: DemandGenerator(SKUS, start_date=OPENING, freq="D", random_seed=0, sku_column=""),
+    lambda: DemandGenerator(SKUS, first_date=OPENING, freq="D", random_seed=0, date_column="y"),
+    lambda: DemandGenerator(SKUS, first_date=OPENING, freq="D", random_seed=0, sku_column=""),
     lambda: ScheduledOrderHold(pd.DataFrame({"unique_id": ["tea"], "date": [OPENING]}),
                                date_column="period"),
 ])

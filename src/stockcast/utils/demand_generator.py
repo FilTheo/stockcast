@@ -15,7 +15,7 @@ sampler.
 Usage:
     gen = DemandGenerator(
         ['SKU_A', 'SKU_B'],
-        start_date=pd.Timestamp('2025-01-01'),
+        first_date=pd.Timestamp('2025-01-01'),
         freq='D',
         random_seed=42,
         negative_demand_handling='clip_zero',
@@ -55,8 +55,9 @@ class DemandGenerator:
 
     Args:
         skus: List of SKU identifiers.
-        start_date: Explicit date for demand period 0. For ``SimulationEngine``
-            this is one period after the inventory opening date.
+        first_date: Date of demand period 0, the first period generated. For
+            ``SimulationEngine`` this is one period after the inventory's
+            opening date (the state's ``start_date``).
         freq: Length of one period, a pandas frequency such as ``"D"``.
         random_seed: Explicit random seed, or ``None`` for intentionally unseeded data.
         negative_demand_handling: Explicitly reject or clip negative draws.
@@ -69,7 +70,7 @@ class DemandGenerator:
         ```python
         gen = DemandGenerator(
             ['A', 'B', 'C'],
-            start_date='2025-01-01',
+            first_date='2025-01-01',
             freq='D',
             random_seed=42,
             negative_demand_handling='clip_zero',
@@ -87,7 +88,7 @@ class DemandGenerator:
         self,
         skus: Union[List[str], np.ndarray],
         *,
-        start_date: pd.Timestamp,
+        first_date: pd.Timestamp,
         freq: str,
         random_seed: int | None,
         negative_demand_handling: Literal["raise", "clip_zero"] = "raise",
@@ -121,11 +122,11 @@ class DemandGenerator:
             unique=True,
         )
         try:
-            self.start_date = pd.Timestamp(start_date)
+            self.first_date = pd.Timestamp(first_date)
         except (TypeError, ValueError) as exc:
-            raise ValueError("start_date must be a valid timestamp") from exc
-        if pd.isna(self.start_date):
-            raise ValueError("start_date must be a valid timestamp")
+            raise ValueError("first_date must be a valid timestamp") from exc
+        if pd.isna(self.first_date):
+            raise ValueError("first_date must be a valid timestamp")
         self.period_offset = _require_forward_frequency(freq, "freq")
         if random_seed is not None and (
             not isinstance(random_seed, int) or isinstance(random_seed, bool)
@@ -249,7 +250,7 @@ class DemandGenerator:
         }
         records = []
         for period in range(n_periods):
-            date = self.start_date + period * self.period_offset
+            date = self.first_date + period * self.period_offset
             for sku in self.skus:
                 records.append({
                     self.sku_column: sku,
@@ -477,6 +478,6 @@ class DemandGenerator:
 
     def __repr__(self) -> str:
         return (
-            f"DemandGenerator(skus={self.skus}, start_date={self.start_date}, "
+            f"DemandGenerator(skus={self.skus}, first_date={self.first_date}, "
             f"freq={self.period_offset.freqstr}, random_seed={self.random_seed})"
         )
