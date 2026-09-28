@@ -48,10 +48,9 @@ class InventoryEvaluator:
             simulation_result: A result from ``SimulationEngine.run``.
             event_frame: A ledger DataFrame, for example one you saved or enriched
                 with per-row cost rates.
-            window: ``"scoring"``, ``"warmup"``, ``"settlement"``, or ``"all"``.
-                With ``simulation_result`` it defaults to ``"scoring"``, the
-                window ``summary()`` uses; with ``event_frame`` the default keeps
-                every row given.
+            window: ``"scoring"`` (default, the window ``summary()`` uses),
+                ``"warmup"``, ``"settlement"``, or ``"all"``, for a
+                ``simulation_result`` and an ``event_frame`` alike.
 
         Returns:
             The fitted evaluator (``self``).
@@ -63,26 +62,25 @@ class InventoryEvaluator:
         if (simulation_result is None) == (event_frame is None):
             raise ValueError("Provide either simulation_result or event_frame")
 
+        if window is None:
+            # A saved ledger is scored on the same rows as its result.
+            window = "scoring"
         if simulation_result is not None:
-            if window is None:
-                window = "scoring"
             self.event_frame_ = validate_event_frame(
                 simulation_result.to_event_frame(window=window)
             )
         else:
+            # Validation requires run_window, a canonical column.
             self.event_frame_ = validate_event_frame(event_frame)
-            if window is not None:
-                if "run_window" not in self.event_frame_.columns:
-                    raise ValueError("event_frame does not contain run_window")
-                if window not in {"all", "warmup", "scoring", "settlement"}:
-                    raise ValueError(
-                        "window must be 'all', 'warmup', 'scoring', or 'settlement'"
-                    )
-                if window != "all":
-                    self.event_frame_ = self.event_frame_[
-                        self.event_frame_["run_window"] == window
-                    ].copy()
-        self.evaluation_window_ = window or "provided_event_frame"
+            if window not in {"all", "warmup", "scoring", "settlement"}:
+                raise ValueError(
+                    "window must be 'all', 'warmup', 'scoring', or 'settlement'"
+                )
+            if window != "all":
+                self.event_frame_ = self.event_frame_[
+                    self.event_frame_["run_window"] == window
+                ].copy()
+        self.evaluation_window_ = window
         return self
 
     def evaluate(

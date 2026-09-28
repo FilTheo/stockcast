@@ -271,8 +271,10 @@ def sku_order_line_count(event_frame: pd.DataFrame, context: Optional[dict] = No
 def order_event_count(event_frame: pd.DataFrame, context: Optional[dict] = None) -> int:
     """Number of decisions that placed at least one positive order.
 
-    Counted once per decision for the whole portfolio, so it is additive across
-    SKUs and periods.
+    Counted once per decision for the whole portfolio, for a fee per decision:
+    the ledger stores each decision's count on one row, so totals add up
+    across periods and across runs. It is not a per-SKU count; to count orders
+    per SKU, use ``sku_order_line_count``.
 
     Args:
         event_frame: Event ledger, or a slice of it (for example one window or group).
@@ -1120,13 +1122,6 @@ class CoverageMetric(BaseInventoryMetric):
         if period_events.empty:
             return np.nan
         _require_columns(period_events, ["unique_id", "ending_on_hand", "demand"])
-        if context.get(
-            "coverage_aggregation", "mean_of_sku_period_ratios"
-        ) != "mean_of_sku_period_ratios":
-            raise ValueError(
-                "coverage_aggregation must be 'mean_of_sku_period_ratios', the "
-                "only supported grain"
-            )
 
         inventory = _numeric_series(period_events, "ending_on_hand")
         if self.mode == "forward":

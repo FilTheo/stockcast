@@ -35,7 +35,7 @@ evaluator.evaluate(
 
 | Step | Choice |
 |---|---|
-| `fit(result, window="scoring")` | Which window: `"scoring"` (default), `"warmup"`, `"settlement"`, or `"all"`. You can also `fit(event_frame=...)` any saved ledger. |
+| `fit(result, window="scoring")` | Which window: `"scoring"` (default), `"warmup"`, `"settlement"`, or `"all"`. You can also `fit(event_frame=...)` any saved ledger, with the same windows and default. |
 | `evaluate(metrics, groupby=None, context=None)` | Which metrics; the grain (one pooled row by default, or any ledger columns); and the rates and options the metrics need. |
 
 The evaluator validates the ledger when you fit it, so every metric is
@@ -70,7 +70,7 @@ backorders served later are recorded separately in `backorders_fulfilled`.
 | `order_units` | $\sum q$ |
 | `backlog_unit_periods` | $\sum B$: backorder exposure, units × periods |
 | `terminal_backlog_units`, `terminal_pipeline_units` | $B$ and $P$ in each SKU's last row |
-| `order_event_count` | decisions with a positive order (counted once for the whole portfolio) |
+| `order_event_count` | decisions with a positive order, counted once per decision for the whole portfolio (for a fee per decision; to count orders per SKU, use `sku_order_line_count`) |
 | `sku_order_line_count` | positive SKU order lines (supplier lines with a supply model) |
 | `sku_order_quantity_variance` | variance of positive order-line sizes |
 | `capacity_violation_count`, `capacity_violation_rate` | order lines cut by a capacity constraint; as a count and as a share of positive requested lines |

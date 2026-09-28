@@ -387,11 +387,6 @@ def test_multi_sku_coverage_needs_no_grain_confirmation():
     ).iloc[0]
     # Mean of the SKU-period ratios: (2 / 2 + 6 / 2) / 2.
     assert row["coverage_forward"] == 2.0
-    with pytest.raises(ValueError, match="only supported grain"):
-        evaluator.evaluate(
-            [CoverageMetric(mode="forward")], groupby=[],
-            context={"forward_demand_rate": 2.0, "coverage_aggregation": "portfolio"},
-        )
 
 
 def _costed_run():
@@ -511,3 +506,29 @@ def test_inventory_turns_asks_when_the_period_length_is_unclear():
         inventory_turns(irregular)
     # An explicit value always wins.
     assert inventory_turns(_turns_run("h"), {"periods_per_year": 8760}) > 0
+
+
+def test_a_full_ledger_is_scored_on_its_scoring_window_like_the_result():
+    inventory = InventoryStateDataFrame(["A", "B"], max_lead_time=2).initialize_zero(
+        start_date=pd.Timestamp("2025-01-01")
+    )
+    inventory.data["on_hand"] = [3.0, 9.0]
+    policy = FixedOrderPolicy(order_quantity=4.0, lead_time=2, review_period=2, allow_backorders=True)
+    demand = pd.DataFrame({
+        "unique_id": ["A", "B"] * 4,
+        "period": [0, 0, 1, 1, 2, 2, 3, 3],
+        "y": [5.0, 2.0, 4.0, 1.0, 6.0, 3.0, 2.0, 2.0],
+    })
+    result = SimulationEngine().run(
+        policy=policy, demand_source=demand, inventory=inventory, freq="D", warmup_periods=2,
+    )
+    ledger = result.to_event_frame()
+    from_result = InventoryEvaluator().fit(result)
+    from_ledger = InventoryEvaluator().fit(event_frame=ledger)
+    assert from_ledger.evaluation_window_ == from_result.evaluation_window_ == "scoring"
+    pd.testing.assert_frame_equal(from_ledger.event_frame_, from_result.event_frame_)
+    score = from_ledger.evaluate([fill_rate]).iloc[0, 0]
+    assert score == from_result.evaluate([fill_rate]).iloc[0, 0]
+    assert score == pytest.approx(result.summary()["fill_rate"])
+    everything = InventoryEvaluator().fit(event_frame=ledger, window="all")
+    assert len(everything.event_frame_) == len(ledger)

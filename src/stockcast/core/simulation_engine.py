@@ -271,17 +271,6 @@ class SimulationResult:
                 - sku_order_line_count: positive order lines.
         """
         e = self.to_event_frame(window="scoring")
-        if e.empty:
-            return {
-                'fill_rate': 1.0,
-                'demand_period_service_level': 1.0,
-                'mean_ending_on_hand_per_sku_period': 0.0,
-                'stockout_periods': 0,
-                'total_order_units': 0.0,
-                'order_event_count': 0,
-                'sku_order_line_count': 0,
-            }
-
         period_events = e[e['event_type'] == 'period']
         if period_events.empty:
             raise ValueError("scoring event frame does not contain period events")
