@@ -45,7 +45,19 @@ $$
     ```
 
     The SKUs are the rows of `counts`. The stock column defaults to
-    `"on_hand"` (pass `on_hand_column=` for another name).
+    `"on_hand"` (pass `on_hand_column=` for another name) and the SKU column
+    to `"unique_id"` (pass `sku_column=`).
+
+    A stock table can also carry its own date, just like a
+    [forecast table](forecast-targets.md#three-ways-to-fit-a-target): with a
+    `date` column you can leave out `start_date`. Every row holds the same
+    date, the day the shelf was counted; give both and Stockcast checks they
+    agree.
+
+    ```python
+    counts["date"] = opening_date
+    state = InventoryStateDataFrame.from_observed(counts)
+    ```
 
 === "Empty"
 

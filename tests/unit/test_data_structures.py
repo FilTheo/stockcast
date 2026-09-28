@@ -512,6 +512,59 @@ def test_from_observed_equals_the_two_step_initializer():
         )
 
 
+def test_observed_stock_reads_the_opening_date_from_a_date_column():
+    # A dated table gives the same state as passing its date as start_date.
+    counts = pd.DataFrame({"unique_id": ["a", "b"], "on_hand": [40.0, 12.0]})
+    for date in (pd.Timestamp("2026-03-23"), "2026-03-23", pd.Timestamp("2026-03-23 06:30")):
+        dated = counts.assign(date=date)
+        reference = InventoryStateDataFrame.from_observed(
+            counts, start_date=dated["date"].iloc[0], max_lead_time=2,
+        ).get_dataframe()
+        one_step = InventoryStateDataFrame.from_observed(dated, max_lead_time=2)
+        both = InventoryStateDataFrame.from_observed(
+            dated, start_date=dated["date"].iloc[0], max_lead_time=2,
+        )
+        two_step = InventoryStateDataFrame(
+            ["a", "b"], max_lead_time=2,
+        ).initialize_from_observed(dated)
+        for state in (one_step, both, two_step):
+            pd.testing.assert_frame_equal(state.get_dataframe(), reference)
+        assert one_step.get_dataframe()["date"].iloc[0] == pd.Timestamp(date)
+
+
+@pytest.mark.parametrize("dates, start_date, message", [
+    (None, None, r"give start_date=\.\.\., or a 'date' column in opening_stock_df"),
+    (["2026-03-23", "2026-03-24"], None, "must hold one opening date for every SKU"),
+    (["2026-03-23", None], None, "opening_stock_df.date must contain valid dates"),
+    (["2026-03-23", "not a date"], None, "opening_stock_df.date must contain valid dates"),
+    (["2026-03-23", "2026-03-23"], "2026-03-24", "start_date 2026-03-24 00:00:00 does not match"),
+    (None, "not a date", "start_date must be a valid timestamp"),
+    (["2026-03-23", "2026-03-23"], pd.NaT, "start_date must be a valid timestamp"),
+])
+def test_observed_stock_opening_date_fails_closed(dates, start_date, message):
+    stock = pd.DataFrame({"unique_id": ["a", "b"], "on_hand": [40.0, 12.0]})
+    if dates is not None:
+        stock["date"] = dates
+    with pytest.raises(ValueError, match=message):
+        InventoryStateDataFrame.from_observed(stock, start_date=start_date)
+    with pytest.raises(ValueError, match=message):
+        InventoryStateDataFrame(["a", "b"]).initialize_from_observed(stock, start_date=start_date)
+
+
+def test_from_observed_takes_the_sku_column():
+    stock = pd.DataFrame({"sku": ["a", "b"], "on_hand": [40.0, 12.0]})
+    state = InventoryStateDataFrame.from_observed(
+        stock, start_date=pd.Timestamp("2026-03-23"), sku_column="sku", max_lead_time=2,
+    )
+    two_step = InventoryStateDataFrame(
+        pd.DataFrame({"sku": ["a", "b"]}), max_lead_time=2, sku_column="sku",
+    ).initialize_from_observed(stock, start_date=pd.Timestamp("2026-03-23"))
+    assert state.sku_column == "sku"
+    pd.testing.assert_frame_equal(state.get_dataframe(), two_step.get_dataframe())
+    with pytest.raises(ValueError, match=r"stock_df is missing columns: \['unique_id'\]"):
+        InventoryStateDataFrame.from_observed(stock, start_date=pd.Timestamp("2026-03-23"))
+
+
 def test_unsized_pipeline_grows_only_with_empty_far_slots():
     state = _counted(allow_backorders=False)
     assert state.max_lead_time == 0

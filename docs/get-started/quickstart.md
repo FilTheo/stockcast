@@ -56,12 +56,11 @@ what is on the shelf, what is on order, and what is owed to customers.
 from stockcast.core import InventoryStateDataFrame
 
 inventory = InventoryStateDataFrame.from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-    start_date=opening_date,
+    pd.DataFrame({"unique_id": [sku], "date": [opening_date], "on_hand": [30.0]}),
 )
 ```
 
-The opening date is the day the shelf was counted. Nothing is on order yet;
+The `date` column is the day the shelf was counted: the opening date. Nothing is on order yet;
 the pipeline that tracks goods on their way is sized for the lead time when the
 simulation runs.
 

@@ -16,66 +16,55 @@ import stockcast.visualization  # noqa: F401
 import pandas as pd
 
 from stockcast.core import InventoryStateDataFrame, SimulationEngine
-from stockcast.evaluation import InventoryEvaluator, TotalCost, fill_rate
+from stockcast.evaluation import InventoryEvaluator, avg_on_hand, fill_rate
 from stockcast.policies import OrderUpToPolicy
+from stockcast.utils import DemandGenerator
 
-# The setting: a store orders coffee every Monday, deliveries take 2 weeks,
-# and a customer who finds an empty shelf buys elsewhere.
-lead_time = 2              # weeks
-review_period = 1          # weeks
-holding_cost = 0.2         # per pack per week on the shelf
-lost_sale_cost = 1.0       # per pack of demand not served
-today = pd.Timestamp("2026-03-23")   # a Monday
 
-# Past sales: the last 12 weeks.
-past_sales = pd.Series([21, 18, 25, 19, 23, 30, 17, 22, 26, 20, 24, 19])
+# Weekly sales of two products over 20 weeks: Poisson demand, 20 units a week.
+def poisson(rng, periods):
+    return rng.poisson(20, periods.size)
 
-# What each order must cover: the lead time plus the review period (3 weeks),
-# at the service level the costs imply (the critical ratio, 0.83).
-coverage = lead_time + review_period
-service_level = lost_sale_cost / (lost_sale_cost + holding_cost)
 
-# The forecast: the 83% quantile of demand over the next 3 weeks.
-# Here from past 3-week totals; in practice, from your forecasting model.
-three_week_totals = past_sales.rolling(coverage).sum()
-forecast = three_week_totals.quantile(service_level)
+generator = DemandGenerator(
+    ["coffee", "tea"], start_date="2026-01-05", freq="W-MON", random_seed=0,
+)
+sales = generator.sample(20, poisson)
+sales.head(3)
+#   unique_id     y  period       date
+# 0    coffee  22.0       0 2026-01-05
+# 1       tea  24.0       0 2026-01-05
+# 2    coffee   9.0       1 2026-01-12
 
-# The link: the forecast, made today, becomes the policy's order-up-to level.
-target = pd.DataFrame({"unique_id": ["coffee"], "order_up_to": [forecast]})
+# Today is week 12: we know the past, the future is still to come.
+today = pd.Timestamp("2026-03-23")
+past = sales[sales["date"] <= today]
+future = sales[sales["date"] > today]
+
+# Forecast: the 95% quantile of next week's demand, for each product.
+# Here from the last 12 weeks; any quantile forecasting model works.
+forecast = past.groupby("unique_id", as_index=False)["y"].quantile(0.95)
+forecast["date"] = today + pd.Timedelta(weeks=1)   # the week it forecasts
+
+# The policy: order every Monday, delivered the same morning, so each order
+# covers one week. It orders up to the forecast.
 policy = OrderUpToPolicy(
-    lead_time=lead_time,
-    review_period=review_period,
-    freq="W-MON",
-    service_level=service_level,
-    allow_backorders=False,
+    lead_time=0, review_period=1, freq="W-MON", service_level=0.95, allow_backorders=False,
 )
-policy.fit(
-    target,
-    target_column="order_up_to",
-    forecast_origin=today,
-)
+policy.fit(forecast, target_column="y")
 
-# The shelf today: 40 packs.
-shelf = InventoryStateDataFrame.from_observed(
-    pd.DataFrame({"unique_id": ["coffee"], "on_hand": [40]}), start_date=today,
-)
+# The shelf today: 30 units of each product.
+stock = pd.DataFrame({"unique_id": ["coffee", "tea"], "date": today, "on_hand": [30, 30]})
+shelf = InventoryStateDataFrame.from_observed(stock)
 
-# Demand over the next 8 weeks: the sales the store will face.
-demand = pd.DataFrame({
-    "unique_id": "coffee",
-    "date": pd.date_range(today + pd.Timedelta(weeks=1), periods=8, freq="W-MON"),
-    "y": [23, 28, 18, 21, 25, 22, 31, 20],
-})
+# Simulate the next 8 weeks and score the decisions.
+engine = SimulationEngine()
+result = engine.run(policy, future, shelf)
 
-# Simulate: order every Monday, receive two weeks later, sell from the shelf.
-result = SimulationEngine().run(policy=policy, demand_source=demand, inventory=shelf)
-
-# Score the decisions: service and cost.
-scores = InventoryEvaluator().fit(result).evaluate(
-    [fill_rate, TotalCost(holding=holding_cost, shortage=lost_sale_cost)]
-)
-scores = scores.round(2)
-assert scores.loc[0, "fill_rate"] == 0.9
-assert scores.loc[0, "total_cost"] == 30.2
+evaluator = InventoryEvaluator()
+evaluator.fit(result)
+scores = evaluator.evaluate([fill_rate, avg_on_hand]).round(2)
+assert scores.loc[0, "fill_rate"] == 0.99
+assert scores.loc[0, "avg_on_hand"] == 5.71
 print(scores)
 assert stockcast.__version__ == importlib.metadata.version("stockcast")
