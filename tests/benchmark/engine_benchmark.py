@@ -65,7 +65,7 @@ def _order_up_to(skus, *, lead_time, review, backorders):
     })
     return policy.fit(
         targets, forecast_origin=ORIGIN, target_column="S",
-        target_end_date_column="end", protection_horizon=horizon,
+        date_column="end", protection_horizon=horizon,
         target_probability=0.9,
     )
 

@@ -67,7 +67,7 @@ policy = OrderUpToPolicy(lead_time=LEAD_TIME, review_period=REVIEW_PERIOD, freq=
                          service_level=0.95, allow_backorders=False).fit(
     targets, target_column="target",
     forecast_origin=yesterday,
-    target_end_date_column="target_end_date",
+    date_column="target_end_date",
 )
 
 # 4. Propose, then apply the supplier's rules.

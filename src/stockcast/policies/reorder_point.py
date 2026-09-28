@@ -123,7 +123,7 @@ class ReorderPointPolicy(BasePolicy):
         *,
         reorder_point_column: Optional[str] = None,
         forecast_origin: Optional[pd.Timestamp] = None,
-        reorder_end_date_column: Optional[str] = None,
+        date_column: str = "date",
         reorder_horizon: Optional[int] = None,
         target_probability: Optional[float] = None,
         order_up_to_column: Optional[str] = None,
@@ -138,9 +138,9 @@ class ReorderPointPolicy(BasePolicy):
 
         1. ``reorder_point_column`` (and ``order_up_to_column``): targets in
            ``target_df``, typically from a forecast. They are dated: give
-           ``forecast_origin``, ``reorder_end_date_column``, or both; the
-           window of ``s`` ends ``reorder_horizon`` periods after the origin
-           and is checked at every decision.
+           ``forecast_origin``, a date column, or both; the window of ``s``
+           ends ``reorder_horizon`` periods after the origin and is checked
+           at every decision.
         2. ``reorder_point`` (and ``order_up_to_level``): fixed planning values,
            one number for every SKU, a ``{sku: value}`` dict, or a Series
            indexed by SKU.
@@ -156,9 +156,12 @@ class ReorderPointPolicy(BasePolicy):
             target_df: One row per SKU (sources 1 and 3; optional for 2).
             reorder_point_column: Column holding ``s``.
             forecast_origin: Last observed demand date used to build ``s``.
-            reorder_end_date_column: Optional column with the date of the last
-                demand epoch ``s`` covers, ``forecast_origin + reorder_horizon``
-                periods.
+                Optional when the date column dates the rows.
+            date_column: Column with the date of the last demand period each
+                row covers: the last period of the window of ``s``,
+                ``forecast_origin + reorder_horizon`` periods (source 1 only).
+                The origin follows from it, and is checked against it when
+                also given. Read only if the column exists.
             reorder_horizon: Protection window of ``s``. Defaults to
                 ``lead_time + review_period`` for a periodic schedule (and must
                 equal it if given); other schedules require it and check it at
@@ -199,14 +202,14 @@ class ReorderPointPolicy(BasePolicy):
                 target_df,
                 reorder_point_column=reorder_point_column,
                 forecast_origin=forecast_origin,
-                reorder_end_date_column=reorder_end_date_column,
+                date_column=date_column,
                 reorder_horizon=reorder_horizon,
                 target_probability=target_probability,
                 order_up_to_column=order_up_to_column,
                 sku_column=sku_column,
             )
         window_arguments = {
-            "reorder_end_date_column": reorder_end_date_column,
+            "date_column": None if date_column == "date" else date_column,
             "reorder_horizon": reorder_horizon,
             "target_probability": target_probability,
             "order_up_to_column": order_up_to_column,
@@ -378,6 +381,7 @@ class ReorderPointPolicy(BasePolicy):
 
     def _set_planning_metadata(self, representation, source, dates, **extra) -> None:
         origin, offset = dates
+        self._forecast_origin_column = None
         self.target_metadata_ = {
             "representation": representation,
             "target_probability": None,
@@ -395,7 +399,7 @@ class ReorderPointPolicy(BasePolicy):
         *,
         reorder_point_column,
         forecast_origin,
-        reorder_end_date_column,
+        date_column,
         reorder_horizon,
         target_probability,
         order_up_to_column,
@@ -431,13 +435,12 @@ class ReorderPointPolicy(BasePolicy):
         elif order_up_to_column is not None:
             raise ValueError("order_up_to_column applies only to an (s,S) policy")
         prepared = prepare_direct_targets(target_df, sku_column, columns)
-        origin, end_date = resolve_target_window(
+        origin, end_date, origin_column = resolve_target_window(
             prepared,
             forecast_origin=forecast_origin,
-            end_date_column=reorder_end_date_column,
+            date_column=date_column,
             forecast_offset=offset,
             horizon=horizon,
-            end_date_argument="reorder_end_date_column",
         )
         self.reorder_points_ = prepared[[sku_column, reorder_point_column]].rename(
             columns={reorder_point_column: "reorder_point"}
@@ -454,6 +457,8 @@ class ReorderPointPolicy(BasePolicy):
 
         self.target_df_ = target_df.copy()
         self.sku_column_ = sku_column
+        # Where the origin came from, for error messages only.
+        self._forecast_origin_column = origin_column
         self.target_metadata_ = {
             "representation": (
                 "direct_reorder_point_target" if probability is not None

@@ -70,7 +70,7 @@ def fit_out(policy, skus, targets, *, horizon, origin=ORIGIN):
     return policy.fit(
         pd.DataFrame({"unique_id": skus, "S": targets, "end": origin + horizon * DAY}),
         forecast_origin=origin, target_column="S",
-        target_end_date_column="end", protection_horizon=horizon,
+        date_column="end", protection_horizon=horizon,
         target_probability=policy.service_level,
     )
 
@@ -85,7 +85,7 @@ def fit_reorder(policy, skus, s_values, S_values=None, *, origin=ORIGIN):
         kwargs = dict(order_up_to_column="S")
     return policy.fit(
         frame, forecast_origin=origin, reorder_point_column="s",
-        reorder_end_date_column="s_end", target_probability=policy.service_level,
+        date_column="s_end", target_probability=policy.service_level,
         reorder_horizon=horizon, **kwargs,
     )
 
@@ -668,7 +668,7 @@ def test_single_season_newsvendor_is_profit_maximizing_at_the_critical_fractile(
         policy.fit(pd.DataFrame({"unique_id": skus, "q": quantity,
                                  "end": origin + (lead + season) * DAY}),
                    forecast_origin=origin, target_column="q",
-                   target_end_date_column="end",
+                   date_column="end",
                    target_probability=fractile)
         state = opening_state(skus, max_lead=lead, backorders=False, on_hand=[0.0] * n_skus)
         result = run_engine(sc.SimulationEngine(), policy, demand_frame(demand, skus), state,
@@ -755,7 +755,7 @@ def test_retailer_weekly_rolling_forecast_workflow_with_perishables():
         frame = pd.DataFrame(rows, columns=["unique_id", "fh", "date", "mean", "std"])
         return sc.OrderUpToPolicy(lead, review, freq="D", service_level=0.95, allow_backorders=False).fit(
             frame, forecast_origin=origin, mean_column="mean",
-            std_column="std", forecast_date_column="date",
+            std_column="std", date_column="date",
             protection_horizon=horizon, target_probability=0.95,
         )
 
@@ -913,7 +913,7 @@ def test_target_metadata_that_misstates_the_window_is_rejected(bad):
                           "end": ORIGIN + (2 + bad.get("end_shift", 0)) * DAY})
     with pytest.raises(ValueError):
         policy.fit(frame, forecast_origin=ORIGIN, target_column=column,
-                   target_end_date_column="end", protection_horizon=horizon,
+                   date_column="end", protection_horizon=horizon,
                    target_probability=bad.get("target_probability", 0.95))
 
 
@@ -923,7 +923,7 @@ def test_summing_marginal_quantiles_is_refused():
                           "date": [ORIGIN + DAY, ORIGIN + 2 * DAY], "mean": [3.0, 3.0], "std": [1.0, 1.0]})
     with pytest.raises(TypeError, match="aggregation_method"):
         policy.fit(frame, forecast_origin=ORIGIN, mean_column="mean",
-                   std_column="std", forecast_date_column="date", protection_horizon=2,
+                   std_column="std", date_column="date", protection_horizon=2,
                    target_probability=0.9, aggregation_method="sum_marginal_quantiles")
 
 

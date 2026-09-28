@@ -68,7 +68,7 @@ policy = SingleOrderPolicy(
                   "target_end": [selling_day]}),
     forecast_origin=origin,
     target_column="target",
-    target_end_date_column="target_end",
+    date_column="target_end",
 )
 
 kiosk = InventoryStateDataFrame(["sandwich"], max_lead_time=0, allow_backorders=False)
@@ -121,7 +121,7 @@ seasonal = SingleOrderPolicy(
                   "target_end": [origin + pd.Timedelta(days=L + season)]}),
     forecast_origin=origin,
     target_column="target",
-    target_end_date_column="target_end",
+    date_column="target_end",
 )
 
 shop = InventoryStateDataFrame(["advent_calendar"], max_lead_time=L, allow_backorders=False)

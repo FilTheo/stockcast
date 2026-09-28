@@ -78,8 +78,13 @@ service_level = lost_sale_cost / (lost_sale_cost + holding_cost)
 three_week_totals = past_sales.rolling(coverage).sum()
 forecast = three_week_totals.quantile(service_level)
 
-# The link: the forecast, made today, becomes the policy's order-up-to level.
-target = pd.DataFrame({"unique_id": ["coffee"], "order_up_to": [forecast]})
+# The link: the forecast becomes the policy's order-up-to level. Its date is
+# the last week it covers, so Stockcast knows it was made today.
+target = pd.DataFrame({
+    "unique_id": ["coffee"],
+    "order_up_to": [forecast],
+    "date": [today + pd.Timedelta(weeks=coverage)],
+})
 policy = OrderUpToPolicy(
     lead_time=lead_time,
     review_period=review_period,
@@ -87,11 +92,7 @@ policy = OrderUpToPolicy(
     service_level=service_level,
     allow_backorders=False,
 )
-policy.fit(
-    target,
-    target_column="order_up_to",
-    forecast_origin=today,
-)
+policy.fit(target, target_column="order_up_to")
 
 # The shelf today: 40 packs.
 shelf = InventoryStateDataFrame.from_observed(

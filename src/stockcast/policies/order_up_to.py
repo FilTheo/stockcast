@@ -94,13 +94,12 @@ class OrderUpToPolicy(BasePolicy):
         *,
         forecast_origin: Optional[pd.Timestamp] = None,
         target_column: Optional[str] = None,
-        target_end_date_column: Optional[str] = None,
+        date_column: str = "date",
         target_probability: Optional[float] = None,
         protection_horizon: Optional[int] = None,
         sku_column: str = 'unique_id',
         mean_column: Optional[str] = None,
         std_column: Optional[str] = None,
-        forecast_date_column: Optional[str] = None,
     ) -> "OrderUpToPolicy":
         """
         Calculate target inventory levels from explicit scientific inputs.
@@ -120,24 +119,29 @@ class OrderUpToPolicy(BasePolicy):
         The target window runs from ``forecast_origin`` for
         ``protection_horizon`` periods, so its end date is
         ``forecast_origin + protection_horizon`` periods. Give the origin, a
-        direct target's end-date column, or both (they must then agree).
+        date column, or both (they must then agree): the origin follows from
+        each row's date exactly.
 
         The period length is the policy's ``freq``. Without it, mean/std mode
         reads it from the forecast dates when every SKU has at least three
         evenly spaced dates on a standard calendar (daily, weekly, monthly,
-        quarterly or yearly, with any step such as ``"2D"``); a direct target
-        has one date per SKU, so it needs ``freq``.
+        quarterly or yearly, with any step such as ``"2D"``; daily dates must
+        include a Saturday or Sunday, as weekdays alone fit business days
+        too); a direct target has one date per SKU, so it needs ``freq``.
 
         Args:
             forecast_df: Target or forecast DataFrame.
             forecast_origin: Information-set date at which the forecast or
-                direct target was created. Optional when
-                ``target_end_date_column`` (direct mode) or
-                ``forecast_date_column`` (mean/std mode) dates the window.
+                direct target was created. Optional when the date column
+                dates the rows.
             target_column: Direct protection-period target column. The frame
                 must contain exactly one row per SKU in this mode.
-            target_end_date_column: Optional column with the date a direct
-                target covers up to; checked against the origin when both are given.
+            date_column: Column with the date of the last demand period each
+                row covers: for a direct target, the window's last period
+                (origin + ``protection_horizon`` periods); for a mean/std row,
+                its own period (origin + ``fh`` periods). The origin follows
+                from it, and is checked against it when also given. Read only
+                if the column exists.
             target_probability: Probability represented by the target. Defaults
                 to the policy's ``service_level``; if given, it must equal it.
             protection_horizon: Number of periods represented by the target.
@@ -149,7 +153,9 @@ class OrderUpToPolicy(BasePolicy):
             mean_column: Marginal forecast mean column for mean/std mode.
             std_column: Marginal forecast standard deviation column for
                 mean/std mode. It is required; Stockcast never invents it.
-            forecast_date_column: Target date column for horizon forecasts.
+                Each mean/std row has a step ``fh`` (1, 2, ...); without an
+                ``fh`` column the steps follow from the dates and a given
+                ``forecast_origin``.
 
         Returns:
             self (for method chaining)
@@ -190,10 +196,10 @@ class OrderUpToPolicy(BasePolicy):
                 sku_column,
                 [target_column],
             )
-            origin, target_end_date = resolve_target_window(
+            origin, target_end_date, origin_column = resolve_target_window(
                 prepared_targets,
                 forecast_origin=forecast_origin,
-                end_date_column=target_end_date_column,
+                date_column=date_column,
                 forecast_offset=forecast_offset,
                 horizon=protection_period,
             )
@@ -216,13 +222,15 @@ class OrderUpToPolicy(BasePolicy):
                 "independent_normal_target",
             )
             method = "independent_normal"
-            prepared_forecasts, origin, forecast_offset = prepare_independent_normal_forecasts(
+            (
+                prepared_forecasts, origin, forecast_offset, origin_column,
+            ) = prepare_independent_normal_forecasts(
                 forecast_df,
                 sku_column,
                 mean_column,
                 std_column,
                 protection_period,
-                forecast_date_column,
+                date_column,
                 None if forecast_origin is None else validate_forecast_origin(forecast_origin),
                 forecast_offset,
             )
@@ -254,6 +262,8 @@ class OrderUpToPolicy(BasePolicy):
             target_end_date = origin + protection_period * forecast_offset
 
         self.target_levels_ = pd.DataFrame(target_levels)
+        # Where the origin came from, for error messages only.
+        self._forecast_origin_column = origin_column
         self.fitted_ = True
         self.sku_column_ = sku_column
 

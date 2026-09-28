@@ -32,7 +32,7 @@ def test_inventory_matches_delivery_calendar_oracle(backorders, lead, review, de
         pd.DataFrame({"unique_id": ["A"], "target": [target],
                       "end": [origin + pd.Timedelta(days=lead + review)]}),
         forecast_origin=origin, target_column="target",
-        target_end_date_column="end", target_probability=0.95,
+        date_column="end", target_probability=0.95,
         protection_horizon=lead + review,
     )
     result = SimulationEngine().run(

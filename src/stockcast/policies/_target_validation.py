@@ -131,81 +131,78 @@ def prepare_inventory_positions(
     return prepared
 
 
-def _end_date_column(target_df: pd.DataFrame, target_end_date_column: str) -> pd.Series:
-    """Return a target end-date column as valid timestamps."""
-    if not isinstance(target_end_date_column, str) or not target_end_date_column:
-        raise ValueError("the target end-date column must be a non-empty column name")
-    if target_end_date_column not in target_df.columns:
-        raise ValueError(
-            f"target end-date column '{target_end_date_column}' not found in target_df"
-        )
-    dates = pd.to_datetime(target_df[target_end_date_column], errors="coerce")
+DEFAULT_DATE_COLUMN = "date"
+
+
+def read_date_column(frame: pd.DataFrame, date_column: str, frame_name: str) -> Optional[pd.Series]:
+    """Return ``frame[date_column]`` as valid timestamps, or None when absent.
+
+    ``date_column`` is the date of the last demand period each row covers. The
+    default column is read only if it exists; a column named explicitly must
+    exist.
+    """
+    if not isinstance(date_column, str) or not date_column:
+        raise ValueError("date_column must be a non-empty column name")
+    if date_column not in frame.columns:
+        if date_column == DEFAULT_DATE_COLUMN:
+            return None
+        raise ValueError(f"date column '{date_column}' not found in {frame_name}")
+    dates = pd.to_datetime(frame[date_column], errors="coerce")
     if dates.isna().any():
-        raise ValueError(f"target_df.{target_end_date_column} must contain valid dates")
+        raise ValueError(f"{frame_name}.{date_column} must contain valid dates")
     return dates
 
 
-def validate_target_end_dates(
-    target_df: pd.DataFrame,
-    target_end_date_column: str,
-    forecast_origin: pd.Timestamp,
-    forecast_offset,
-    horizon: int,
-) -> pd.Timestamp:
-    """Require every direct target to identify the expected protection end date."""
-    dates = _end_date_column(target_df, target_end_date_column)
-    expected = forecast_origin + horizon * forecast_offset
-    if not (dates == expected).all():
-        actual = sorted(str(value) for value in dates.unique())
-        raise ValueError(
-            f"target_df.{target_end_date_column} must equal {expected} for horizon "
-            f"{horizon}; got {actual}"
-        )
-    return expected
+def _missing_origin(horizon: int) -> ValueError:
+    return ValueError(
+        "give forecast_origin, or a date column (date_column=...): the target "
+        f"window ends {horizon} periods after the forecast origin, on the date of "
+        "its last period"
+    )
 
 
 def resolve_target_window(
     target_df: pd.DataFrame,
     *,
     forecast_origin,
-    end_date_column: Optional[str],
+    date_column: str,
     forecast_offset,
     horizon: int,
-    end_date_argument: str = "target_end_date_column",
 ) -> tuple:
-    """Return ``(origin, end_date)`` of a direct target's window.
+    """Return ``(origin, end_date, origin_column)`` of a one-row target's window.
 
-    The two dates are tied by ``end = origin + horizon`` periods, so either one
-    is enough. When both are given they must agree.
+    The date column holds the window's last period, so the two dates are tied
+    by ``end = origin + horizon`` periods and either one is enough. When both
+    are given they must agree. ``origin_column`` names the column the origin
+    was derived from, or is None when it was given.
     """
-    if forecast_origin is None and end_date_column is None:
-        raise ValueError(
-            f"give forecast_origin or {end_date_argument}: the target window ends "
-            f"{horizon} periods after the forecast origin"
-        )
+    dates = read_date_column(target_df, date_column, "target_df")
     if forecast_origin is not None:
         origin = validate_forecast_origin(forecast_origin)
-        if end_date_column is None:
-            return origin, origin + horizon * forecast_offset
-        end_date = validate_target_end_dates(
-            target_df, end_date_column, origin, forecast_offset, horizon,
-        )
-        return origin, end_date
-    dates = _end_date_column(target_df, end_date_column)
+        expected = origin + horizon * forecast_offset
+        if dates is not None and not (dates == expected).all():
+            actual = sorted(str(value) for value in dates.unique())
+            raise ValueError(
+                f"target_df.{date_column} must equal {expected} for horizon "
+                f"{horizon}; got {actual}"
+            )
+        return origin, expected, None
+    if dates is None:
+        raise _missing_origin(horizon)
     if dates.nunique() != 1:
         actual = sorted(str(value) for value in dates.unique())
         raise ValueError(
-            f"target_df.{end_date_column} must hold one end date for every SKU; "
+            f"target_df.{date_column} must hold one end date for every SKU; "
             f"got {actual}"
         )
     end_date = pd.Timestamp(dates.iloc[0])
     origin = end_date - horizon * forecast_offset
     if origin + horizon * forecast_offset != end_date:
         raise ValueError(
-            f"target_df.{end_date_column} date {end_date} is not on the "
+            f"target_df.{date_column} date {end_date} is not on the "
             f"{forecast_offset.freqstr} period grid"
         )
-    return origin, end_date
+    return origin, end_date, date_column
 
 
 def prepare_direct_targets(
@@ -242,37 +239,47 @@ def prepare_independent_normal_forecasts(
     mean_column: str,
     std_column: str,
     horizon: int,
-    forecast_date_column: str,
+    date_column: str,
     forecast_origin: Optional[pd.Timestamp],
     forecast_offset,
 ) -> tuple:
     """Validate consecutive marginal mean/std forecasts for an explicit model.
 
-    Returns ``(forecasts_by_sku, origin, offset)``. With ``forecast_origin=None``
-    the origin is read from the forecast dates (``date - fh`` periods); with
-    ``forecast_offset=None`` the period length is read from them
-    (``infer_step_frequency``).
+    Returns ``(forecasts_by_sku, origin, offset, origin_column)``. Each row's
+    date is its own period, ``origin + fh`` periods, so:
+
+    - with ``forecast_origin=None`` the origin is read from the dates
+      (``date - fh`` periods) and ``origin_column`` names the date column;
+    - without an ``fh`` column, ``fh`` is read from the dates and a given
+      origin (dates alone cannot tell which step comes first);
+    - with ``forecast_offset=None`` the period length is read from the dates
+      (``infer_step_frequency``).
+
+    Every date is checked against ``origin + fh`` periods.
     """
     if not isinstance(forecast_df, pd.DataFrame) or forecast_df.empty:
         raise ValueError("forecast_df must be a non-empty pandas DataFrame")
-    if not isinstance(forecast_date_column, str) or not forecast_date_column:
-        raise ValueError("forecast_date_column is required for horizon forecasts")
-    required = [sku_column, "fh", forecast_date_column, mean_column, std_column]
+    required = [sku_column, mean_column, std_column]
     missing = [column for column in required if column not in forecast_df.columns]
     if missing:
         raise ValueError(f"forecast_df is missing required columns: {missing}")
     _require_identifiers(forecast_df, sku_column, 'forecast_df', unique=False)
+    dates = read_date_column(forecast_df, date_column, "forecast_df")
+    has_fh = "fh" in forecast_df.columns
+    if forecast_origin is None and dates is None:
+        raise _missing_origin(horizon)
+    if not has_fh and dates is None:
+        raise ValueError(
+            "forecast_df needs an fh column, or a date column (date_column=...), "
+            "to place each step"
+        )
+    if not has_fh and forecast_origin is None:
+        raise ValueError(
+            "forecast_df needs an fh column, or give forecast_origin: dates alone "
+            "cannot tell which step comes first"
+        )
 
     prepared = forecast_df.copy()
-    fh = pd.to_numeric(prepared["fh"], errors="coerce")
-    if fh.isna().any() or not np.isfinite(fh.to_numpy(dtype=float)).all():
-        raise ValueError("forecast_df.fh must contain finite integers")
-    if (fh < 1).any() or not np.equal(fh, np.floor(fh)).all():
-        raise ValueError("forecast_df.fh must contain positive consecutive integers")
-    prepared["fh"] = fh.astype(int)
-    if prepared.duplicated([sku_column, "fh"]).any():
-        raise ValueError("forecast_df contains duplicate SKU-horizon rows")
-
     for column in (mean_column, std_column):
         values = pd.to_numeric(prepared[column], errors="coerce")
         if values.isna().any() or not np.isfinite(values.to_numpy(dtype=float)).all():
@@ -280,34 +287,53 @@ def prepare_independent_normal_forecasts(
         if (values < 0).any():
             raise ValueError(f"forecast_df column '{column}' must be non-negative")
         prepared[column] = values.astype(float)
-
-    dates = pd.to_datetime(prepared[forecast_date_column], errors="coerce")
-    if dates.isna().any():
-        raise ValueError(f"forecast_df.{forecast_date_column} must contain valid dates")
-    prepared[forecast_date_column] = dates
+    if dates is not None:
+        prepared[date_column] = dates
     if forecast_offset is None:
-        forecast_offset = infer_step_frequency(prepared, sku_column, forecast_date_column)
+        if dates is None:
+            raise ValueError(
+                "freq is required: forecast_df has no date column to read the period "
+                'length from; create the policy with freq, for example '
+                'OrderUpToPolicy(..., freq="D")'
+            )
+        forecast_offset = infer_step_frequency(prepared, sku_column, date_column)
+
+    if has_fh:
+        fh = pd.to_numeric(prepared["fh"], errors="coerce")
+        if fh.isna().any() or not np.isfinite(fh.to_numpy(dtype=float)).all():
+            raise ValueError("forecast_df.fh must contain finite integers")
+        if (fh < 1).any() or not np.equal(fh, np.floor(fh)).all():
+            raise ValueError("forecast_df.fh must contain positive consecutive integers")
+        prepared["fh"] = fh.astype(int)
+    else:
+        prepared["fh"] = _steps_from_origin(dates, forecast_origin, forecast_offset)
+    if prepared.duplicated([sku_column, "fh"]).any():
+        raise ValueError("forecast_df contains duplicate SKU-horizon rows")
+
+    origin_column = None
     if forecast_origin is None:
         first = prepared.iloc[0]
-        forecast_origin = first[forecast_date_column] - int(first["fh"]) * forecast_offset
-        if forecast_origin + int(first["fh"]) * forecast_offset != first[forecast_date_column]:
+        forecast_origin = first[date_column] - int(first["fh"]) * forecast_offset
+        if forecast_origin + int(first["fh"]) * forecast_offset != first[date_column]:
             raise ValueError(
-                f"forecast date {first[forecast_date_column]} is not on the "
+                f"forecast date {first[date_column]} is not on the "
                 f"{forecast_offset.freqstr} period grid"
             )
-    expected_dates = prepared["fh"].map(
-        lambda fh_value: forecast_origin + int(fh_value) * forecast_offset
-    )
-    if not (prepared[forecast_date_column] == expected_dates).all():
-        bad = prepared.loc[
-            prepared[forecast_date_column] != expected_dates,
-            [sku_column, "fh", forecast_date_column],
-        ].iloc[0]
-        expected = forecast_origin + int(bad["fh"]) * forecast_offset
-        raise ValueError(
-            f"forecast date for SKU {bad[sku_column]} fh={int(bad['fh'])} must be "
-            f"{expected}, got {bad[forecast_date_column]}"
+        origin_column = date_column
+    if dates is not None:
+        expected_dates = prepared["fh"].map(
+            lambda fh_value: forecast_origin + int(fh_value) * forecast_offset
         )
+        if not (prepared[date_column] == expected_dates).all():
+            bad = prepared.loc[
+                prepared[date_column] != expected_dates,
+                [sku_column, "fh", date_column],
+            ].iloc[0]
+            expected = forecast_origin + int(bad["fh"]) * forecast_offset
+            raise ValueError(
+                f"forecast date for SKU {bad[sku_column]} fh={int(bad['fh'])} must be "
+                f"{expected}, got {bad[date_column]}"
+            )
 
     expected_fh = list(range(1, horizon + 1))
     by_sku = {}
@@ -320,16 +346,35 @@ def prepare_independent_normal_forecasts(
                 f"got {actual_fh}"
             )
         by_sku[sku] = rows[rows["fh"] <= horizon].copy()
-    return by_sku, forecast_origin, forecast_offset
+    return by_sku, forecast_origin, forecast_offset, origin_column
+
+
+def _steps_from_origin(dates: pd.Series, origin: pd.Timestamp, offset) -> pd.Series:
+    """Number each date's period after ``origin`` exactly (``date = origin + fh`` periods)."""
+    last = dates.max()
+    grid, step, stamp = {}, 0, origin
+    while stamp < last:
+        step += 1
+        stamp = origin + step * offset
+        grid[stamp] = step
+    steps = dates.map(grid)
+    if steps.isna().any():
+        bad = dates[steps.isna()].iloc[0]
+        raise ValueError(
+            f"forecast date {bad} is not a {offset.freqstr} period after the forecast "
+            f"origin {origin}"
+        )
+    return steps.astype(int)
 
 
 def infer_step_frequency(forecast_df: pd.DataFrame, sku_column: str, date_column: str):
     """Read the period length from per-step forecast dates, or raise.
 
     Every SKU needs at least three evenly spaced dates on one standard
-    calendar (``_standard_frequency``), the same for all SKUs. Anything else,
-    such as business days (dates that skip a weekend), is refused rather than
-    guessed.
+    calendar (``_standard_frequency``), the same for all SKUs. Daily periods
+    also need a Saturday or Sunday among the dates: consecutive weekdays fit
+    business days as well. Anything else, such as business days (dates that
+    skip a weekend), is refused rather than guessed.
     """
     ask = 'create the policy with freq, for example OrderUpToPolicy(..., freq="D")'
     found = set()
@@ -344,6 +389,17 @@ def infer_step_frequency(forecast_df: pd.DataFrame, sku_column: str, date_column
                 f"the forecast dates of SKU {sku!r} follow {problem!r}, which is not "
                 "a calendar Stockcast reads from dates (daily, weekly, monthly, "
                 "quarterly or yearly)"
+            )
+        elif (
+            type(offset) is pd.offsets.Day
+            and offset.n == 1
+            and not (pd.to_datetime(rows[date_column]).dt.dayofweek >= 5).any()
+        ):
+            # Consecutive weekdays fit business days too; a weekend date (any
+            # seven consecutive days include one) shows the periods are days.
+            reason = (
+                f"the forecast dates of SKU {sku!r} fit both daily and business-day "
+                "periods (none falls on a Saturday or Sunday)"
             )
         else:
             found.add(offset.freqstr)

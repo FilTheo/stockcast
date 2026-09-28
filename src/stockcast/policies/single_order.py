@@ -101,22 +101,25 @@ class SingleOrderPolicy(OrderUpToPolicy):
         *,
         target_column,
         forecast_origin=None,
-        target_end_date_column=None,
+        date_column="date",
         target_probability=None,
         sku_column="unique_id",
     ):
         """Bind the season target.
 
-        Give ``forecast_origin``, ``target_end_date_column``, or both: the
-        season ends ``lead_time + selling_horizon`` periods after the origin.
+        Give ``forecast_origin``, a date column, or both: the season ends
+        ``lead_time + selling_horizon`` periods after the origin.
 
         Args:
             target_df: One row per SKU.
             target_column: Column with the season target.
             forecast_origin: Date of the last information used, normally the date
-                before the decision.
-            target_end_date_column: Optional column with the last date of the
-                season: ``forecast_origin + (lead_time + selling_horizon)`` periods.
+                before the decision. Optional when the date column dates the rows.
+            date_column: Column with the date of the last demand period each
+                row covers: the season's last period,
+                ``forecast_origin + (lead_time + selling_horizon)`` periods. The
+                origin follows from it, and is checked against it when also
+                given. Read only if the column exists.
             target_probability: Defaults to ``service_level``; if given, it must
                 equal it.
             sku_column: SKU column name.
@@ -140,7 +143,7 @@ class SingleOrderPolicy(OrderUpToPolicy):
             target_df,
             forecast_origin=coverage_origin,
             target_column=target_column,
-            target_end_date_column=target_end_date_column,
+            date_column=date_column,
             target_probability=target_probability,
             protection_horizon=self.selling_horizon,
             sku_column=sku_column,

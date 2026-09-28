@@ -103,7 +103,7 @@ def fit_for(decision_period, horizon):
         allow_backorders=False,
     ).fit(
         target, target_column="target", protection_horizon=horizon,
-        forecast_origin=origin, target_end_date_column="end",
+        forecast_origin=origin, date_column="end",
     )
 
 

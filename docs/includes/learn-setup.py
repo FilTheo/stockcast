@@ -37,7 +37,7 @@ def tea_policy(probability):
     ).fit(
         target, target_column="target",
         forecast_origin=opening_date,
-        target_end_date_column="target_end_date",
+        date_column="target_end_date",
     )
 
 

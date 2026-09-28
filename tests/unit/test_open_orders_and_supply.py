@@ -63,7 +63,7 @@ def _policy(lead=2, *, every=1, backorders=True, targets=(30.0, 25.0)):
     return policy.fit(
         pd.DataFrame({"unique_id": SKUS, "S": list(targets), "end": ORIGIN + horizon * DAY}),
         forecast_origin=ORIGIN, target_column="S",
-        target_end_date_column="end", protection_horizon=horizon,
+        date_column="end", protection_horizon=horizon,
         target_probability=0.9,
     )
 
@@ -468,7 +468,7 @@ def test_policy_editing_its_own_state_copy_behaves_as_before():
     policy.fit(
         pd.DataFrame({"unique_id": SKUS, "S": [30.0, 25.0], "end": ORIGIN + 3 * DAY}),
         forecast_origin=ORIGIN, target_column="S",
-        target_end_date_column="end", protection_horizon=3,
+        date_column="end", protection_horizon=3,
         target_probability=0.9,
     )
     result = _run(_state(pipeline=[[3, 0, 4, 0, 0, 0], [0, 5, 0, 0, 0, 0]]), policy, n_periods=6)
@@ -487,7 +487,7 @@ def test_policies_may_read_open_orders_at_decisions():
     policy.fit(
         pd.DataFrame({"unique_id": SKUS, "S": [30.0, 25.0], "end": ORIGIN + 3 * DAY}),
         forecast_origin=ORIGIN, target_column="S",
-        target_end_date_column="end", protection_horizon=3,
+        date_column="end", protection_horizon=3,
         target_probability=0.9,
     )
     _run(_state(), policy, n_periods=5, supply=_two_suppliers())

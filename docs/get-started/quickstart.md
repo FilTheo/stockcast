@@ -86,16 +86,18 @@ paths = np.random.default_rng(42).poisson(6.0, size=(10_000, horizon))
 target = pd.DataFrame({
     "unique_id": [sku],
     "target": [np.quantile(paths.sum(axis=1), 0.95)],
+    "date": [opening_date + pd.Timedelta(days=horizon)],  # last day covered
 })
 target
 ```
 
 ```text
-  unique_id  target
-0  tea_250g    46.0
+  unique_id  target       date
+0  tea_250g    46.0 2026-01-11
 ```
 
 The shop aims to have an inventory position of 46 packs after each order.
+The `date` column is the last day the target covers.
 [Learn step 3](../learn/03-forecast-targets.md) explains why we sum the paths
 first and take the quantile second.
 
@@ -122,16 +124,14 @@ policy = OrderUpToPolicy(
     freq="D",
     service_level=0.95,
     allow_backorders=False,
-).fit(
-    target,
-    target_column="target",
-    forecast_origin=opening_date,
-)
+).fit(target, target_column="target")
 ```
 
-`fit` needs the target column and when the forecast was made. The rest it
-knows from the policy: the target is the 95% quantile (the `service_level`)
-over $H = L + R = 6$ days, so it covers demand up to 2026-01-11.
+`freq="D"` says one period is one day; `lead_time` and `review_period` count
+periods of that length. `fit` needs only the target column. The rest it knows
+from the policy and the table: the target is the 95% quantile (the
+`service_level`) over $H = L + R = 6$ days ending on its `date`, 2026-01-11,
+so the forecast was made on the opening date, 2026-01-05.
 
 ## 5. Simulate
 

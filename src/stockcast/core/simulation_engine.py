@@ -2716,9 +2716,11 @@ class SimulationEngine:
         allowed = pd.Timestamp(latest_allowed_origin)
         if (exact and origin != allowed) or (not exact and origin > allowed):
             relation = "equal" if exact else "not be after"
+            column = getattr(policy, "_forecast_origin_column", None)
+            source = f" (derived from the '{column}' column)" if column else ""
             raise ValueError(
-                f"policy forecast_origin {origin} must {relation} decision information "
-                f"date {allowed}"
+                f"policy forecast_origin {origin}{source} must {relation} decision "
+                f"information date {allowed}"
             )
 
     @staticmethod

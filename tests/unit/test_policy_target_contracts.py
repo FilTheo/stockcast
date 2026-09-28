@@ -44,7 +44,7 @@ def test_order_up_to_never_invents_missing_uncertainty():
             mean_column="mean",
             target_probability=0.95,
             protection_horizon=2,
-            forecast_date_column="date",
+            date_column="date",
             **_calendar_args(),
         )
 
@@ -69,7 +69,7 @@ def test_marginal_quantiles_cannot_be_passed_as_direct_targets():
             target_column="up_95",
             target_probability=0.95,
             protection_horizon=2,
-            target_end_date_column="target_end",
+            date_column="target_end",
             **_calendar_args(),
         )
 
@@ -93,7 +93,7 @@ def test_marginal_quantile_summation_has_no_entry_point():
             target_probability=0.95,
             protection_horizon=2,
             aggregation_method="sum_marginal_quantiles",
-            target_end_date_column="target_end",
+            date_column="target_end",
             **_calendar_args(),
         )
 
@@ -116,7 +116,7 @@ def test_service_level_must_match_probability_metadata_and_column_label():
             target_column="up_80",
             target_probability=0.80,
             protection_horizon=2,
-            target_end_date_column="target_end",
+            date_column="target_end",
             **_calendar_args(),
         )
 
@@ -132,7 +132,7 @@ def test_service_level_must_match_probability_metadata_and_column_label():
             target_column="up_80",
             target_probability=0.99,
             protection_horizon=2,
-            target_end_date_column="target_end",
+            date_column="target_end",
             **_calendar_args(),
         )
 
@@ -150,7 +150,7 @@ def test_independent_normal_mode_is_explicit_and_records_provenance():
         std_column="std",
         target_probability=0.95,
         protection_horizon=2,
-        forecast_date_column="date",
+        date_column="date",
         **_calendar_args(),
     )
 
@@ -188,7 +188,7 @@ def test_forecast_frequency_must_advance_time(frequency):
             std_column="std",
             target_probability=0.95,
             protection_horizon=2,
-            forecast_date_column="date",
+            date_column="date",
             forecast_origin=ORIGIN,
         )
 
@@ -213,7 +213,7 @@ def test_independent_normal_overflow_warns_and_fails_closed():
             std_column="std",
             target_probability=0.95,
             protection_horizon=2,
-            forecast_date_column="date",
+            date_column="date",
             **_calendar_args(),
         )
 
@@ -232,7 +232,7 @@ def test_policy_rejects_non_finite_plain_inventory_position(position):
         std_column="std",
         target_probability=0.95,
         protection_horizon=2,
-        forecast_date_column="date",
+        date_column="date",
         **_calendar_args(),
     )
     with pytest.raises(ValueError, match="inventory_position must contain finite"):
@@ -259,7 +259,7 @@ def test_forecast_dates_must_match_origin_frequency_and_horizon():
             std_column="std",
             target_probability=0.95,
             protection_horizon=2,
-            forecast_date_column="date",
+            date_column="date",
             **_calendar_args(),
         )
 
@@ -283,7 +283,7 @@ def test_direct_target_end_date_must_match_protection_horizon():
             target_column="target",
             target_probability=0.95,
             protection_horizon=2,
-            target_end_date_column="target_end",
+            date_column="target_end",
             **_calendar_args(),
         )
 
@@ -351,7 +351,7 @@ def test_sq_records_direct_reorder_target_and_quantity():
         reorder_point_column="reorder_q95",
         target_probability=0.95,
         reorder_horizon=3,
-        reorder_end_date_column="reorder_end",
+        date_column="reorder_end",
         **_calendar_args(),
     )
 
@@ -385,7 +385,7 @@ def test_ss_treats_order_up_to_level_as_a_policy_parameter_not_a_quantile():
         reorder_point_column="reorder_q95",
         target_probability=0.95,
         reorder_horizon=3,
-        reorder_end_date_column="reorder_end",
+        date_column="reorder_end",
         **_calendar_args(),
     )
     with pytest.raises(ValueError, match="order_up_to_column is required"):
@@ -422,7 +422,7 @@ def test_reorder_point_planner_mode_accepts_jointly_chosen_s_and_S():
     arguments = dict(
         reorder_point_column="s",
         order_up_to_column="S",
-        reorder_end_date_column="end",
+        date_column="end",
         reorder_horizon=7,
         **_calendar_args(),
     )
@@ -549,7 +549,7 @@ def test_direct_fit_infers_probability_horizon_and_end_date():
         target_column="S",
         target_probability=0.95,
         protection_horizon=2,
-        target_end_date_column="end",
+        date_column="end",
         **_calendar_args(),
     ).get_target_metadata()
     assert minimal == explicit
@@ -561,14 +561,14 @@ def test_direct_fit_infers_probability_horizon_and_end_date():
 
 def test_direct_fit_reads_the_origin_from_the_end_date_column():
     policy = OrderUpToPolicy(1, 1, freq="D", service_level=0.95, allow_backorders=False).fit(
-        _direct_target(), target_column="S", target_end_date_column="end",
+        _direct_target(), target_column="S", date_column="end",
     )
     assert policy.get_target_metadata()["forecast_origin"] == ORIGIN.isoformat()
 
 
 def test_direct_fit_needs_the_origin_or_the_end_date():
     policy = OrderUpToPolicy(1, 1, freq="D", service_level=0.95, allow_backorders=False)
-    with pytest.raises(ValueError, match="give forecast_origin or target_end_date_column"):
+    with pytest.raises(ValueError, match="give forecast_origin, or a date column"):
         policy.fit(_direct_target(), target_column="S")
     with pytest.raises(ValueError, match="one end date for every SKU"):
         policy.fit(
@@ -577,13 +577,13 @@ def test_direct_fit_needs_the_origin_or_the_end_date():
                 "S": [30.0, 20.0],
                 "end": [pd.Timestamp("2025-01-03"), pd.Timestamp("2025-01-04")],
             }),
-            target_column="S", target_end_date_column="end",
+            target_column="S", date_column="end",
         )
     weekly = OrderUpToPolicy(1, 1, freq="W-MON", service_level=0.95, allow_backorders=False)
     with pytest.raises(ValueError, match="not on the W-MON period grid"):
         weekly.fit(
             _direct_target(end=pd.Timestamp("2025-01-08")),  # a Wednesday
-            target_column="S", target_end_date_column="end",
+            target_column="S", date_column="end",
         )
 
 
@@ -597,7 +597,7 @@ def test_inferred_values_are_still_checked_when_given():
                    **_calendar_args())
     with pytest.raises(ValueError, match="must equal 2025-01-03"):
         policy.fit(_direct_target(end=pd.Timestamp("2025-01-04")), target_column="S",
-                   target_end_date_column="end", **_calendar_args())
+                   date_column="end", **_calendar_args())
     # A quantile label is still read against the implied probability.
     with pytest.raises(ValueError, match="denotes probability 0.9"):
         policy.fit(_direct_target(column="q90"), target_column="q90", **_calendar_args())
@@ -616,11 +616,11 @@ def test_nonperiodic_schedules_still_require_an_explicit_horizon():
 def test_mean_std_fit_reads_the_origin_from_forecast_dates():
     with_origin = OrderUpToPolicy(1, 1, freq="D", service_level=0.95, allow_backorders=False).fit(
         _normal_forecast(), mean_column="mean", std_column="std",
-        forecast_date_column="date", **_calendar_args(),
+        date_column="date", **_calendar_args(),
     )
     without_origin = OrderUpToPolicy(1, 1, freq="D", service_level=0.95, allow_backorders=False).fit(
         _normal_forecast(), mean_column="mean", std_column="std",
-        forecast_date_column="date",
+        date_column="date",
     )
     assert with_origin.get_target_metadata() == without_origin.get_target_metadata()
     assert without_origin.get_target_metadata()["calculation_method"] == "independent_normal"
@@ -646,12 +646,12 @@ def test_reorder_point_fit_infers_horizon_probability_and_end_date():
     table = pd.DataFrame({"unique_id": ["A"], "s": [25.0], "end": [pd.Timestamp("2025-01-04")]})
     minimal = policy().fit(table, reorder_point_column="s", **_calendar_args())
     from_end = policy().fit(
-        table, reorder_point_column="s", reorder_end_date_column="end",
+        table, reorder_point_column="s", date_column="end",
     )
     assert minimal.get_target_metadata() == from_end.get_target_metadata()
     assert minimal.get_target_metadata()["reorder_horizon"] == 3
     assert minimal.get_target_metadata()["target_probability"] == 0.95
-    with pytest.raises(ValueError, match="give forecast_origin or reorder_end_date_column"):
+    with pytest.raises(ValueError, match="give forecast_origin, or a date column"):
         policy().fit(table, reorder_point_column="s")
 
 
@@ -664,7 +664,7 @@ def test_single_order_fit_reads_the_origin_from_the_season_end():
 
     table = pd.DataFrame({"unique_id": ["A"], "t": [20.0], "end": [ORIGIN + pd.Timedelta(days=5)]})
     from_origin = policy().fit(table, target_column="t", **_calendar_args())
-    from_end = policy().fit(table, target_column="t", target_end_date_column="end")
+    from_end = policy().fit(table, target_column="t", date_column="end")
     assert from_origin.get_target_metadata() == from_end.get_target_metadata()
     assert from_end.get_target_metadata()["forecast_origin"] == ORIGIN.isoformat()
 
@@ -832,9 +832,9 @@ def _steps(dates, skus=("A",)):
     ])
 
 
-def _normal_fit(frame, freq=None, **kwargs):
-    return OrderUpToPolicy(2, 1, freq=freq, service_level=0.9, allow_backorders=False).fit(
-        frame, mean_column="mean", std_column="std", forecast_date_column="date", **kwargs,
+def _normal_fit(frame, freq=None, lead_time=2, **kwargs):
+    return OrderUpToPolicy(lead_time, 1, freq=freq, service_level=0.9, allow_backorders=False).fit(
+        frame, mean_column="mean", std_column="std", date_column="date", **kwargs,
     )
 
 
@@ -862,7 +862,7 @@ def test_step_forecast_dates_give_the_frequency(frequency, first):
 def test_step_forecast_dates_that_do_not_fix_one_calendar_need_freq(dates, message):
     with pytest.raises(ValueError, match=f"freq is required: .*{message}"):
         OrderUpToPolicy(1, 1, service_level=0.9, allow_backorders=False).fit(
-            _steps(dates), mean_column="mean", std_column="std", forecast_date_column="date",
+            _steps(dates), mean_column="mean", std_column="std", date_column="date",
         )
 
 
@@ -919,3 +919,118 @@ def test_fixed_levels_may_record_a_frequency_without_an_origin():
         ReorderPointPolicy(1, 1, allow_backorders=False).fit(
             reorder_point=2.0, order_up_to_level=6.0, forecast_origin=ORIGIN,
         )
+
+
+# One date_column: the date of the last demand period each row covers (93.22).
+
+def test_one_row_targets_take_the_origin_from_the_date_column():
+    from stockcast.policies import SingleOrderPolicy
+
+    end = pd.Timestamp("2025-01-03")
+    dated = pd.DataFrame({"unique_id": ["A", "B"], "S": [30.0, 20.0], "date": [end, end]})
+
+    def order_up_to():
+        return OrderUpToPolicy(1, 1, freq="D", service_level=0.95, allow_backorders=False)
+
+    from_date = order_up_to().fit(dated, target_column="S")
+    from_origin = order_up_to().fit(dated.drop(columns="date"), target_column="S", **_calendar_args())
+    both = order_up_to().fit(dated, target_column="S", **_calendar_args())
+    assert from_date.get_target_metadata() == from_origin.get_target_metadata()
+    assert both.get_target_metadata() == from_origin.get_target_metadata()
+    assert from_date._forecast_origin_column == "date"
+    assert both._forecast_origin_column is None
+
+    reorder = ReorderPointPolicy(2, 1, freq="D", policy_type="sS", allow_backorders=False).fit(
+        pd.DataFrame({"unique_id": ["A"], "s": [4.0], "S": [9.0],
+                      "date": [pd.Timestamp("2025-01-04")]}),
+        reorder_point_column="s", order_up_to_column="S",
+    )
+    assert reorder.get_target_metadata()["forecast_origin"] == ORIGIN.isoformat()
+
+    season = SingleOrderPolicy(2, freq="D", selling_horizon=3, allow_backorders=False).fit(
+        pd.DataFrame({"unique_id": ["A"], "t": [20.0], "date": [ORIGIN + pd.Timedelta(days=5)]}),
+        target_column="t",
+    )
+    assert season.get_target_metadata()["forecast_origin"] == ORIGIN.isoformat()
+    assert season.get_target_metadata()["target_end_date"] == "2025-01-06T00:00:00"
+
+
+def test_step_forecasts_take_the_origin_from_their_dates():
+    with_origin = _normal_fit(_normal_forecast(), lead_time=1, freq="D", **_calendar_args())
+    from_dates = _normal_fit(_normal_forecast(), lead_time=1, freq="D")
+    assert from_dates.get_target_metadata() == with_origin.get_target_metadata()
+    assert from_dates._forecast_origin_column == "date"
+
+
+def test_given_origin_and_date_column_must_agree():
+    policy = OrderUpToPolicy(1, 1, freq="D", service_level=0.95, allow_backorders=False)
+    with pytest.raises(ValueError, match=r"target_df.date must equal 2025-01-03 00:00:00"):
+        policy.fit(
+            pd.DataFrame({"unique_id": ["A"], "S": [30.0], "date": [pd.Timestamp("2025-01-04")]}),
+            target_column="S", **_calendar_args(),
+        )
+    with pytest.raises(ValueError, match="forecast date for SKU A fh=1 must be 2025-01-03"):
+        _normal_fit(_normal_forecast(), lead_time=1, freq="D", forecast_origin=ORIGIN + pd.Timedelta(days=1))
+
+
+def test_without_an_origin_or_a_date_column_fit_asks_for_one():
+    message = r"give forecast_origin, or a date column \(date_column=\.\.\.\)"
+    with pytest.raises(ValueError, match=message):
+        OrderUpToPolicy(1, 1, freq="D", service_level=0.95, allow_backorders=False).fit(
+            pd.DataFrame({"unique_id": ["A"], "S": [30.0]}), target_column="S",
+        )
+    with pytest.raises(ValueError, match=message):
+        _normal_fit(_normal_forecast().drop(columns="date"), lead_time=1, freq="D")
+    with pytest.raises(ValueError, match="date column 'end' not found in target_df"):
+        OrderUpToPolicy(1, 1, freq="D", service_level=0.95, allow_backorders=False).fit(
+            pd.DataFrame({"unique_id": ["A"], "S": [30.0]}), target_column="S",
+            date_column="end", **_calendar_args(),
+        )
+
+
+def test_step_numbers_follow_from_the_dates_when_the_origin_is_known():
+    with_fh = _normal_fit(_normal_forecast(), lead_time=1, freq="D", **_calendar_args())
+    without_fh = _normal_fit(_normal_forecast().drop(columns="fh"), lead_time=1, freq="D", **_calendar_args())
+    assert without_fh.get_target_metadata() == with_fh.get_target_metadata()
+    pd.testing.assert_frame_equal(without_fh.get_target_levels(), with_fh.get_target_levels())
+    weekly = _steps(pd.date_range("2025-01-06", periods=3, freq="W-MON")).drop(columns="fh")
+    inferred = _normal_fit(weekly, forecast_origin=pd.Timestamp("2024-12-30"))
+    assert inferred.get_target_metadata()["forecast_frequency"] == "W-MON"
+    with pytest.raises(ValueError, match="needs an fh column, or give forecast_origin"):
+        _normal_fit(_normal_forecast().drop(columns="fh"), lead_time=1, freq="D")
+    with pytest.raises(ValueError, match="is not a D period after the forecast origin"):
+        _normal_fit(
+            _normal_forecast().drop(columns="fh"), lead_time=1, freq="D",
+            forecast_origin=ORIGIN + pd.Timedelta(days=1),
+        )
+
+
+def test_fixed_levels_ignore_the_default_date_column_and_reject_another():
+    table = pd.DataFrame({"unique_id": ["A"], "date": [pd.Timestamp("2030-01-01")]})
+    policy = ReorderPointPolicy(1, 1, allow_backorders=False).fit(
+        table, reorder_point=2.0, order_up_to_level=6.0,
+    )
+    assert policy.get_target_metadata()["forecast_origin"] is None
+    with pytest.raises(ValueError, match="date_column apply only to reorder_point_column"):
+        ReorderPointPolicy(1, 1, allow_backorders=False).fit(
+            table, reorder_point=2.0, order_up_to_level=6.0, date_column="end",
+        )
+    with pytest.raises(TypeError, match="reorder_end_date_column"):
+        ReorderPointPolicy(1, 1, freq="D", allow_backorders=False).fit(
+            pd.DataFrame({"unique_id": ["A"], "s": [2.0], "S": [6.0], "end": [ORIGIN]}),
+            reorder_point_column="s", order_up_to_column="S", reorder_end_date_column="end",
+        )
+
+
+@pytest.mark.parametrize("first, periods", [("2025-01-06", 3), ("2025-01-06", 5)])
+def test_weekday_only_dates_fit_business_days_too_and_need_freq(first, periods):
+    frame = _steps(pd.date_range(first, periods=periods, freq="D"))  # Monday onwards
+    with pytest.raises(ValueError, match="freq is required: .*fit both daily and business-day"):
+        _normal_fit(frame)
+    assert _normal_fit(frame, freq="D").get_target_metadata()["forecast_frequency"] == "D"
+
+
+@pytest.mark.parametrize("first, periods", [("2025-01-09", 3), ("2025-01-06", 7)])
+def test_daily_dates_with_a_weekend_day_give_daily(first, periods):
+    frame = _steps(pd.date_range(first, periods=periods, freq="D"))
+    assert _normal_fit(frame).get_target_metadata()["forecast_frequency"] == "D"

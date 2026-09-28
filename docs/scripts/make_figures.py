@@ -121,7 +121,7 @@ def tea_policy(probability):
         target,
         target_column="target",
         forecast_origin=OPENING,
-        target_end_date_column="target_end_date",
+        date_column="target_end_date",
     )
 
 
@@ -304,7 +304,7 @@ def fig_reorder_point():
         allow_backorders=False,
     ).fit(
         targets, forecast_origin=OPENING,
-        reorder_point_column="s", reorder_end_date_column="s_end_date",
+        reorder_point_column="s", date_column="s_end_date",
     )
     events = tea_run(policy, demand).to_event_frame()
     dates = events["date"]

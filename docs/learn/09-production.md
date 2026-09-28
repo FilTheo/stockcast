@@ -76,7 +76,7 @@ def fit_policy(observed, origin):
     ).fit(
         target, target_column="target",
         forecast_origin=origin,
-        target_end_date_column="target_end_date",
+        date_column="target_end_date",
     )
 
 

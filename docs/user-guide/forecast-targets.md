@@ -138,7 +138,16 @@ they count periods of that length. With per-step forecasts (the
 independent-normal mode) you may leave it out: Stockcast reads it from the
 step dates when every SKU has at least three of them, evenly spaced on a
 daily, weekly, monthly, quarterly or yearly calendar (steps such as `"2D"`
-included). A one-row target has a single date per SKU, so it needs `freq`.
+included). Daily steps need a Saturday or Sunday among them, since weekdays
+alone could just as well be business days. A one-row target has a single date per SKU, so it needs `freq`.
+
+The `date` column of a forecast table is the last period each row covers:
+the window's last day for a one-row target, the step's own day for a
+per-step row. The forecast origin follows from it exactly, so you can leave
+out `forecast_origin` (give both and Stockcast checks they agree). A table
+with its dates in another column names it with `date_column=...`. Per-step
+rows may also leave out `fh` when you give `forecast_origin`: each date
+tells its step.
 
 === "Direct target (most common)"
 
@@ -158,7 +167,7 @@ included). A one-row target has a single date per SKU, so it needs `freq`.
         target,
         target_column="S",
         forecast_origin=opening_date,
-        target_end_date_column="S_end",
+        date_column="S_end",
     )
     ```
 
@@ -180,8 +189,7 @@ included). A one-row target has a single date per SKU, so it needs `freq`.
     })
     independent = OrderUpToPolicy(lead_time=2, review_period=4, freq="D",
                                   service_level=0.95, allow_backorders=False).fit(
-        steps, mean_column="mean", std_column="std", forecast_date_column="date",
-        forecast_origin=opening_date,
+        steps, mean_column="mean", std_column="std",
     )
     independent.get_target_levels()
     ```
@@ -202,7 +210,7 @@ included). A one-row target has a single date per SKU, so it needs `freq`.
                               service_level=None, allow_backorders=False).fit(
         target, target_column="S",
         forecast_origin=opening_date,
-        target_end_date_column="S_end",
+        date_column="S_end",
     )
     planned.get_target_metadata()["representation"]
     ```
@@ -216,8 +224,8 @@ included). A one-row target has a single date per SKU, so it needs `freq`.
 | Argument | Meaning | Default and checks |
 |---|---|---|
 | `target_column` | Column holding the target | One finite, non-negative value per SKU |
-| `forecast_origin` | Last date of demand the forecast used | Required unless an end-date column dates the target; must not be after the first decision's information date |
-| `target_end_date_column` | Optional column with the last date the target covers | Must equal origin $+ H \Delta$; with no origin given, the origin is read from it |
+| `forecast_origin` | Last date of demand the forecast used | Optional when the date column dates the rows; must not be after the first decision's information date |
+| `date_column` | Column with the date of the last period each row covers (default `"date"`) | A one-row target: the window's last period, origin $+ H \Delta$. A per-step row: its own period, origin $+ \mathrm{fh}\,\Delta$. The origin follows from it and must agree when also given |
 | `target_probability` | Probability $\alpha$ the target represents | Defaults to the policy's `service_level`; must equal it if given |
 | `protection_horizon` | Number of periods $H$ the target covers | Defaults to $L + R$ for periodic schedules (must equal it if given); required for other schedules, checked as $(u - t) + L$ per decision |
 

@@ -59,7 +59,7 @@ rs_targets = pd.DataFrame({
 order_up_to = OrderUpToPolicy(lead_time=L, review_period=R, freq="D", service_level=0.95,
                               allow_backorders=False).fit(
     rs_targets, target_column="S", forecast_origin=opening,
-    target_end_date_column="end",
+    date_column="end",
 )
 
 ss_targets = pd.DataFrame({
@@ -72,7 +72,7 @@ reorder_point = ReorderPointPolicy(lead_time=L, review_period=1, freq="D",
                                    policy_type="sS", service_level=0.95,
                                    allow_backorders=False).fit(
     ss_targets, forecast_origin=opening,
-    reorder_point_column="s", order_up_to_column="S", reorder_end_date_column="end",
+    reorder_point_column="s", order_up_to_column="S", date_column="end",
 )
 ```
 

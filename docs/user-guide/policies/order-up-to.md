@@ -80,7 +80,7 @@ policy = OrderUpToPolicy(
     target,
     target_column="S",
     forecast_origin=opening_date,
-    target_end_date_column="S_end",
+    date_column="S_end",
 )
 policy.get_target_metadata()
 ```
@@ -106,14 +106,13 @@ policy.get_target_metadata()
 [Forecast targets](../forecast-targets.md#three-ways-to-fit-a-target):
 
 - **direct**: `target_column`;
-- **independent normal**: `mean_column`, `std_column`, and
-  `forecast_date_column`.
+- **independent normal**: `mean_column` and `std_column`, one row per step.
 
-Both take `forecast_origin`. The window
-`protection_horizon` defaults to $L + R$ and the probability
-`target_probability` to the `service_level`; pass them only to have them
-checked. A direct target can give an end-date column
-(`target_end_date_column`) instead of, or as well as, the origin.
+Both date their rows with `date_column` (default `"date"`): the last period
+each row covers. The origin follows from it, so `forecast_origin` is
+optional (and checked when you give both). The window `protection_horizon`
+defaults to $L + R$ and the probability `target_probability` to the
+`service_level`; pass them only to have them checked.
 
 ## Special cases
 

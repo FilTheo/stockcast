@@ -45,7 +45,7 @@ policy = OrderUpToPolicy(
     target,
     target_column="target",                # the 95% quantile over H = L + R days
     forecast_origin=opening_date,          # the forecast used data up to this date
-    target_end_date_column="target_end_date",  # optional: checked against origin + H
+    date_column="target_end_date",  # optional: checked against origin + H
 )
 policy
 ```

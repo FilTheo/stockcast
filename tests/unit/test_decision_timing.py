@@ -81,7 +81,7 @@ def target_policy(
         ),
         forecast_origin=origin,
         target_column="S",
-        target_end_date_column="end",
+        date_column="end",
         protection_horizon=horizon,
     )
 
@@ -179,7 +179,7 @@ def test_one_time_target_and_newsvendor_economics():
         forecast_origin=ORIGIN,
         target_column="q75",
         target_probability=alpha,
-        target_end_date_column="end",
+        date_column="end",
     )
     events = run(policy, [4.0, 5.0, 6.0, 0.0, 0.0], stock=0.0).to_event_frame()
     assert events.order_quantity.tolist() == [12.0, 0.0, 0.0, 0.0, 0.0]
@@ -199,7 +199,7 @@ def test_positive_lead_season_delivers_before_season_and_observes_end():
         ),
         forecast_origin=ORIGIN,
         target_column="S",
-        target_end_date_column="end",
+        date_column="end",
     )
     events = run(policy, [0.0, 4.0, 5.0, 0.0, 0.0], stock=0.0).to_event_frame()
     assert events.received_units.tolist() == [0.0, 12.0, 0.0, 0.0, 0.0]
@@ -342,7 +342,7 @@ def test_zero_lead_reorder_point_protects_the_current_demand_epoch():
     args = dict(
         forecast_origin=ORIGIN,
         reorder_point_column="s",
-        reorder_end_date_column="end",
+        date_column="end",
         target_probability=0.95,
         reorder_horizon=1,
     )
@@ -374,7 +374,7 @@ def test_reorder_point_window_follows_the_next_opportunity(periods, lead):
     })
     args = dict(
         forecast_origin=origin, reorder_point_column="s",
-        order_up_to_column="S", reorder_end_date_column="end",
+        order_up_to_column="S", date_column="end",
     )
     policy.fit(table, reorder_horizon=horizon, **args)
     policy.validate_decision_window(first, origin, pd.offsets.Day())
@@ -438,7 +438,7 @@ def test_demand_window_validation_cannot_change_scenario_or_leak_future_into_pre
         ),
         forecast_origin=ORIGIN,
         target_column="S",
-        target_end_date_column="end",
+        date_column="end",
         protection_horizon=1,
     )
     events = run(policy, [2.0, 3.0, 0.0, 0.0]).to_event_frame()

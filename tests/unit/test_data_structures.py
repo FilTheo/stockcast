@@ -302,7 +302,7 @@ def test_forecasts_are_sorted_by_horizon_before_target_calculation():
         target_probability=0.5,
         protection_horizon=2,
         forecast_origin=pd.Timestamp("2025-01-01"),
-        forecast_date_column="date",
+        date_column="date",
     )
 
     assert policy.get_target_levels()["target_level"].iloc[0] == 30.0
@@ -331,7 +331,7 @@ def test_missing_forecast_horizon_fails_fast():
             target_probability=0.95,
             protection_horizon=3,
             forecast_origin=pd.Timestamp("2025-01-01"),
-            forecast_date_column="date",
+            date_column="date",
         )
 
 
@@ -354,7 +354,7 @@ def test_precomputed_one_row_target_is_allowed():
         target_probability=0.95,
         protection_horizon=14,
         forecast_origin=pd.Timestamp("2025-01-01"),
-        target_end_date_column="target_end",
+        date_column="target_end",
     )
 
     assert policy.get_target_levels()["target_level"].iloc[0] == 123.0
@@ -408,7 +408,7 @@ def test_reorder_point_validates_schedule_protection_window():
             target_probability=0.95,
             reorder_horizon=3,
             forecast_origin=pd.Timestamp("2025-01-01"),
-            reorder_end_date_column="reorder_end",
+            date_column="reorder_end",
         )
 
 

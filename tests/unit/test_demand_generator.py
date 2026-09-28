@@ -254,7 +254,7 @@ def test_engine_runs_on_a_poisson_sampler():
         target_probability=0.9,
         protection_horizon=2,
         forecast_origin=opening_date,
-        target_end_date_column="target_end_date",
+        date_column="target_end_date",
     )
 
     result = SimulationEngine().run(

@@ -93,7 +93,7 @@ def order_up_to(skus, targets, *, lead, every, backorders):
     return policy.fit(
         pd.DataFrame({"unique_id": skus, "S": targets, "end": ORIGIN + horizon * DAY}),
         forecast_origin=ORIGIN, target_column="S",
-        target_end_date_column="end", protection_horizon=horizon,
+        date_column="end", protection_horizon=horizon,
         target_probability=0.9,
     )
 

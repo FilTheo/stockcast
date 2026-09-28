@@ -1133,3 +1133,18 @@ def test_rolling_snapshots_must_keep_the_policy_frequency():
         levels("D"), demand, _inventory(), policy_schedule={2: levels(None)},
     )
     assert updated.run_settings["period_frequency"] == "D"
+
+
+def test_look_ahead_error_names_the_column_the_origin_came_from():
+    from stockcast.policies import OrderUpToPolicy
+
+    policy = OrderUpToPolicy(1, 1, freq="D", service_level=0.9, allow_backorders=False).fit(
+        pd.DataFrame({"unique_id": ["A"], "S": [8.0], "date": [pd.Timestamp("2025-01-10")]}),
+        target_column="S",
+    )
+    message = (
+        r"policy forecast_origin 2025-01-08 00:00:00 \(derived from the 'date' column\) "
+        r"must not be after decision information date 2025-01-01"
+    )
+    with pytest.raises(ValueError, match=message):
+        SimulationEngine().run(policy, _daily_demand([3, 5]), _inventory())

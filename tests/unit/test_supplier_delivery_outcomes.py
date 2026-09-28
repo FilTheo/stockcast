@@ -76,7 +76,7 @@ def _policy(lead=2, *, every=1, backorders=True, targets=(30.0, 25.0)):
     return policy.fit(
         pd.DataFrame({"unique_id": SKUS, "S": list(targets), "end": ORIGIN + horizon * DAY}),
         forecast_origin=ORIGIN, target_column="S",
-        target_end_date_column="end", protection_horizon=horizon,
+        date_column="end", protection_horizon=horizon,
         target_probability=0.9,
     )
 

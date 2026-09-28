@@ -163,7 +163,7 @@ dates too. The window of $s$ is checked at every decision.
         targets,
         forecast_origin=opening_date,
         reorder_point_column="s",
-        reorder_end_date_column="s_end",
+        date_column="s_end",
     )
     sQ.get_parameters()
     ```
@@ -193,7 +193,7 @@ dates too. The window of $s$ is checked at every decision.
         forecast_origin=opening_date,
         reorder_point_column="s",
         order_up_to_column="S",
-        reorder_end_date_column="s_end",
+        date_column="s_end",
     )
     sS.get_parameters()
     ```
@@ -272,11 +272,11 @@ values, provider levels need `service_level=None` and take optional dates.
 | `reorder_point_column` | column holding $s$ |
 | `order_up_to_column` | column holding $S$; $(s, S)$ only |
 | `reorder_horizon` | $H$: defaults to $L + R$ for periodic schedules; required otherwise, checked as $(u - t) + L$ |
-| `reorder_end_date_column` | optional; last date covered by $s$: origin $+ H\Delta$ |
+| `date_column` | column with the last date covered by $s$, origin $+ H\Delta$ (default `"date"`); the origin follows from it |
 | `target_probability` | $\alpha$, quantile mode only; defaults to `service_level` |
 | `forecast_origin` | as for [every target](../forecast-targets.md#the-fit-arguments); optional for fixed values and providers |
 
-The window arguments (`reorder_horizon`, `reorder_end_date_column`,
+The window arguments (`reorder_horizon`, `date_column`,
 `target_probability`, `order_up_to_column`) belong to column targets.
 
 ## Good to know
