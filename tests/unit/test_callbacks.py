@@ -809,3 +809,28 @@ def test_immutable_no_callback_and_physical_event_rows():
         "inventory_adjustment_units": -1.0,
         "ending_on_hand": 2.0,
     }
+
+
+def test_schedule_with_no_row_in_the_run_is_rejected():
+    by_period = ScheduledInventoryAdjustment(_schedule(period=9, quantity_delta=1.0))
+    with pytest.raises(
+        CallbackError,
+        match=r"no row inside this run, which covers 2025-01-02 to 2025-01-03 "
+              r"\(state periods 1..2\); the schedule covers periods 9..9",
+    ):
+        _run(SimulationEngine(), [by_period], values=(0.0, 0.0))
+    dated = _schedule(quantity_delta=1.0).drop(columns="period").assign(
+        date=pd.Timestamp("2025-03-01")
+    )
+    with pytest.raises(CallbackError, match="the schedule covers 2025-03-01 to 2025-03-01"):
+        _run(SimulationEngine(), [ScheduledInventoryAdjustment(dated)], values=(0.0, 0.0))
+
+
+def test_schedule_rows_partly_outside_the_run_are_allowed():
+    schedule = pd.concat([
+        _schedule(period=1, quantity_delta=2.0), _schedule(period=9, quantity_delta=5.0),
+    ], ignore_index=True)
+    result = _run(
+        SimulationEngine(), [ScheduledInventoryAdjustment(schedule)], values=(0.0, 0.0),
+    )
+    assert result.to_event_frame()["inventory_adjustment_units"].tolist() == [2.0, 0.0]

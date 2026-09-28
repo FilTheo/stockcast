@@ -51,6 +51,7 @@ from stockcast.core.callbacks import (
     OrderAdjustmentResult,
     SimulationCallback,
     _normalize_audit_labels,
+    _ScheduledCallback,
 )
 from stockcast.core.data_structures import (
     _FLAG_TOLERANCE,
@@ -1377,6 +1378,13 @@ class SimulationEngine:
                 "Schedule periods count from the inventory's opening date: period 0 "
                 "is the first demand period."
             )
+        if not decision_periods:
+            raise ValueError(
+                f"every decision period of the policy's schedule {schedule_manifest} "
+                "falls in the settlement window (periods "
+                f"{warmup_periods + scoring_periods}..{n_periods - 1}), where ordering "
+                "is off (order_during_settlement=False), so the policy would never order"
+            )
         # A run owns its state. Caller state and pre-run history remain
         # untouched, while result.history contains snapshots from this run.
         inventory = copy.deepcopy(inventory)
@@ -1440,6 +1448,7 @@ class SimulationEngine:
             opening_period=opening_period,
             opening_date=opening_date,
             period_offset=period_offset,
+            n_periods=n_periods,
         )
         self._callback_audit_rows = []
         self._validate_policy_information_origin(
@@ -1760,6 +1769,7 @@ class SimulationEngine:
         opening_period: int,
         opening_date: pd.Timestamp,
         period_offset,
+        n_periods: int,
     ) -> tuple[list[SimulationCallback], list[dict]]:
         if callbacks is None:
             prepared = []
@@ -1791,6 +1801,11 @@ class SimulationEngine:
                             "callback schedule period and date coordinates must identify "
                             "the same simulation point"
                         )
+                if isinstance(callback, _ScheduledCallback):
+                    self._require_schedule_row_in_run(
+                        callback.schedule, opening_period, opening_date, period_offset,
+                        n_periods,
+                    )
                 config = callback.get_config()
                 if not isinstance(config, dict):
                     raise TypeError("get_config() must return a dictionary")
@@ -1835,6 +1850,32 @@ class SimulationEngine:
                 raise self._callback_error(
                     callback, position, "reset", opening_period, opening_date, exc
                 ) from exc
+
+    @staticmethod
+    def _require_schedule_row_in_run(
+        schedule, opening_period, opening_date, period_offset, n_periods,
+    ) -> None:
+        """Reject a callback schedule none of whose rows can match this run.
+
+        Rows partly outside the run are allowed; they never match.
+        """
+        first_period, last_period = opening_period + 1, opening_period + n_periods
+        run_dates = [opening_date + (step + 1) * period_offset for step in range(n_periods)]
+        if "period" in schedule:
+            inside = schedule["period"].between(first_period, last_period)
+            covered = f"periods {schedule['period'].min()}..{schedule['period'].max()}"
+        else:
+            inside = schedule["date"].isin(run_dates)
+            covered = (
+                f"{_date_text(schedule['date'].min())} to "
+                f"{_date_text(schedule['date'].max())}"
+            )
+        if not inside.any():
+            raise ValueError(
+                "the schedule has no row inside this run, which covers "
+                f"{_date_text(run_dates[0])} to {_date_text(run_dates[-1])} (state "
+                f"periods {first_period}..{last_period}); the schedule covers {covered}"
+            )
 
     @staticmethod
     def _callback_error(callback, position, phase, period, date, cause) -> CallbackError:

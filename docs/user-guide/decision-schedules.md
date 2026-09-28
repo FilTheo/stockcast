@@ -14,7 +14,8 @@ touching the ordering rule, and the other way round.
 
 Periods are **demand periods** of the run: period 0 is the first period after
 the opening date, whatever numbers your demand table uses. A schedule must
-decide at least once in the run; one whose periods all fall outside it is an
+decide at least once in the run; one whose periods all fall outside it, or
+only in a settlement window with `order_during_settlement=False`, is an
 error, not a run without orders.
 
 ```python

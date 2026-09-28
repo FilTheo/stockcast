@@ -58,7 +58,9 @@ ground or explains what is missing:
 - the demand table is a complete, dated grid ([details](demand.md#what-the-engine-checks));
 - the policy's forecast origin and frequency match the simulation calendar,
   and every scheduled decision has a target for its own window;
-- the decision schedule decides at least once in the run;
+- the decision schedule decides at least once in the run, and not only in a
+  settlement window where ordering is off;
+- every scheduled callback has at least one row inside the run;
 - every `policy_schedule` snapshot has the same configuration as `policy` and
   the right forecast origin;
 - window lengths add up to `n_periods`.

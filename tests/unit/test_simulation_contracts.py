@@ -1063,3 +1063,22 @@ def test_schedule_with_no_decision_in_the_run_is_rejected():
             SimulationEngine().run(
                 policy, _daily_demand([3] * 8), _inventory(), period_frequency="D",
             )
+
+
+def test_decisions_only_in_settlement_without_ordering_are_rejected():
+    from stockcast.core.decision_schedule import ExplicitSchedule
+    from stockcast.policies import ReorderPointPolicy
+
+    def run(periods, **windows):
+        policy = ReorderPointPolicy(0, schedule=ExplicitSchedule(periods), allow_backorders=False)
+        return SimulationEngine().run(
+            policy.fit(reorder_point=4.0, order_up_to_level=9.0), _daily_demand([3] * 8),
+            _inventory(), period_frequency="D", **windows,
+        )
+
+    with pytest.raises(ValueError, match=r"falls in the settlement window \(periods 6..7\)"):
+        run((6, 7), settlement_periods=2, order_during_settlement=False)
+    ordering = run((6, 7), settlement_periods=2, order_during_settlement=True)
+    assert ordering.to_event_frame()["decision_flag"].sum() == 2
+    warm_up_only = run((0,), warmup_periods=2, settlement_periods=2, order_during_settlement=False)
+    assert warm_up_only.to_event_frame()["decision_flag"].sum() == 1

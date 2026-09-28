@@ -26,7 +26,10 @@ Both hooks receive a `CallbackContext` with a **copy** of the state
 For planned, dated events, write a small table and use a built-in callback.
 Rows match on `date` or `period` (the state period, see
 [Timing](concepts/timing.md#two-period-counters)). Optional `reason` and
-`source` columns label each row in the audit trail.
+`source` columns label each row in the audit trail. A table may reach beyond
+the run, so you can reuse one calendar for several runs, but at least one row
+must fall inside the run; otherwise the run stops before it starts and names
+both date ranges.
 
 | Callback | Hook | Extra column | Effect |
 |---|---|---|---|
