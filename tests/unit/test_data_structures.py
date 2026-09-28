@@ -533,7 +533,7 @@ def test_observed_stock_reads_the_opening_date_from_a_date_column():
 
 
 @pytest.mark.parametrize("dates, start_date, message", [
-    (None, None, r"give start_date=\.\.\., or a 'date' column in opening_stock_df"),
+    (None, None, r"give start_date=\.\.\., or a date column in opening_stock_df \(date_column"),
     (["2026-03-23", "2026-03-24"], None, "must hold one opening date for every SKU"),
     (["2026-03-23", None], None, "opening_stock_df.date must contain valid dates"),
     (["2026-03-23", "not a date"], None, "opening_stock_df.date must contain valid dates"),
@@ -549,6 +549,34 @@ def test_observed_stock_opening_date_fails_closed(dates, start_date, message):
         InventoryStateDataFrame.from_observed(stock, start_date=start_date)
     with pytest.raises(ValueError, match=message):
         InventoryStateDataFrame(["a", "b"]).initialize_from_observed(stock, start_date=start_date)
+
+
+def test_observed_stock_takes_the_date_column():
+    counts = pd.DataFrame({"unique_id": ["a", "b"], "on_hand": [40.0, 12.0]})
+    reference = InventoryStateDataFrame.from_observed(
+        counts, start_date=pd.Timestamp("2026-03-23"),
+    ).get_dataframe()
+    counted = counts.assign(counted_on=pd.Timestamp("2026-03-23"))
+    one_step = InventoryStateDataFrame.from_observed(counted, date_column="counted_on")
+    two_step = InventoryStateDataFrame(["a", "b"]).initialize_from_observed(
+        counted, date_column="counted_on",
+    )
+    for state in (one_step, two_step):
+        pd.testing.assert_frame_equal(state.get_dataframe(), reference)
+    with pytest.raises(ValueError, match="start_date 2026-03-24 00:00:00 does not match opening_stock_df.counted_on"):
+        InventoryStateDataFrame.from_observed(
+            counted, date_column="counted_on", start_date=pd.Timestamp("2026-03-24"),
+        )
+    # A named column must exist, even when start_date is given.
+    with pytest.raises(ValueError, match="date column 'counted_on' not found in opening_stock_df"):
+        InventoryStateDataFrame.from_observed(
+            counts, date_column="counted_on", start_date=pd.Timestamp("2026-03-23"),
+        )
+    for bad in ("", None, 3):
+        with pytest.raises(ValueError, match="date_column must be a non-empty column name"):
+            InventoryStateDataFrame.from_observed(
+                counted, date_column=bad, start_date=pd.Timestamp("2026-03-23"),
+            )
 
 
 def test_from_observed_takes_the_sku_column():

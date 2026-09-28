@@ -79,12 +79,52 @@ def _one_valid_date(values: pd.Series) -> Optional[bool]:
     )
 
 
-def _observed_opening_date(stock_df: pd.DataFrame, start_date, frame_name: str) -> pd.Timestamp:
-    """Opening date of a stock count: ``start_date``, the table's ``date`` column, or both.
+def _rename_input_columns(
+    frame: pd.DataFrame, renames: dict, frame_name: str, optional=(),
+) -> pd.DataFrame:
+    """Rename a user table's named columns to Stockcast's default names.
 
-    The ``date`` column is read only when present; every row must hold the
-    same valid date. When both are given they must agree.
+    ``renames`` maps each user column to its default name. With only default
+    names the table itself is returned. A named column must exist unless its
+    default is in ``optional``; then neither may be present. A table holding
+    both a named column and its default is rejected.
     """
+    for source in renames:
+        if not isinstance(source, str) or not source:
+            raise ValueError(f"{frame_name} column names must be non-empty strings")
+    renames = {source: target for source, target in renames.items() if source != target}
+    if not renames:
+        return frame
+    for source, target in renames.items():
+        if source in frame.columns and target in frame.columns:
+            raise ValueError(
+                f"{frame_name} holds both '{source}' and '{target}'; "
+                f"'{source}' is the named column, so drop or rename '{target}'"
+            )
+        if source not in frame.columns:
+            if target not in optional:
+                raise ValueError(f"{frame_name} is missing columns: {[source]}")
+            if target in frame.columns:
+                raise ValueError(
+                    f"{frame_name} has a '{target}' column, but the named column "
+                    f"is '{source}'; rename one of them"
+                )
+    renamed = frame.rename(columns=renames)
+    renamed.attrs = copy.deepcopy(frame.attrs)
+    return renamed
+
+
+def _observed_opening_date(
+    stock_df: pd.DataFrame, start_date, date_column: str, frame_name: str,
+) -> pd.Timestamp:
+    """Opening date of a stock count: ``start_date``, the table's date column, or both.
+
+    The default ``"date"`` column is read only if it exists; a column named
+    explicitly must exist. Every row must hold the same valid date. When both
+    are given they must agree.
+    """
+    if not isinstance(date_column, str) or not date_column:
+        raise ValueError("date_column must be a non-empty column name")
     given = None
     if start_date is not None:
         try:
@@ -93,28 +133,32 @@ def _observed_opening_date(stock_df: pd.DataFrame, start_date, frame_name: str) 
             raise ValueError("start_date must be a valid timestamp") from exc
         if pd.isna(given):
             raise ValueError("start_date must be a valid timestamp")
-    if 'date' not in stock_df.columns:
+    if date_column not in stock_df.columns:
+        if date_column != "date":
+            raise ValueError(f"date column '{date_column}' not found in {frame_name}")
         if given is None:
             raise ValueError(
-                f"give start_date=..., or a 'date' column in {frame_name}: the "
-                "opening date is the day the stock was counted"
+                f"give start_date=..., or a date column in {frame_name} "
+                "(date_column=..., default 'date'): the opening date is the day "
+                "the stock was counted"
             )
         return given
-    dates = pd.to_datetime(stock_df['date'], errors='coerce')
+    dates = pd.to_datetime(stock_df[date_column], errors='coerce')
     if dates.isna().any():
-        raise ValueError(f"{frame_name}.date must contain valid dates")
+        raise ValueError(f"{frame_name}.{date_column} must contain valid dates")
     if dates.nunique() != 1:
         actual = sorted(str(value) for value in dates.unique())
         raise ValueError(
-            f"{frame_name}.date must hold one opening date for every SKU; got {actual}"
+            f"{frame_name}.{date_column} must hold one opening date for every SKU; "
+            f"got {actual}"
         )
     # The row's own value, as start_date would give it (pd.to_datetime may
     # change the resolution).
-    counted = pd.Timestamp(stock_df['date'].iloc[0])
+    counted = pd.Timestamp(stock_df[date_column].iloc[0])
     if given is not None:
         if given != counted:
             raise ValueError(
-                f"start_date {given} does not match {frame_name}.date {counted}"
+                f"start_date {given} does not match {frame_name}.{date_column} {counted}"
             )
         return given
     return counted
@@ -870,6 +914,7 @@ class InventoryStateDataFrame:
         start_date: Optional[pd.Timestamp] = None,
         on_hand_column: str = "on_hand",
         sku_column: str = "unique_id",
+        date_column: str = "date",
         max_lead_time: Optional[int] = None,
         allow_backorders: Optional[bool] = None,
     ) -> 'InventoryStateDataFrame':
@@ -880,12 +925,15 @@ class InventoryStateDataFrame:
 
         Args:
             stock_df: One row per SKU with the SKU column and the counted stock,
-                and optionally a ``date`` column with the opening date.
+                and optionally a date column with the opening date.
             start_date: The opening date (the day the stock was counted).
-                Optional when ``stock_df`` has a ``date`` column; checked
+                Optional when ``stock_df`` has the date column; checked
                 against it when both are given.
             on_hand_column: Column holding the counted stock.
             sku_column: SKU column of ``stock_df``; the state uses the same name.
+            date_column: Column with the opening date (default ``"date"``).
+                The default column is read only if it exists; a column named
+                explicitly must exist.
             max_lead_time: Pipeline length; ``None`` sizes it when needed.
             allow_backorders: Leave unset to take the policy's shortage mode.
 
@@ -920,6 +968,7 @@ class InventoryStateDataFrame:
                     allow_backorders=allow_backorders)
         return state.initialize_from_observed(
             stock_df, on_hand_column=on_hand_column, start_date=start_date,
+            date_column=date_column,
         )
 
     def initialize_from_observed(
@@ -929,20 +978,24 @@ class InventoryStateDataFrame:
         on_hand_column: str = "on_hand",
         start_date: Optional[pd.Timestamp] = None,
         sku_column: Optional[str] = None,
+        date_column: str = "date",
     ) -> 'InventoryStateDataFrame':
         """Set counted on-hand stock; no pipeline and no backorders.
 
-        The opening date is ``start_date``, the ``date`` column of
-        ``opening_stock_df``, or both (they must then agree). The column is
-        read only when present, and every row must hold the same date.
+        The opening date is ``start_date``, the date column of
+        ``opening_stock_df``, or both (they must then agree). Every row must
+        hold the same date.
 
         Args:
             opening_stock_df: One row per SKU with the SKU column and the stock,
-                and optionally a ``date`` column with the opening date.
+                and optionally a date column with the opening date.
             on_hand_column: Column holding the counted stock (default ``"on_hand"``).
             start_date: The opening date (the day the stock was counted).
-                Optional when ``opening_stock_df`` has a ``date`` column.
+                Optional when ``opening_stock_df`` has the date column.
             sku_column: SKU column of ``opening_stock_df``; defaults to the state's.
+            date_column: Column with the opening date (default ``"date"``).
+                The default column is read only if it exists; a column named
+                explicitly must exist.
 
         Returns:
             The state itself, for chaining.
@@ -982,7 +1035,7 @@ class InventoryStateDataFrame:
                 f"extra={_identifier_sample(supplied_skus - expected_skus)}"
             )
         opening_date = _observed_opening_date(
-            opening_stock_df, start_date, 'opening_stock_df',
+            opening_stock_df, start_date, date_column, 'opening_stock_df',
         )
 
         stock_by_sku = opening_stock_df.set_index(sku_column)[on_hand_column]

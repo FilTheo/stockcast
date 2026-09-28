@@ -58,6 +58,7 @@ from stockcast.core.data_structures import (
     InventoryStateDataFrame,
     OrderDecision,
     _identifier_sample,
+    _rename_input_columns,
     _require_forward_frequency,
     _require_identifiers,
 )
@@ -1195,15 +1196,91 @@ class SimulationEngine:
     """
 
     _process_runner: Optional[ProcessRunner] = None
+    # Demand-table column names (class defaults keep subclasses that skip
+    # __init__ working); see __init__.
+    sku_column: Optional[str] = None
+    date_column: str = "date"
+    period_column: str = "period"
+    demand_column: str = "y"
+    _demand_is_canonical: bool = False
 
-    def __init__(self, verbose: int = 0):
+    def __init__(
+        self,
+        verbose: int = 0,
+        *,
+        sku_column: Optional[str] = None,
+        date_column: str = "date",
+        period_column: str = "period",
+        demand_column: str = "y",
+    ):
         """Create an engine.
 
         Args:
             verbose: 0 silent (default), 1 start/end/milestones, 2 one line per
                 period.
+            sku_column: SKU column of the demand table; ``None`` (default)
+                uses the inventory's SKU column.
+            date_column: Date column of the demand table (default ``"date"``).
+            period_column: Period column of the demand table (default ``"period"``).
+            demand_column: Demand column of the demand table (default ``"y"``).
+
+        A column named other than its default must exist in the demand table,
+        and the table must not also hold the default name. Results and ledgers
+        use the default names.
         """
+        for name, value in (
+            ("date_column", date_column),
+            ("period_column", period_column),
+            ("demand_column", demand_column),
+        ):
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"{name} must be a non-empty column name")
+        if sku_column is not None and (not isinstance(sku_column, str) or not sku_column):
+            raise ValueError("sku_column must be a non-empty column name or None")
+        names = [date_column, period_column, demand_column]
+        if sku_column is not None:
+            names.append(sku_column)
+        if len(set(names)) != len(names):
+            raise ValueError("the demand column names must differ from each other")
         self.verbose = verbose
+        self.sku_column = sku_column
+        self.date_column = date_column
+        self.period_column = period_column
+        self.demand_column = demand_column
+        # Set by run_comparison while its branches run on a table it has
+        # already renamed to the default names.
+        self._demand_is_canonical = False
+
+    def _canonical_demand(self, demand_source, inventory):
+        """Rename the demand table's columns (or a callable's frames) to the defaults.
+
+        With default names this returns ``demand_source`` itself, unchanged.
+        """
+        if self._demand_is_canonical:
+            return demand_source
+        renames = {
+            self.date_column: 'date',
+            self.period_column: 'period',
+            self.demand_column: 'y',
+        }
+        if self.sku_column is not None and isinstance(inventory, InventoryStateDataFrame):
+            renames[self.sku_column] = inventory.sku_column
+        if all(source == target for source, target in renames.items()):
+            return demand_source
+
+        def rename(frame):
+            if not isinstance(frame, pd.DataFrame):
+                return frame  # the usual checks report it
+            # A table may hold a date, a period, or both.
+            return _rename_input_columns(
+                frame, renames, 'demand_source', optional=('date', 'period'),
+            )
+
+        if isinstance(demand_source, pd.DataFrame):
+            return rename(demand_source)
+        if callable(demand_source):
+            return lambda period: rename(demand_source(period))
+        return demand_source
 
     def _log(self, msg: str, level: int = 1):
         """Print msg if self.verbose >= level."""
@@ -1287,6 +1364,7 @@ class SimulationEngine:
                 unfitted policy, a demand calendar with gaps, a target for the wrong
                 window, or windows that do not add up.
         """
+        demand_source = self._canonical_demand(demand_source, inventory)
         demand_source, demand_period_offset = self._complete_frame_calendar(
             demand_source, inventory, [policy], freq,
         )
@@ -3063,6 +3141,7 @@ class SimulationEngine:
         # Numbering the table here sizes the run and reports calendar errors
         # before any branch runs. The branches get the table as given and
         # number it again, so each records the period shift it removed.
+        demand_source = self._canonical_demand(demand_source, inventory)
         numbered, _ = self._complete_frame_calendar(
             demand_source, inventory, policies, freq,
         )
@@ -3095,32 +3174,37 @@ class SimulationEngine:
         )
         shared_demand = self._materialize_demand_source(demand_source, n_periods)
         results = {}
-        for i, (policy, label, schedule) in enumerate(
-            zip(policies, labels, policy_schedules)
-        ):
-            self._log(f"[SimEngine] Running {i + 1}/{len(policies)}: {label}")
-            inv_copy = copy.deepcopy(inventory)
-            policy_copy = copy.deepcopy(policy)
-            result = self.run(
-                policy_copy,
-                shared_demand,
-                inv_copy,
-                n_periods,
-                freq=freq,
-                warmup_periods=warmup_periods,
-                scoring_periods=scoring_periods,
-                settlement_periods=settlement_periods,
-                order_during_settlement=order_during_settlement,
-                demand_source_name=demand_source_name,
-                random_seed=random_seed,
-                policy_schedule=schedule,
-                order_constraints=order_constraints,
-                callbacks=callbacks,
-                **branch_run_options,
-            )
-            result.run_manifest['demand_source']['type'] = original_demand_source_type
-            result.run_manifest['demand_source']['materialized_once_for_comparison'] = True
-            results[label] = result
+        # The branches run on the table renamed above; run must not rename it again.
+        self._demand_is_canonical = True
+        try:
+            for i, (policy, label, schedule) in enumerate(
+                zip(policies, labels, policy_schedules)
+            ):
+                self._log(f"[SimEngine] Running {i + 1}/{len(policies)}: {label}")
+                inv_copy = copy.deepcopy(inventory)
+                policy_copy = copy.deepcopy(policy)
+                result = self.run(
+                    policy_copy,
+                    shared_demand,
+                    inv_copy,
+                    n_periods,
+                    freq=freq,
+                    warmup_periods=warmup_periods,
+                    scoring_periods=scoring_periods,
+                    settlement_periods=settlement_periods,
+                    order_during_settlement=order_during_settlement,
+                    demand_source_name=demand_source_name,
+                    random_seed=random_seed,
+                    policy_schedule=schedule,
+                    order_constraints=order_constraints,
+                    callbacks=callbacks,
+                    **branch_run_options,
+                )
+                result.run_manifest['demand_source']['type'] = original_demand_source_type
+                result.run_manifest['demand_source']['materialized_once_for_comparison'] = True
+                results[label] = result
+        finally:
+            self._demand_is_canonical = False
 
         return ComparisonResult(results)
 

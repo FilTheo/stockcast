@@ -45,6 +45,8 @@ class DemandGenerator:
 
     All generation methods produce DataFrames with columns:
         [unique_id, y, period, date]
+    (names set by ``sku_column``, ``demand_column``, ``period_column`` and
+    ``date_column``).
 
     Parameters accept scalars (same for all SKUs) or dicts keyed by SKU
     for per-SKU configuration. ``sample`` accepts any sampler function in the
@@ -58,6 +60,10 @@ class DemandGenerator:
         freq: Length of one period, a pandas frequency such as ``"D"``.
         random_seed: Explicit random seed, or ``None`` for intentionally unseeded data.
         negative_demand_handling: Explicitly reject or clip negative draws.
+        sku_column: Name of the SKU column in the output (default ``"unique_id"``).
+        date_column: Name of the date column in the output (default ``"date"``).
+        period_column: Name of the period column in the output (default ``"period"``).
+        demand_column: Name of the demand column in the output (default ``"y"``).
 
     Example:
         ```python
@@ -85,7 +91,26 @@ class DemandGenerator:
         freq: str,
         random_seed: int | None,
         negative_demand_handling: Literal["raise", "clip_zero"] = "raise",
+        sku_column: str = "unique_id",
+        date_column: str = "date",
+        period_column: str = "period",
+        demand_column: str = "y",
     ):
+        columns = {
+            "sku_column": sku_column,
+            "date_column": date_column,
+            "period_column": period_column,
+            "demand_column": demand_column,
+        }
+        for name, value in columns.items():
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"{name} must be a non-empty column name")
+        if len(set(columns.values())) != len(columns):
+            raise ValueError("sku_column, date_column, period_column and demand_column must differ")
+        self.sku_column = sku_column
+        self.date_column = date_column
+        self.period_column = period_column
+        self.demand_column = demand_column
         self.skus = list(skus)
         if not self.skus:
             raise ValueError("skus must be non-empty")
@@ -227,10 +252,10 @@ class DemandGenerator:
             date = self.start_date + period * self.period_offset
             for sku in self.skus:
                 records.append({
-                    'unique_id': sku,
-                    'y': float(prepared[sku][period]),
-                    'period': period,
-                    'date': date,
+                    self.sku_column: sku,
+                    self.demand_column: float(prepared[sku][period]),
+                    self.period_column: period,
+                    self.date_column: date,
                 })
         return self._attach_generation_provenance(pd.DataFrame(records), raw_arrays)
 

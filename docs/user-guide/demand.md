@@ -18,6 +18,25 @@ calendar below, so the engine adds the missing one. When the table has dates,
 the dates decide each row's period. The table is a complete grid: every SKU
 in every period, exactly once.
 
+### Column names
+
+These are default names, not fixed ones. If your table uses other names, say
+so where the table goes in, with the same four arguments everywhere:
+`sku_column`, `date_column`, `period_column` and `demand_column`.
+
+```python
+from stockcast.core import SimulationEngine
+
+engine = SimulationEngine(sku_column="item", date_column="ds", demand_column="sales")
+```
+
+`DemandGenerator`, the scheduled callbacks, `ShelfLife`,
+`InventoryStateDataFrame.from_observed` and every policy's `fit` take the
+names they need in the same way. For the demand table, a callback schedule
+or `ShelfLife`'s opening lots, a name you set must be a column of the table,
+and the table must not also hold the default name, so nothing is ever read by
+accident. Results and event ledgers always use the default names.
+
 ### The calendar
 
 Periods and dates are tied to the opening state:

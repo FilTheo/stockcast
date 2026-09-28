@@ -8,7 +8,11 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from stockcast.core.data_structures import OrderDecision, _require_identifiers
+from stockcast.core.data_structures import (
+    OrderDecision,
+    _rename_input_columns,
+    _require_identifiers,
+)
 
 
 class CallbackError(RuntimeError):
@@ -199,9 +203,20 @@ def _json_value(value):
 class _ScheduledCallback(SimulationCallback):
     value_column: str | None = None
 
-    def __init__(self, schedule: pd.DataFrame):
+    def __init__(self, schedule: pd.DataFrame, *, sku_column: str = "unique_id",
+                 date_column: str = "date", period_column: str = "period"):
         if not isinstance(schedule, pd.DataFrame) or schedule.empty:
             raise ValueError("schedule must be a non-empty pandas DataFrame")
+        names = [sku_column, date_column, period_column]
+        if len(set(names)) != len(names):
+            raise ValueError("sku_column, date_column and period_column must differ")
+        # A schedule may be keyed by date, period, or both.
+        schedule = _rename_input_columns(
+            schedule,
+            {sku_column: "unique_id", date_column: "date", period_column: "period"},
+            "schedule",
+            optional=("date", "period"),
+        )
         required = {"unique_id"}
         if self.value_column is not None:
             required.add(self.value_column)
@@ -267,12 +282,17 @@ class ScheduledOrderOverride(_ScheduledCallback):
         schedule: One row per SKU and date (or state period), with columns
             ``unique_id``, ``date`` and/or ``period``, and optional ``reason`` and
             ``source`` labels recorded in the audit; plus ``order_quantity`` (>= 0).
+        sku_column: SKU column of ``schedule`` (default ``"unique_id"``).
+        date_column: Date column of ``schedule`` (default ``"date"``).
+        period_column: Period column of ``schedule`` (default ``"period"``).
     """
 
     value_column = "order_quantity"
 
-    def __init__(self, schedule: pd.DataFrame):
-        super().__init__(schedule)
+    def __init__(self, schedule: pd.DataFrame, *, sku_column: str = "unique_id",
+                 date_column: str = "date", period_column: str = "period"):
+        super().__init__(schedule, sku_column=sku_column, date_column=date_column,
+                         period_column=period_column)
         if (self.schedule["order_quantity"] < 0).any():
             raise ValueError("schedule.order_quantity must be non-negative")
 
@@ -292,12 +312,17 @@ class ScheduledOrderMultiplier(_ScheduledCallback):
         schedule: One row per SKU and date (or state period), with columns
             ``unique_id``, ``date`` and/or ``period``, and optional ``reason`` and
             ``source`` labels recorded in the audit; plus ``multiplier`` (>= 0).
+        sku_column: SKU column of ``schedule`` (default ``"unique_id"``).
+        date_column: Date column of ``schedule`` (default ``"date"``).
+        period_column: Period column of ``schedule`` (default ``"period"``).
     """
 
     value_column = "multiplier"
 
-    def __init__(self, schedule: pd.DataFrame):
-        super().__init__(schedule)
+    def __init__(self, schedule: pd.DataFrame, *, sku_column: str = "unique_id",
+                 date_column: str = "date", period_column: str = "period"):
+        super().__init__(schedule, sku_column=sku_column, date_column=date_column,
+                         period_column=period_column)
         if (self.schedule["multiplier"] < 0).any():
             raise ValueError("schedule.multiplier must be non-negative")
 
@@ -323,6 +348,9 @@ class ScheduledOrderHold(_ScheduledCallback):
         schedule: One row per SKU and date (or state period), with columns
             ``unique_id``, ``date`` and/or ``period``, and optional ``reason`` and
             ``source`` labels recorded in the audit.
+        sku_column: SKU column of ``schedule`` (default ``"unique_id"``).
+        date_column: Date column of ``schedule`` (default ``"date"``).
+        period_column: Period column of ``schedule`` (default ``"period"``).
     """
 
     def on_after_prediction(self, decision, context):
@@ -346,22 +374,28 @@ class ScheduledInventoryAdjustment(_ScheduledCallback):
             ``unique_id``, ``date`` and/or ``period``, and optional ``reason`` and
             ``source`` labels recorded in the audit; plus a signed ``quantity_delta`` and, for stock added
             under shelf life, an optional ``received_date``.
+        sku_column: SKU column of ``schedule`` (default ``"unique_id"``).
+        date_column: Date column of ``schedule`` (default ``"date"``).
+        period_column: Period column of ``schedule`` (default ``"period"``).
     """
 
     value_column = "quantity_delta"
 
-    def __init__(self, schedule: pd.DataFrame):
+    def __init__(self, schedule: pd.DataFrame, *, sku_column: str = "unique_id",
+                 date_column: str = "date", period_column: str = "period"):
+        columns = dict(sku_column=sku_column, date_column=date_column,
+                       period_column=period_column)
         if isinstance(schedule, pd.DataFrame) and "received_date" in schedule:
             self._received_dates = schedule["received_date"].copy()
             schedule = schedule.drop(columns="received_date").copy()
-            super().__init__(schedule)
+            super().__init__(schedule, **columns)
             dates = pd.to_datetime(self._received_dates, errors="coerce")
             invalid = self._received_dates.notna() & dates.isna()
             if invalid.any():
                 raise ValueError("schedule.received_date must contain valid timestamps or missing values")
             self.schedule["received_date"] = dates.to_numpy()
         else:
-            super().__init__(schedule)
+            super().__init__(schedule, **columns)
 
     def on_after_demand(self, context):
         matching = self._matching(context)

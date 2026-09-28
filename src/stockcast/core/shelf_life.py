@@ -34,6 +34,7 @@ import pandas as pd
 from stockcast.core.data_structures import (
     InventoryStateDataFrame,
     _identifier_sample,
+    _rename_input_columns,
     _require_identifiers,
 )
 from stockcast.core.processes import Flow, InventoryProcess, ProcessFlows
@@ -230,6 +231,7 @@ class ShelfLife(InventoryProcess):
             lot is already expired at the opening date;
             ``"write_off"`` writes that stock off before
             the run (recorded in the manifest, not as a period flow).
+        sku_column: SKU column of ``opening_lots`` (default ``"unique_id"``).
 
     ``ledger`` holds the lots of the latest run (the last branch of a
     comparison).
@@ -239,7 +241,8 @@ class ShelfLife(InventoryProcess):
     flows = (Flow("expired", "outflow", category="expiry"),)
 
     def __init__(self, shelf_life_days: int, opening_lots: pd.DataFrame,
-                 opening_expiry_handling: str = "reject"):
+                 opening_expiry_handling: str = "reject", *,
+                 sku_column: str = "unique_id"):
         _require_shelf_life_days(shelf_life_days)
         if opening_expiry_handling not in OPENING_EXPIRY_HANDLING:
             raise ValueError(
@@ -247,6 +250,9 @@ class ShelfLife(InventoryProcess):
             )
         if not isinstance(opening_lots, pd.DataFrame):
             raise TypeError("opening_lots must be a pandas DataFrame")
+        opening_lots = _rename_input_columns(
+            opening_lots, {sku_column: "unique_id"}, "opening_lots",
+        )
         self.shelf_life_days = shelf_life_days
         self.opening_lots = opening_lots.copy(deep=True)
         self.opening_expiry_handling = opening_expiry_handling
