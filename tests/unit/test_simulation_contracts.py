@@ -1135,6 +1135,66 @@ def test_rolling_snapshots_must_keep_the_policy_frequency():
     assert updated.run_settings["period_frequency"] == "D"
 
 
+def test_a_dated_policy_needs_dated_snapshots():
+    from stockcast.policies import ReorderPointPolicy
+
+    def levels(**dates):
+        return ReorderPointPolicy(1, 1, freq="D", allow_backorders=False).fit(
+            reorder_point=4.0, order_up_to_level=9.0, **dates,
+        )
+
+    demand = _daily_demand([3, 5, 2, 4])
+    dated = levels(forecast_origin=pd.Timestamp("2025-01-01"))
+    with pytest.raises(ValueError, match=(
+        r"policy_schedule period 2 has no forecast_origin, but the policy is dated "
+        r"\(forecast_origin 2025-01-01 00:00:00\); fit the snapshot with "
+        r"forecast_origin 2025-01-03 00:00:00"
+    )):
+        SimulationEngine().run(dated, demand, _inventory(), policy_schedule={2: levels()})
+    # A dated snapshot at its decision's information date is accepted.
+    refit = levels(forecast_origin=pd.Timestamp("2025-01-03"))
+    result = SimulationEngine().run(dated, demand, _inventory(), policy_schedule={2: refit})
+    assert result.run_settings["policy_update_periods"] == [2]
+
+
+def test_a_missing_sku_fails_before_the_run_and_extra_skus_are_allowed():
+    from stockcast.policies import OrderUpToPolicy, ReorderPointPolicy
+
+    demand = _daily_demand([3, 5, 2], skus=("A", "B"))
+    inventory = _inventory(("A", "B"))
+    origin = pd.Timestamp("2025-01-01")
+
+    def order_up_to(skus):
+        return OrderUpToPolicy(1, 1, freq="D", allow_backorders=False).fit(
+            pd.DataFrame({"unique_id": list(skus), "S": 9.0}),
+            target_column="S", forecast_origin=origin,
+        )
+
+    def levels(skus, **dates):
+        values = {sku: 4.0 for sku in skus}
+        return ReorderPointPolicy(1, 1, freq="D", allow_backorders=False).fit(
+            reorder_point=values, order_up_to_level={sku: 9.0 for sku in skus}, **dates,
+        )
+
+    with pytest.raises(ValueError, match=r"the policy has no fitted level for 1 inventory SKU\(s\): \['B'\]"):
+        SimulationEngine().run(order_up_to("A"), demand, inventory)
+    with pytest.raises(ValueError, match=r"the policy has no fitted level .*\['B'\]"):
+        SimulationEngine().run(levels("A"), demand, inventory)
+    with pytest.raises(ValueError, match=r"policy_schedule period 1 has no fitted level .*\['B'\]"):
+        SimulationEngine().run(
+            levels("AB", forecast_origin=origin), demand, inventory,
+            policy_schedule={1: levels("A", forecast_origin=origin + pd.Timedelta(days=1))},
+        )
+    # Extra SKUs are not simulated and change nothing.
+    plain = SimulationEngine().run(order_up_to("AB"), demand, inventory)
+    extra = SimulationEngine().run(order_up_to("ABZ"), demand, inventory)
+    pd.testing.assert_frame_equal(
+        plain.to_event_frame().drop(columns="policy"), extra.to_event_frame().drop(columns="policy"),
+    )
+    # One pair for every SKU covers any inventory.
+    SimulationEngine().run(_levels(False), demand, inventory, freq="D")
+
+
 def test_look_ahead_error_names_the_column_the_origin_came_from():
     from stockcast.policies import OrderUpToPolicy
 

@@ -61,8 +61,11 @@ ground or explains what is missing:
 - the decision schedule decides at least once in the run, and not only in a
   settlement window where ordering is off;
 - every scheduled callback has at least one row inside the run;
-- every `policy_schedule` snapshot has the same configuration as `policy` and
-  the right forecast origin;
+- the policy has a fitted target for every SKU of the inventory (extra SKUs
+  are fine);
+- every `policy_schedule` snapshot has the same configuration as `policy`, a
+  target for every SKU, and the right forecast origin (when `policy` is dated,
+  so is every snapshot);
 - window lengths add up to `n_periods`.
 
 The engine then copies the state and the policy. Your objects are never

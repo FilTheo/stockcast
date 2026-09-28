@@ -1345,8 +1345,9 @@ class SimulationEngine:
             random_seed: Optional seed behind the demand, stored in the manifest.
             policy_schedule: ``{decision_period: fitted_policy}`` with refitted
                 policies for later decisions. Each must match ``policy``'s class and
-                configuration, with a forecast origin equal to the decision's
-                information date.
+                configuration. A dated snapshot's forecast origin must equal the
+                decision's information date; when ``policy`` is dated, every
+                snapshot must be dated too.
             order_constraints: A list of ``OrderingConstraint`` objects, applied
                 in order (or an ``OrderingConstraints`` holding them).
             callbacks: ``SimulationCallback`` objects, applied in order.
@@ -1540,6 +1541,10 @@ class SimulationEngine:
             period_offset=period_offset,
             decision_periods=decision_periods,
         )
+        inventory_skus = set(inventory.get_dataframe()[inventory.sku_column].tolist())
+        self._require_fitted_skus(policy, "the policy", inventory_skus)
+        for period, snapshot in sorted(policy_schedule.items()):
+            self._require_fitted_skus(snapshot, f"policy_schedule period {period}", inventory_skus)
         # Validate target coverage at every actual opportunity before callbacks
         # reset or demand callables are materialized.
         coverage_policy = policy
@@ -2696,6 +2701,7 @@ class SimulationEngine:
             getattr(policy, "selling_horizon", None),
         )
         frequency = SimulationEngine._policy_frequency(policy)
+        base_origin = SimulationEngine._policy_origin(policy)
         for period, snapshot in policy_schedule.items():
             if not isinstance(period, int) or isinstance(period, bool):
                 raise ValueError("policy_schedule keys must be integer decision periods")
@@ -2732,6 +2738,15 @@ class SimulationEngine:
                     f"{frequency.freqstr}; snapshots may change fitted targets only"
                 )
             decision_date = opening_date + period * period_offset
+            if base_origin is not None and SimulationEngine._policy_origin(snapshot) is None:
+                # A dated policy states when its information was known; an
+                # undated snapshot would replace it at a later decision without
+                # any check that it used only the information known then.
+                raise ValueError(
+                    f"policy_schedule period {period} has no forecast_origin, but the "
+                    f"policy is dated (forecast_origin {base_origin}); fit the snapshot "
+                    f"with forecast_origin {decision_date}, the decision's information date"
+                )
             SimulationEngine._validate_policy_information_origin(
                 snapshot,
                 latest_allowed_origin=decision_date,
@@ -2750,6 +2765,52 @@ class SimulationEngine:
         if frequency is None:
             return None
         return _require_forward_frequency(frequency, "policy freq")
+
+    @staticmethod
+    def _fitted_skus(policy: BasePolicy) -> Optional[set]:
+        """SKUs a built-in policy has fitted levels for.
+
+        ``None`` when the levels apply to any SKU (one reorder-point pair for
+        every SKU) or the policy is a custom one, whose table Stockcast does not
+        know.
+        """
+        # Deferred import to avoid circular dependency (core ↔ policies)
+        from stockcast.policies.order_up_to import OrderUpToPolicy
+        from stockcast.policies.reorder_point import ReorderPointPolicy
+
+        if isinstance(policy, ReorderPointPolicy):
+            if policy._uniform_levels is not None:
+                return None
+            table = policy.reorder_points_
+        elif isinstance(policy, OrderUpToPolicy):
+            table = policy.target_levels_
+        else:
+            return None
+        return set(table[policy.sku_column_].tolist())
+
+    @classmethod
+    def _require_fitted_skus(cls, policy: BasePolicy, label: str, inventory_skus: set) -> None:
+        """Fail before the run when an inventory SKU has no fitted level.
+
+        Extra fitted SKUs are allowed: they are simply not simulated.
+        """
+        fitted = cls._fitted_skus(policy)
+        if fitted is None:
+            return
+        missing = inventory_skus - fitted
+        if missing:
+            raise ValueError(
+                f"{label} has no fitted level for {len(missing)} inventory SKU(s): "
+                f"{_identifier_sample(missing)}; fit it on every SKU of the inventory"
+            )
+
+    @staticmethod
+    def _policy_origin(policy: BasePolicy) -> Optional[pd.Timestamp]:
+        """The forecast origin a fitted policy records, or None when it is undated."""
+        get_metadata = getattr(policy, "get_target_metadata", None)
+        metadata = get_metadata() if callable(get_metadata) else {}
+        origin = metadata.get("forecast_origin") if isinstance(metadata, dict) else None
+        return None if origin is None else pd.Timestamp(origin)
 
     @staticmethod
     def _validate_policy_information_origin(

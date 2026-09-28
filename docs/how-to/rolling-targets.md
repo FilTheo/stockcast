@@ -98,6 +98,7 @@ Before the run starts, for every snapshot:
 - its key is a decision period of the policy's schedule;
 - it has the same class, lead time, schedule, service level, and shortage rule
   as the first policy (only the fitted targets may change);
+- it has a target for every SKU of the inventory;
 - its forecast origin equals $\text{opening date} + t\,\Delta$ exactly;
 - its frequency matches the simulation.
 
