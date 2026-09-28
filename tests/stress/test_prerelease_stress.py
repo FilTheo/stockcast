@@ -69,7 +69,7 @@ def opening_state(skus, *, max_lead, backorders, on_hand, backlog=None, pipeline
 def fit_out(policy, skus, targets, *, horizon, origin=ORIGIN):
     return policy.fit(
         pd.DataFrame({"unique_id": skus, "S": targets, "end": origin + horizon * DAY}),
-        forecast_origin=origin, forecast_frequency="D", target_column="S",
+        forecast_origin=origin, target_column="S",
         target_end_date_column="end", protection_horizon=horizon,
         target_probability=policy.service_level,
     )
@@ -84,7 +84,7 @@ def fit_reorder(policy, skus, s_values, S_values=None, *, origin=ORIGIN):
         frame["S"] = S_values
         kwargs = dict(order_up_to_column="S")
     return policy.fit(
-        frame, forecast_origin=origin, forecast_frequency="D", reorder_point_column="s",
+        frame, forecast_origin=origin, reorder_point_column="s",
         reorder_end_date_column="s_end", target_probability=policy.service_level,
         reorder_horizon=horizon, **kwargs,
     )
@@ -116,7 +116,7 @@ def run_engine(engine, policy, demand, state, windows, *, constraints=None, call
                processes=None, policy_schedule=None, name="stress"):
     warmup, scoring, settlement, during = windows
     kwargs = dict(
-        period_frequency="D", warmup_periods=warmup, scoring_periods=scoring,
+        freq="D", warmup_periods=warmup, scoring_periods=scoring,
         settlement_periods=settlement, order_during_settlement=during,
         demand_source_name=name, random_seed=None, order_constraints=constraints,
         callbacks=callbacks, policy_schedule=policy_schedule,
@@ -341,7 +341,7 @@ def _random_case(seed: int):
         review, start = rng.randint(1, 4), rng.randint(0, 2)
         schedule = sc.PeriodicSchedule(review, start=start)
         targets = [float(rng.randint(5, 40)) for _ in skus]
-        policy = fit_out(sc.OrderUpToPolicy(lead, schedule=schedule, allow_backorders=backorders),
+        policy = fit_out(sc.OrderUpToPolicy(lead, freq="D", schedule=schedule, allow_backorders=backorders),
                          skus, targets, horizon=lead + review)
 
         def rule(i, ip):
@@ -353,7 +353,7 @@ def _random_case(seed: int):
         if family == "sQ":
             q = float(rng.randint(3, 20))
             policy = fit_reorder(sc.ReorderPointPolicy(
-                lead, schedule=schedule, policy_type="sQ", service_level=service, order_quantity=q,
+                lead, freq="D", schedule=schedule, policy_type="sQ", service_level=service, order_quantity=q,
                 allow_backorders=backorders), skus, s_values)
 
             def rule(i, ip):
@@ -361,7 +361,7 @@ def _random_case(seed: int):
         else:
             S_values = [s + rng.randint(0, 20) for s in s_values]
             policy = fit_reorder(sc.ReorderPointPolicy(
-                lead, schedule=schedule, policy_type="sS", service_level=service,
+                lead, freq="D", schedule=schedule, policy_type="sS", service_level=service,
                 allow_backorders=backorders), skus, s_values, S_values)
 
             def rule(i, ip):
@@ -371,9 +371,9 @@ def _random_case(seed: int):
         schedule = sc.ExplicitSchedule(tuple(periods))
         s_values = {sku: float(rng.randint(0, 15)) for sku in skus}
         S_values = {sku: s_values[sku] + rng.randint(0, 20) for sku in skus}
-        policy = sc.ReorderPointPolicy(lead, schedule=schedule, allow_backorders=backorders).fit(
+        policy = sc.ReorderPointPolicy(lead, freq="D", schedule=schedule, allow_backorders=backorders).fit(
             reorder_point=s_values, order_up_to_level=S_values,
-            forecast_origin=ORIGIN, forecast_frequency="D",
+            forecast_origin=ORIGIN,
         )
 
         def rule(i, ip):
@@ -455,7 +455,7 @@ def test_decisions_are_invariant_to_current_and_future_demand(lead, review, back
     skus = ["a", "b"]
     rng = np.random.default_rng(lead * 10 + review)
     base = rng.poisson(6, size=(12, 2)).astype(float)
-    policy = fit_out(sc.OrderUpToPolicy(lead, review, allow_backorders=backorders),
+    policy = fit_out(sc.OrderUpToPolicy(lead, review, freq="D", allow_backorders=backorders),
                      skus, [25.0, 14.0], horizon=lead + review)
     runs = {}
     for cut in (4, 7):
@@ -489,7 +489,7 @@ def test_callable_demand_is_materialized_once_and_runs_are_reproducible():
         calls.append(period)
         return frame[frame["period"] == period].copy()
 
-    policy = fit_out(sc.OrderUpToPolicy(1, 2, allow_backorders=True), ["a"], [12.0], horizon=3)
+    policy = fit_out(sc.OrderUpToPolicy(1, 2, freq="D", allow_backorders=True), ["a"], [12.0], horizon=3)
     state = opening_state(["a"], max_lead=1, backorders=True, on_hand=[3.0])
     first = run_engine(sc.SimulationEngine(), policy, demand_source, state, (1, 6, 2, False))
     assert calls == list(range(9))
@@ -522,7 +522,7 @@ def test_zero_lead_daily_order_up_to_is_a_repeated_newsvendor():
     skus = [f"n{i}" for i in range(n_skus)]
     target = float(_poisson_ppf(alpha, mean))
     demand = np.random.default_rng(11).poisson(mean, size=(n_periods, n_skus)).astype(float)
-    policy = fit_out(sc.OrderUpToPolicy(0, 1, service_level=alpha, allow_backorders=False),
+    policy = fit_out(sc.OrderUpToPolicy(0, 1, freq="D", service_level=alpha, allow_backorders=False),
                      skus, [target] * n_skus, horizon=1)
     result = run_engine(sc.SimulationEngine(), policy, demand_frame(demand, skus),
                         opening_state(skus, max_lead=0, backorders=False, on_hand=[0.0] * n_skus),
@@ -554,7 +554,7 @@ def test_order_up_to_protection_window_is_exactly_lead_plus_review(lead, review)
     n_periods = review * n_cycles + lead
     skus = [f"r{i}" for i in range(n_skus)]
     demand = np.maximum(0.0, np.random.default_rng(horizon).normal(mu, sigma, size=(n_periods, n_skus)))
-    policy = fit_out(sc.OrderUpToPolicy(lead, review, service_level=alpha, allow_backorders=True),
+    policy = fit_out(sc.OrderUpToPolicy(lead, review, freq="D", service_level=alpha, allow_backorders=True),
                      skus, [target] * n_skus, horizon=horizon)
     state = opening_state(skus, max_lead=lead, backorders=True, on_hand=[target] * n_skus)
     result = run_engine(sc.SimulationEngine(), policy, demand_frame(demand, skus), state,
@@ -631,7 +631,7 @@ def test_every_period_reorder_point_needs_lead_plus_one_window():
 
     def service(lead, window):
         s = float(_poisson_ppf(alpha, mean * window)) if window else 0.0
-        policy = sc.ReorderPointPolicy(lead, review_period=1, policy_type="sQ", order_quantity=q,
+        policy = sc.ReorderPointPolicy(lead, review_period=1, freq="D", policy_type="sQ", order_quantity=q,
                                        allow_backorders=True)
         fit_reorder(policy, skus, [s] * n_skus)  # planner mode: s supplied directly
         state = opening_state(skus, max_lead=lead, backorders=True, on_hand=[s + q] * n_skus)
@@ -663,11 +663,11 @@ def test_single_season_newsvendor_is_profit_maximizing_at_the_critical_fractile(
     origin = ORIGIN + decision * DAY
 
     def profit(quantity):
-        policy = sc.SingleOrderPolicy(lead, selling_horizon=season, decision_period=decision,
+        policy = sc.SingleOrderPolicy(lead, freq="D", selling_horizon=season, decision_period=decision,
                                       service_level=fractile, allow_backorders=False)
         policy.fit(pd.DataFrame({"unique_id": skus, "q": quantity,
                                  "end": origin + (lead + season) * DAY}),
-                   forecast_origin=origin, forecast_frequency="D", target_column="q",
+                   forecast_origin=origin, target_column="q",
                    target_end_date_column="end",
                    target_probability=fractile)
         state = opening_state(skus, max_lead=lead, backorders=False, on_hand=[0.0] * n_skus)
@@ -753,8 +753,8 @@ def test_retailer_weekly_rolling_forecast_workflow_with_perishables():
             for sku in skus:
                 rows.append((sku, fh, date, by_weekday.at[date.dayofweek, sku], spread[sku]))
         frame = pd.DataFrame(rows, columns=["unique_id", "fh", "date", "mean", "std"])
-        return sc.OrderUpToPolicy(lead, review, service_level=0.95, allow_backorders=False).fit(
-            frame, forecast_origin=origin, forecast_frequency="D", mean_column="mean",
+        return sc.OrderUpToPolicy(lead, review, freq="D", service_level=0.95, allow_backorders=False).fit(
+            frame, forecast_origin=origin, mean_column="mean",
             std_column="std", forecast_date_column="date",
             protection_horizon=horizon, target_probability=0.95,
         )
@@ -780,7 +780,7 @@ def test_retailer_weekly_rolling_forecast_workflow_with_perishables():
         })),
     ]
     result = sc.SimulationEngine().run(
-        policy, demand_frame(future, skus), state, n_periods, period_frequency="D",
+        policy, demand_frame(future, skus), state, n_periods, freq="D",
         warmup_periods=warmup, scoring_periods=scoring, settlement_periods=settlement,
         order_during_settlement=False, demand_source_name="retailer_fresh", random_seed=2026,
         processes=[ShelfLife(shelf, lots)], policy_schedule=schedule,
@@ -820,11 +820,11 @@ def test_retailer_weekly_rolling_forecast_workflow_with_perishables():
     assert 0.8 < evaluated["fill_rate"] <= 1.0
 
     # Same scenario, two policies, one shared demand path and identical opening lots.
-    fixed = fit_out(sc.OrderUpToPolicy(lead, review, allow_backorders=False), skus,
+    fixed = fit_out(sc.OrderUpToPolicy(lead, review, freq="D", allow_backorders=False), skus,
                     list(np.round(level * horizon * 1.2)), horizon=horizon)
     comparison = sc.SimulationEngine().run_comparison(
         [fixed, copy.deepcopy(fixed)], demand_frame(future, skus), state, n_periods,
-        period_frequency="D", warmup_periods=warmup, scoring_periods=scoring,
+        freq="D", warmup_periods=warmup, scoring_periods=scoring,
         settlement_periods=settlement, order_during_settlement=False,
         demand_source_name="retailer_fresh", random_seed=2026,
         processes=[ShelfLife(shelf, lots)],
@@ -844,12 +844,12 @@ def _good():
     skus = ["a", "b"]
     demand = demand_frame(np.full((4, 2), 3.0), skus)
     state = opening_state(skus, max_lead=1, backorders=False, on_hand=[5.0, 5.0])
-    policy = fit_out(sc.OrderUpToPolicy(1, 1, allow_backorders=False), skus, [9.0, 9.0], horizon=2)
+    policy = fit_out(sc.OrderUpToPolicy(1, 1, freq="D", allow_backorders=False), skus, [9.0, 9.0], horizon=2)
     return policy, demand, state
 
 
 def _run_good(policy, demand, state, **overrides):
-    kwargs = dict(period_frequency="D", warmup_periods=0, scoring_periods=4, settlement_periods=0,
+    kwargs = dict(freq="D", warmup_periods=0, scoring_periods=4, settlement_periods=0,
                   order_during_settlement=False, demand_source_name="bad", random_seed=None)
     kwargs.update(overrides)
     n_periods = kwargs.pop("n_periods", 4)
@@ -871,13 +871,13 @@ BAD_INPUTS = {
     "infinite demand": _mutate_demand(lambda d: d.assign(y=np.inf)),
     "unknown SKU": _mutate_demand(lambda d: d.assign(unique_id=d["unique_id"].replace("b", "c"))),
     "period gap": _mutate_demand(lambda d: d.assign(period=d["period"] * 2)),
-    "frequency mismatch": lambda p, d, s: _run_good(p, d, s, period_frequency="W"),
+    "frequency mismatch": lambda p, d, s: _run_good(p, d, s, freq="W"),
     "window sum mismatch": lambda p, d, s: _run_good(p, d, s, scoring_periods=3),
     "unfitted policy": lambda p, d, s: _run_good(sc.OrderUpToPolicy(1, 1, allow_backorders=False), d, s),
     "pipeline shorter than lead": lambda p, d, s: _run_good(
-        fit_out(sc.OrderUpToPolicy(2, 1, allow_backorders=False), ["a", "b"], [9.0, 9.0], horizon=3), d, s),
+        fit_out(sc.OrderUpToPolicy(2, 1, freq="D", allow_backorders=False), ["a", "b"], [9.0, 9.0], horizon=3), d, s),
     "forecast origin after first decision": lambda p, d, s: _run_good(
-        fit_out(sc.OrderUpToPolicy(1, 1, allow_backorders=False), ["a", "b"], [9.0, 9.0], horizon=2,
+        fit_out(sc.OrderUpToPolicy(1, 1, freq="D", allow_backorders=False), ["a", "b"], [9.0, 9.0], horizon=2,
                 origin=ORIGIN + DAY), d, s),
     "retired initial decision": lambda p, d, s: _run_good(p, d, s, initial_decision="before_first_demand"),
     "stock and backlog together": lambda p, d, s: _run_good(
@@ -887,7 +887,7 @@ BAD_INPUTS = {
     "negative opening stock": lambda p, d, s: _run_good(
         p, d, opening_state(["a", "b"], max_lead=1, backorders=False, on_hand=[-1.0, 5.0])),
     "missing target for a SKU": lambda p, d, s: _run_good(
-        fit_out(sc.OrderUpToPolicy(1, 1, allow_backorders=False), ["a"], [9.0], horizon=2), d, s),
+        fit_out(sc.OrderUpToPolicy(1, 1, freq="D", allow_backorders=False), ["a"], [9.0], horizon=2), d, s),
 }
 
 
@@ -906,23 +906,23 @@ def test_invalid_production_inputs_fail_closed(name):
     dict(target_column="q90", target_probability=0.95),
 ])
 def test_target_metadata_that_misstates_the_window_is_rejected(bad):
-    policy = sc.OrderUpToPolicy(1, 1, service_level=0.95, allow_backorders=False)
+    policy = sc.OrderUpToPolicy(1, 1, freq="D", service_level=0.95, allow_backorders=False)
     horizon = bad.get("protection_horizon", 2)
     column = bad.get("target_column", "S")
     frame = pd.DataFrame({"unique_id": ["a"], column: [9.0],
                           "end": ORIGIN + (2 + bad.get("end_shift", 0)) * DAY})
     with pytest.raises(ValueError):
-        policy.fit(frame, forecast_origin=ORIGIN, forecast_frequency="D", target_column=column,
+        policy.fit(frame, forecast_origin=ORIGIN, target_column=column,
                    target_end_date_column="end", protection_horizon=horizon,
                    target_probability=bad.get("target_probability", 0.95))
 
 
 def test_summing_marginal_quantiles_is_refused():
-    policy = sc.OrderUpToPolicy(1, 1, service_level=0.9, allow_backorders=False)
+    policy = sc.OrderUpToPolicy(1, 1, freq="D", service_level=0.9, allow_backorders=False)
     frame = pd.DataFrame({"unique_id": ["a", "a"], "fh": [1, 2],
                           "date": [ORIGIN + DAY, ORIGIN + 2 * DAY], "mean": [3.0, 3.0], "std": [1.0, 1.0]})
     with pytest.raises(TypeError, match="aggregation_method"):
-        policy.fit(frame, forecast_origin=ORIGIN, forecast_frequency="D", mean_column="mean",
+        policy.fit(frame, forecast_origin=ORIGIN, mean_column="mean",
                    std_column="std", forecast_date_column="date", protection_horizon=2,
                    target_probability=0.9, aggregation_method="sum_marginal_quantiles")
 
@@ -1045,7 +1045,7 @@ def test_supplier_outcomes_match_independent_oracle(seed):
                 for _ in skus]
     targets = [float(rng.randint(10, 45)) for _ in skus]
     schedule = sc.PeriodicSchedule(review, start=rng.randint(0, review - 1))
-    policy = fit_out(sc.OrderUpToPolicy(lead, schedule=schedule, allow_backorders=backorders),
+    policy = fit_out(sc.OrderUpToPolicy(lead, freq="D", schedule=schedule, allow_backorders=backorders),
                      skus, targets, horizon=lead + review)
     state = opening_state(skus, max_lead=max_lead, backorders=backorders,
                           on_hand=on_hand, pipeline=pipeline)
@@ -1054,7 +1054,7 @@ def test_supplier_outcomes_match_independent_oracle(seed):
                                    delivery=RuleOutcome(skus, offset))])
     with pytest.warns(UserWarning, match="policy's lead_time"):
         result = sc.SimulationEngine().run(
-            policy, demand_frame(demand, skus), state, n_periods, period_frequency="D",
+            policy, demand_frame(demand, skus), state, n_periods, freq="D",
             warmup_periods=0, scoring_periods=n_periods, settlement_periods=0,
             order_during_settlement=False, demand_source_name="outcome_stress",
             random_seed=None, supply=supply,

@@ -91,7 +91,7 @@ def opening(skus, *, max_lead, backorders, on_hand, backlog=None, pipeline=None)
 
 def run(policy, demand, state, n_periods, *, warmup=0, settlement=0, during=False, **kwargs):
     return SimulationEngine().run(
-        policy, demand, state, n_periods, period_frequency="D", warmup_periods=warmup,
+        policy, demand, state, n_periods, freq="D", warmup_periods=warmup,
         scoring_periods=n_periods - warmup - settlement, settlement_periods=settlement,
         order_during_settlement=during, demand_source_name="audit", random_seed=None, **kwargs,
     )
@@ -99,9 +99,9 @@ def run(policy, demand, state, n_periods, *, warmup=0, settlement=0, during=Fals
 
 def order_up_to(lead, review, targets, backorders, skus):
     horizon = lead + review
-    return OrderUpToPolicy(lead, review, allow_backorders=backorders).fit(
+    return OrderUpToPolicy(lead, review, freq="D", allow_backorders=backorders).fit(
         pd.DataFrame({"unique_id": list(skus), "S": targets, "end": ORIGIN + horizon * DAY}),
-        forecast_origin=ORIGIN, forecast_frequency="D", target_column="S",
+        forecast_origin=ORIGIN, target_column="S",
         target_end_date_column="end", protection_horizon=horizon,
     )
 
@@ -253,15 +253,16 @@ def test_policies_match_textbook_reference(family, backorders, lead, review):
         s, S = [6.0, 15.0], [18.0, 40.0]
         frame = pd.DataFrame({"unique_id": skus, "s": s, "S": S, "end": ORIGIN + horizon * DAY})
         if family == "sQ":
-            policy = ReorderPointPolicy(lead, review, policy_type="sQ", order_quantity=11.0,
-                                        allow_backorders=backorders)
+            policy = ReorderPointPolicy(lead, review, freq="D", policy_type="sQ",
+                                        order_quantity=11.0, allow_backorders=backorders)
             rule = lambda sku, ip: 11.0 if ip <= s[sku] else 0.0  # noqa: E731
             extra = {}
         else:
-            policy = ReorderPointPolicy(lead, review, policy_type="sS", allow_backorders=backorders)
+            policy = ReorderPointPolicy(lead, review, freq="D", policy_type="sS",
+                                        allow_backorders=backorders)
             rule = lambda sku, ip: max(0.0, S[sku] - ip) if ip <= s[sku] else 0.0  # noqa: E731
             extra = {"order_up_to_column": "S"}
-        policy.fit(frame, forecast_origin=ORIGIN, forecast_frequency="D", reorder_point_column="s",
+        policy.fit(frame, forecast_origin=ORIGIN, reorder_point_column="s",
                    reorder_end_date_column="end", reorder_horizon=horizon,
                    **extra)
     state = opening(skus, max_lead=max_lead, backorders=backorders, on_hand=on_hand,
@@ -281,10 +282,10 @@ def test_policies_match_textbook_reference(family, backorders, lead, review):
 def test_periodic_reorder_horizon_must_be_lead_plus_review(lead, review):
     def fit(horizon):
         return ReorderPointPolicy(
-            lead, review, policy_type="sQ", order_quantity=5.0,
+            lead, review, freq="D", policy_type="sQ", order_quantity=5.0,
             allow_backorders=True,
         ).fit(pd.DataFrame({"unique_id": ["a"], "s": [3.0], "end": ORIGIN + horizon * DAY}),
-              forecast_origin=ORIGIN, forecast_frequency="D", reorder_point_column="s",
+              forecast_origin=ORIGIN, reorder_point_column="s",
               reorder_end_date_column="end", reorder_horizon=horizon)
 
     fit(lead + review)
@@ -298,8 +299,8 @@ def test_independent_normal_target_and_critical_fractile():
         "unique_id": "a", "fh": range(1, 6), "date": [ORIGIN + h * DAY for h in range(1, 6)],
         "mu": [4, 5, 6, 5, 4.0], "sd": [1, 2, 1, 2, 1.0],
     })
-    policy = OrderUpToPolicy(2, 3, service_level=0.9, allow_backorders=True).fit(
-        forecasts, forecast_origin=ORIGIN, forecast_frequency="D", mean_column="mu",
+    policy = OrderUpToPolicy(2, 3, freq="D", service_level=0.9, allow_backorders=True).fit(
+        forecasts, forecast_origin=ORIGIN, mean_column="mu",
         std_column="sd", forecast_date_column="date",
         target_probability=0.9, protection_horizon=5,
     )
@@ -314,10 +315,10 @@ def test_independent_normal_target_and_critical_fractile():
 
 @pytest.mark.parametrize("lead", [0, 2])
 def test_single_order_buys_target_minus_stock_for_the_season(lead):
-    policy = SingleOrderPolicy(lead, selling_horizon=3, service_level=0.75,
+    policy = SingleOrderPolicy(lead, freq="D", selling_horizon=3, service_level=0.75,
                                allow_backorders=False).fit(
         pd.DataFrame({"unique_id": ["a"], "t": [20.0], "end": ORIGIN + (lead + 3) * DAY}),
-        forecast_origin=ORIGIN, forecast_frequency="D", target_column="t",
+        forecast_origin=ORIGIN, target_column="t",
         target_probability=0.75, target_end_date_column="end",
     )
     state = opening(["a"], max_lead=lead, backorders=False, on_hand=[4.0])
@@ -512,7 +513,7 @@ def test_comparison_branches_share_one_materialized_demand_path():
     comparison = SimulationEngine().run_comparison(
         [order_up_to(1, 2, [10.0, 10.0], False, ["a", "b"]),
          order_up_to(1, 2, [25.0, 25.0], False, ["a", "b"])],
-        source, state, 15, period_frequency="D", warmup_periods=0, scoring_periods=15,
+        source, state, 15, freq="D", warmup_periods=0, scoring_periods=15,
         settlement_periods=0, order_during_settlement=False, demand_source_name="cmp",
         random_seed=11, labels=["low", "high"],
     )
@@ -718,7 +719,7 @@ def test_shortage_mode_conflict_is_rejected_and_unset_mode_follows_policy():
         with pytest.raises(ValueError, match="conflicts with policy allow_backorders"):
             run(order_up_to(1, 1, [4.0], policy_mode, ["a"]), demand, state, 3)
         policy = order_up_to(1, 1, [4.0], policy_mode, ["a"])
-        advanced = state.advance_period(period_frequency="D", is_review_period=True)
+        advanced = state.advance_period(freq="D", is_review_period=True)
         decision = policy.predict(advanced, current_period=int(advanced.data["period"].iloc[0]))
         with pytest.raises(ValueError, match="conflicts with inventory_state"):
             update_inventory_with_orders(advanced, decision, policy=policy)
@@ -735,9 +736,9 @@ def test_shortage_mode_conflict_is_rejected_and_unset_mode_follows_policy():
 ])
 def test_quantile_labels_are_read_as_probabilities(column, probability, accepted):
     def fit():
-        OrderUpToPolicy(1, 1, service_level=probability, allow_backorders=True).fit(
+        OrderUpToPolicy(1, 1, freq="D", service_level=probability, allow_backorders=True).fit(
             pd.DataFrame({"unique_id": ["a"], column: [10.0], "end": ORIGIN + 2 * DAY}),
-            forecast_origin=ORIGIN, forecast_frequency="D", target_column=column,
+            forecast_origin=ORIGIN, target_column=column,
             target_end_date_column="end", protection_horizon=2,
             target_probability=probability)
 
@@ -750,9 +751,9 @@ def test_quantile_labels_are_read_as_probabilities(column, probability, accepted
 
 def test_quantile_label_mismatch_names_only_probability_readings():
     with pytest.raises(ValueError, match=r"'q975' denotes probability 0\.975, not 0\.95"):
-        OrderUpToPolicy(1, 1, service_level=0.95, allow_backorders=True).fit(
+        OrderUpToPolicy(1, 1, freq="D", service_level=0.95, allow_backorders=True).fit(
             pd.DataFrame({"unique_id": ["a"], "q975": [10.0], "end": ORIGIN + 2 * DAY}),
-            forecast_origin=ORIGIN, forecast_frequency="D", target_column="q975",
+            forecast_origin=ORIGIN, target_column="q975",
             target_end_date_column="end", protection_horizon=2,
             target_probability=0.95)
 
@@ -783,7 +784,7 @@ def test_process_received_dates_accept_a_series():
 
 def test_order_lines_reject_a_conflicting_policy_mode():
     state = opening(["a"], max_lead=2, backorders=False, on_hand=[1.0])
-    advanced = state.advance_period(period_frequency="D", is_review_period=True)
+    advanced = state.advance_period(freq="D", is_review_period=True)
     period = int(advanced.data["period"].iloc[0])
     lines = OrderLines(pd.DataFrame({"unique_id": ["a"], "supplier_id": ["s"],
                                      "order_quantity": [3.0], "order_period": [period],
@@ -803,7 +804,7 @@ def test_comparison_checks_shortage_modes_before_any_branch_runs():
         calls.append(period)
         return demand[demand["period"] == period].copy()
 
-    settings = dict(period_frequency="D", warmup_periods=0, scoring_periods=6,
+    settings = dict(freq="D", warmup_periods=0, scoring_periods=6,
                     settlement_periods=0, order_during_settlement=False,
                     demand_source_name="modes", random_seed=None, labels=["lost", "owed"])
     explicit = opening(["a"], max_lead=1, backorders=False, on_hand=[0.0])

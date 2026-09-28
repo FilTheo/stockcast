@@ -118,11 +118,11 @@ def _state(skus, *, max_lead, backorders, on_hand, pipeline=None):
 def _order_up_to(skus, targets, *, lead, schedule, backorders, origin=ORIGIN):
     horizon = lead + (schedule.every if isinstance(schedule, sc.PeriodicSchedule) else 1)
     policy = sc.OrderUpToPolicy(
-        lead_time=lead, schedule=schedule, service_level=0.9, allow_backorders=backorders,
+        lead_time=lead, freq="D", schedule=schedule, service_level=0.9, allow_backorders=backorders,
     )
     return policy.fit(
         pd.DataFrame({"unique_id": skus, "S": targets, "end": origin + horizon * DAY}),
-        forecast_origin=origin, forecast_frequency="D", target_column="S",
+        forecast_origin=origin, target_column="S",
         target_end_date_column="end", protection_horizon=horizon,
         target_probability=0.9,
     )
@@ -131,7 +131,7 @@ def _order_up_to(skus, targets, *, lead, schedule, backorders, origin=ORIGIN):
 def _run(engine, policy, demand, state, *, warmup=0, settlement=0, during=False, **options):
     n_periods = int(demand["period"].max()) + 1
     return engine.run(
-        policy, demand, state, n_periods, period_frequency="D",
+        policy, demand, state, n_periods, freq="D",
         warmup_periods=warmup, scoring_periods=n_periods - warmup - settlement,
         settlement_periods=settlement, order_during_settlement=during,
         demand_source_name="kernel_equivalence", random_seed=None, **options,
@@ -428,7 +428,7 @@ def test_run_comparison_matches_dataframe_path(monkeypatch):
                 patch.setattr(SimulationEngine, "_array_hooks_supported", lambda self: False)
             outcomes.append(SimulationEngine().run_comparison(
                 [copy.deepcopy(weekly), copy.deepcopy(daily)], _demand(matrix, skus), state,
-                15, period_frequency="D", warmup_periods=0, scoring_periods=15,
+                15, freq="D", warmup_periods=0, scoring_periods=15,
                 settlement_periods=0, order_during_settlement=False,
                 demand_source_name="kernel_equivalence", random_seed=None,
                 labels=["weekly", "daily"],

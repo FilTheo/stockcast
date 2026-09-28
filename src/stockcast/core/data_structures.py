@@ -98,6 +98,45 @@ def _require_forward_frequency(value: str, name: str):
     return offset
 
 
+# Calendars Stockcast reads from dates, with any step multiple (``2D``,
+# ``2W-MON``): the pandas offset type and its periods per year. Other offsets
+# (business days, hours, semi-months, ...) have no single reading from a few
+# dates and must be stated.
+_STANDARD_FREQUENCIES = (
+    (pd.offsets.Day, 365.0),
+    (pd.offsets.Week, 52.0),
+    (pd.offsets.MonthBegin, 12.0),
+    (pd.offsets.MonthEnd, 12.0),
+    (pd.offsets.QuarterBegin, 4.0),
+    (pd.offsets.QuarterEnd, 4.0),
+    (pd.offsets.YearBegin, 1.0),
+    (pd.offsets.YearEnd, 1.0),
+)
+
+
+def _standard_frequency(dates) -> tuple:
+    """Read one standard calendar from dates, without guessing.
+
+    Returns ``(offset, problem)``. ``offset`` is set only when pandas infers a
+    single frequency from at least three distinct, regularly spaced dates and
+    it is daily, weekly on a weekday, or a month, quarter or year start or
+    end (with any step multiple). Otherwise ``problem`` is ``"few"``,
+    ``"irregular"``, or the pandas frequency string that has no standard
+    reading (for example ``"B"``).
+    """
+    dates = pd.DatetimeIndex(pd.to_datetime(pd.Series(dates)).unique()).sort_values()
+    if len(dates) < 3:
+        return None, "few"
+    frequency = pd.infer_freq(dates)
+    if frequency is None:
+        return None, "irregular"
+    offset = pd.tseries.frequencies.to_offset(frequency)
+    for kind, _ in _STANDARD_FREQUENCIES:
+        if type(offset) is kind and (kind is not pd.offsets.Week or offset.weekday is not None):
+            return offset, None
+    return None, frequency
+
+
 def _require_unique(df: pd.DataFrame, columns: List[str], frame_name: str) -> None:
     """Validate uniqueness for a set of key columns."""
     if len(columns) == 1 and df[columns[0]].is_unique:
@@ -1092,7 +1131,7 @@ class InventoryStateDataFrame:
             int(periods[0]),
         )
 
-    def advance_period(self, *, period_frequency: str, is_review_period: bool) -> 'InventoryStateDataFrame':
+    def advance_period(self, *, freq: str, is_review_period: bool) -> 'InventoryStateDataFrame':
         """Move to the next period and receive what is due.
 
         Resets the ``latest_*`` flows, advances ``period`` and ``date``, receives the
@@ -1100,14 +1139,14 @@ class InventoryStateDataFrame:
         touched: call ``fulfill_demand`` after any decision.
 
         Args:
-            period_frequency: Length of one period, such as ``"D"``.
+            freq: Length of one period, a pandas frequency such as ``"D"``.
             is_review_period: Whether a decision may be made in the new period.
 
         Returns:
             A new state.
         """
         self._validate_ready_state()
-        offset = _require_forward_frequency(period_frequency, "period_frequency")
+        offset = _require_forward_frequency(freq, "freq")
         if not isinstance(is_review_period, bool):
             raise ValueError("is_review_period must be boolean")
         data = self.data.copy()
@@ -1190,7 +1229,7 @@ class InventoryStateDataFrame:
         result._history.append(result.data.copy())
         return result
 
-    def process_demand(self, demand_df: pd.DataFrame, period_frequency: str,
+    def process_demand(self, demand_df: pd.DataFrame, freq: str,
                        demand_column: str = "y", date_column: Optional[str] = "date",
                        sku_column: Optional[str] = None) -> 'InventoryStateDataFrame':
         """Advance, receive and serve demand in one step, without an order.
@@ -1201,7 +1240,7 @@ class InventoryStateDataFrame:
 
         Args:
             demand_df: One row per SKU for the next date.
-            period_frequency: Length of one period.
+            freq: Length of one period, a pandas frequency such as ``"D"``.
             demand_column: Column with demand.
             date_column: Column with the date.
             sku_column: SKU column of ``demand_df``.
@@ -1210,8 +1249,7 @@ class InventoryStateDataFrame:
             A new state.
         """
         self._validate_ready_state()
-        advanced = self.advance_period(period_frequency=period_frequency,
-                                       is_review_period=False)
+        advanced = self.advance_period(freq=freq, is_review_period=False)
         return advanced.fulfill_demand(demand_df, demand_column=demand_column,
                                        date_column=date_column, sku_column=sku_column)
 

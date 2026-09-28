@@ -99,11 +99,11 @@ def fit_for(decision_period, horizon):
         "end": [origin + pd.Timedelta(days=horizon)],
     })
     return OrderUpToPolicy(
-        lead_time=lead_time, schedule=calendar, service_level=0.95,
+        lead_time=lead_time, freq="D", schedule=calendar, service_level=0.95,
         allow_backorders=False,
     ).fit(
         target, target_column="target", protection_horizon=horizon,
-        forecast_origin=origin, forecast_frequency="D", target_end_date_column="end",
+        forecast_origin=origin, target_end_date_column="end",
     )
 
 
@@ -114,7 +114,7 @@ later = {
 }
 
 demand = DemandGenerator([sku], start_date=opening_date + pd.Timedelta(days=1),
-                         period_frequency="D", random_seed=3).constant(n_periods=14, value=6.0)
+                         freq="D", random_seed=3).constant(n_periods=14, value=6.0)
 inventory = InventoryStateDataFrame.from_observed(
     pd.DataFrame({"unique_id": [sku], "on_hand": [20.0]}), start_date=opening_date)
 

@@ -54,7 +54,7 @@ saved = pd.DataFrame({
 state = InventoryStateDataFrame(saved, max_lead_time=LEAD_TIME, allow_backorders=False)
 
 # 2. Open today: receive what is due. Today is a review day.
-today_state = state.advance_period(period_frequency="D", is_review_period=True)
+today_state = state.advance_period(freq="D", is_review_period=True)
 now = int(today_state.get_dataframe()["period"].iloc[0])
 
 # 3. Today's targets, from your forecasting service (data up to yesterday).
@@ -63,10 +63,10 @@ targets = pd.DataFrame({
     "target": [46.0, 25.0],
     "target_end_date": yesterday + pd.Timedelta(days=HORIZON),
 })
-policy = OrderUpToPolicy(lead_time=LEAD_TIME, review_period=REVIEW_PERIOD,
+policy = OrderUpToPolicy(lead_time=LEAD_TIME, review_period=REVIEW_PERIOD, freq="D",
                          service_level=0.95, allow_backorders=False).fit(
     targets, target_column="target",
-    forecast_origin=yesterday, forecast_frequency="D",
+    forecast_origin=yesterday,
     target_end_date_column="target_end_date",
 )
 

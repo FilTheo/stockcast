@@ -30,7 +30,7 @@ from stockcast.utils import DemandGenerator
 
 origin = pd.Timestamp("2026-01-05")          # last observed day
 history = DemandGenerator(
-    ["tea_250g"], start_date=origin - pd.Timedelta(days=111), period_frequency="D",
+    ["tea_250g"], start_date=origin - pd.Timedelta(days=111), freq="D",
     random_seed=11, negative_demand_handling="clip_zero",
 ).seasonal(n_periods=112, base=6.0, amplitude=2.0, season_length=7, std=1.5)
 y = history["y"].round().to_numpy()
@@ -82,9 +82,9 @@ target = pd.DataFrame({
     "target": [target_value],
     "target_end_date": [origin + pd.Timedelta(days=H)],
 })
-policy = OrderUpToPolicy(lead_time=2, review_period=4, service_level=0.95,
+policy = OrderUpToPolicy(lead_time=2, review_period=4, freq="D", service_level=0.95,
                          allow_backorders=False).fit(
-    target, target_column="target", forecast_origin=origin, forecast_frequency="D",
+    target, target_column="target", forecast_origin=origin,
     target_end_date_column="target_end_date",
 )
 ```

@@ -225,7 +225,7 @@ def _setup(*, lead=1, backorders=False, n_periods=12, on_hand=(20.0, 12.0), targ
 def _run(engine, policy, demand, state, **options):
     n_periods = int(demand["period"].max()) + 1
     return engine.run(
-        policy, demand, state, n_periods, period_frequency="D",
+        policy, demand, state, n_periods, freq="D",
         warmup_periods=0, scoring_periods=n_periods, settlement_periods=0,
         order_during_settlement=False, demand_source_name="processes",
         random_seed=None, **options,
@@ -417,7 +417,7 @@ def test_processes_are_reset_for_every_run_and_comparison_branch():
     _run(SimulationEngine(), policy, demand, state, processes=[counter])
     assert counter.periods == 5
     comparison = SimulationEngine().run_comparison(
-        [policy, copy.deepcopy(policy)], demand, state, 5, period_frequency="D",
+        [policy, copy.deepcopy(policy)], demand, state, 5, freq="D",
         warmup_periods=0, scoring_periods=5, settlement_periods=0,
         order_during_settlement=False, demand_source_name="processes",
         random_seed=None, labels=["a", "b"], processes=[counter],

@@ -132,6 +132,14 @@ compute $S_t$ as above and pass it as a direct target.
 Every fitted target records its probability, horizon, forecast origin,
 frequency, and end date. The fitting modes differ in what you supply.
 
+The frequency is the policy's `freq`: the length of one period, such as
+`"D"` or `"W-MON"`. It sits next to `lead_time` and `review_period` because
+they count periods of that length. With per-step forecasts (the
+independent-normal mode) you may leave it out: Stockcast reads it from the
+step dates when every SKU has at least three of them, evenly spaced on a
+daily, weekly, monthly, quarterly or yearly calendar (steps such as `"2D"`
+included). A one-row target has a single date per SKU, so it needs `freq`.
+
 === "Direct target (most common)"
 
     One row per SKU with the target you computed:
@@ -145,12 +153,11 @@ frequency, and end date. The fitting modes differ in what you supply.
         "S": [target_correlated],
         "S_end": [opening_date + pd.Timedelta(days=6)],
     })
-    policy = OrderUpToPolicy(lead_time=2, review_period=4, service_level=0.95,
-                             allow_backorders=False).fit(
+    policy = OrderUpToPolicy(lead_time=2, review_period=4, freq="D",
+                             service_level=0.95, allow_backorders=False).fit(
         target,
         target_column="S",
         forecast_origin=opening_date,
-        forecast_frequency="D",
         target_end_date_column="S_end",
     )
     ```
@@ -171,10 +178,10 @@ frequency, and end date. The fitting modes differ in what you supply.
         "mean": mu,
         "std": sigma,
     })
-    independent = OrderUpToPolicy(lead_time=2, review_period=4, service_level=0.95,
-                                  allow_backorders=False).fit(
+    independent = OrderUpToPolicy(lead_time=2, review_period=4, freq="D",
+                                  service_level=0.95, allow_backorders=False).fit(
         steps, mean_column="mean", std_column="std", forecast_date_column="date",
-        forecast_origin=opening_date, forecast_frequency="D",
+        forecast_origin=opening_date,
     )
     independent.get_target_levels()
     ```
@@ -191,11 +198,11 @@ frequency, and end date. The fitting modes differ in what you supply.
     probability:
 
     ```python
-    planned = OrderUpToPolicy(lead_time=2, review_period=4, service_level=None,
-                              allow_backorders=False).fit(
+    planned = OrderUpToPolicy(lead_time=2, review_period=4, freq="D",
+                              service_level=None, allow_backorders=False).fit(
         target, target_column="S",
         forecast_origin=opening_date,
-        forecast_frequency="D", target_end_date_column="S_end",
+        target_end_date_column="S_end",
     )
     planned.get_target_metadata()["representation"]
     ```
@@ -206,12 +213,9 @@ frequency, and end date. The fitting modes differ in what you supply.
 
 ### The fit arguments
 
-| Argument | Meaning | Checked against |
-|---|---|---|
 | Argument | Meaning | Default and checks |
 |---|---|---|
 | `target_column` | Column holding the target | One finite, non-negative value per SKU |
-| `forecast_frequency` | Period length of the forecast | Required; the simulation uses it as its `period_frequency` |
 | `forecast_origin` | Last date of demand the forecast used | Required unless an end-date column dates the target; must not be after the first decision's information date |
 | `target_end_date_column` | Optional column with the last date the target covers | Must equal origin $+ H \Delta$; with no origin given, the origin is read from it |
 | `target_probability` | Probability $\alpha$ the target represents | Defaults to the policy's `service_level`; must equal it if given |

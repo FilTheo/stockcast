@@ -154,11 +154,11 @@ daily = pd.DataFrame({
     "std": np.sqrt(6.0),
 })
 
-policy = OrderUpToPolicy(lead_time=2, review_period=4, service_level=0.95,
+policy = OrderUpToPolicy(lead_time=2, review_period=4, freq="D", service_level=0.95,
                          allow_backorders=False).fit(
     daily,
     mean_column="mean", std_column="std", forecast_date_column="date",
-    forecast_origin=opening_date, forecast_frequency="D",
+    forecast_origin=opening_date,
 )
 policy.get_target_levels()
 ```

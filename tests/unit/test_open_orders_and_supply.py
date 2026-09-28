@@ -58,11 +58,11 @@ def _demand(n_periods, seed=0):
 def _policy(lead=2, *, every=1, backorders=True, targets=(30.0, 25.0)):
     horizon = lead + every
     policy = sc.OrderUpToPolicy(
-        lead_time=lead, review_period=every, service_level=0.9, allow_backorders=backorders,
+        lead_time=lead, review_period=every, freq="D", service_level=0.9, allow_backorders=backorders,
     )
     return policy.fit(
         pd.DataFrame({"unique_id": SKUS, "S": list(targets), "end": ORIGIN + horizon * DAY}),
-        forecast_origin=ORIGIN, forecast_frequency="D", target_column="S",
+        forecast_origin=ORIGIN, target_column="S",
         target_end_date_column="end", protection_horizon=horizon,
         target_probability=0.9,
     )
@@ -71,7 +71,7 @@ def _policy(lead=2, *, every=1, backorders=True, targets=(30.0, 25.0)):
 def _run(state, policy=None, *, n_periods=20, engine=None, **options):
     engine = engine or SimulationEngine()
     return engine.run(
-        policy or _policy(), _demand(n_periods), state, n_periods, period_frequency="D",
+        policy or _policy(), _demand(n_periods), state, n_periods, freq="D",
         warmup_periods=0, scoring_periods=n_periods, settlement_periods=0,
         order_during_settlement=False, demand_source_name="open_orders_test",
         random_seed=None, **options,
@@ -285,7 +285,7 @@ def _decision(state, quantities, lead):
 
 def test_update_inventory_with_orders_keeps_legacy_states_unchanged():
     state = _state(pipeline=[[3, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]])
-    state = state.advance_period(period_frequency="D", is_review_period=True)
+    state = state.advance_period(freq="D", is_review_period=True)
     after = update_inventory_with_orders(state, _decision(state, [5, 0], lead=2))
     assert after._open_orders is None
     assert after.data.loc[0, "in_transit"].tolist() == [0, 5.0, 0, 0, 0, 0]
@@ -296,7 +296,7 @@ def test_order_lines_reproduce_update_inventory_with_orders(lead):
     """One line per positive order, due order_period + L, is the per-SKU API."""
     state = _state(pipeline=[[3, 0, 0, 0, 0, 0], [0, 2, 0, 0, 0, 0]], on_hand=(0.0, 4.0))
     state.data["backorders"] = [2.0, 0.0]
-    state = state.advance_period(period_frequency="D", is_review_period=True)
+    state = state.advance_period(freq="D", is_review_period=True)
     period = int(state.data["period"].iloc[0])
     per_sku = update_inventory_with_orders(state, _decision(state, [5, 0], lead=lead))
     lines = sc.OrderLines(pd.DataFrame({
@@ -311,7 +311,7 @@ def test_order_lines_reproduce_update_inventory_with_orders(lead):
 def test_place_order_lines_routes_suppliers_and_receives_immediate_lines_first():
     state = _state(pipeline=[[3, 0, 4, 0, 0, 0], [0, 5, 0, 0, 0, 0]], on_hand=(0.0, 8.0))
     state.data["backorders"] = [6.0, 0.0]
-    state = state.advance_period(period_frequency="D", is_review_period=True)
+    state = state.advance_period(freq="D", is_review_period=True)
     # The opening delivery of 3 clears half of the backlog of 6.
     assert state.data.loc[0, ["on_hand", "backorders"]].tolist() == [0.0, 3.0]
     lines = sc.OrderLines(pd.DataFrame({
@@ -336,7 +336,7 @@ def test_place_order_lines_routes_suppliers_and_receives_immediate_lines_first()
     # After a period advance, due deliveries leave the book with the pipeline.
     later = after.fulfill_demand(pd.DataFrame({
         "unique_id": SKUS, "y": [0.0, 0.0], "date": after.data["date"].iloc[0],
-    })).advance_period(period_frequency="D", is_review_period=False)
+    })).advance_period(freq="D", is_review_period=False)
     later._validate_ready_state()
     assert later.open_orders()["due_period"].min() == 3
 
@@ -350,7 +350,7 @@ def test_place_order_lines_routes_suppliers_and_receives_immediate_lines_first()
      "max_lead_time"),
 ])
 def test_place_order_lines_fail_closed_against_the_state(rows, message):
-    state = _state().advance_period(period_frequency="D", is_review_period=True)
+    state = _state().advance_period(freq="D", is_review_period=True)
     with pytest.raises(ValueError, match=message):
         place_order_lines(state, sc.OrderLines(pd.DataFrame(rows)))
 
@@ -464,10 +464,10 @@ def test_policy_editing_its_own_state_copy_behaves_as_before():
             ]
             return super().predict(inventory_state_df, **kwargs)
 
-    policy = ScratchpadPolicy(lead_time=2, review_period=1, service_level=0.9, allow_backorders=True)
+    policy = ScratchpadPolicy(lead_time=2, review_period=1, freq="D", service_level=0.9, allow_backorders=True)
     policy.fit(
         pd.DataFrame({"unique_id": SKUS, "S": [30.0, 25.0], "end": ORIGIN + 3 * DAY}),
-        forecast_origin=ORIGIN, forecast_frequency="D", target_column="S",
+        forecast_origin=ORIGIN, target_column="S",
         target_end_date_column="end", protection_horizon=3,
         target_probability=0.9,
     )
@@ -483,10 +483,10 @@ def test_policies_may_read_open_orders_at_decisions():
             seen.append(inventory_state_df.open_orders())
             return super().predict(inventory_state_df, **kwargs)
 
-    policy = SupplierAwarePolicy(lead_time=2, review_period=1, service_level=0.9, allow_backorders=True)
+    policy = SupplierAwarePolicy(lead_time=2, review_period=1, freq="D", service_level=0.9, allow_backorders=True)
     policy.fit(
         pd.DataFrame({"unique_id": SKUS, "S": [30.0, 25.0], "end": ORIGIN + 3 * DAY}),
-        forecast_origin=ORIGIN, forecast_frequency="D", target_column="S",
+        forecast_origin=ORIGIN, target_column="S",
         target_end_date_column="end", protection_horizon=3,
         target_probability=0.9,
     )
@@ -554,7 +554,7 @@ def test_partial_deliveries_split_each_line():
 def test_comparison_branches_share_lead_time_draws():
     comparison = SimulationEngine().run_comparison(
         [_policy(2), _policy(2, targets=(40.0, 30.0))], _demand(30), _state(), 30,
-        period_frequency="D", warmup_periods=0, scoring_periods=30, settlement_periods=0,
+        freq="D", warmup_periods=0, scoring_periods=30, settlement_periods=0,
         order_during_settlement=False, demand_source_name="open_orders_test",
         random_seed=None, labels=["lean", "rich"], supply=_two_suppliers(seed=3, partial=False),
     )

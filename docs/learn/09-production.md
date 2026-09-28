@@ -54,7 +54,7 @@ from stockcast.utils import update_inventory_with_orders
 
 # Four weeks of sales before the opening day: the model's starting history.
 history = DemandGenerator(
-    [sku], start_date=opening_date - pd.Timedelta(days=27), period_frequency="D",
+    [sku], start_date=opening_date - pd.Timedelta(days=27), freq="D",
     random_seed=4, negative_demand_handling="clip_zero",
 ).seasonal(n_periods=28, base=6.0, amplitude=2.0, season_length=7, std=2.0)
 history = history[["unique_id", "date", "y"]].assign(y=lambda d: d["y"].round())
@@ -71,11 +71,11 @@ def fit_policy(observed, origin):
         "target_end_date": [origin + pd.Timedelta(days=horizon)],
     })
     return OrderUpToPolicy(
-        lead_time=lead_time, review_period=review_period,
+        lead_time=lead_time, review_period=review_period, freq="D",
         service_level=0.95, allow_backorders=False,
     ).fit(
         target, target_column="target",
-        forecast_origin=origin, forecast_frequency="D",
+        forecast_origin=origin,
         target_end_date_column="target_end_date",
     )
 
@@ -90,7 +90,7 @@ Two small functions are the whole production job:
 ```python
 def plan(state, observed, is_review):
     """Morning: receive, and on review days refit, predict, and apply the rules."""
-    today = state.advance_period(period_frequency="D", is_review_period=is_review)
+    today = state.advance_period(freq="D", is_review_period=is_review)
     if not is_review:
         return today, None
     yesterday = pd.Timestamp(state.get_dataframe()["date"].iloc[0])

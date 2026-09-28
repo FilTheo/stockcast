@@ -8,7 +8,7 @@ def _generator(**kwargs):
     return DemandGenerator(
         ["A", "B"],
         start_date="2025-01-06",
-        period_frequency="W-MON",
+        freq="W-MON",
         random_seed=17,
         negative_demand_handling="raise",
         **kwargs,
@@ -18,11 +18,11 @@ def _generator(**kwargs):
 def test_generator_requires_explicit_reproducibility_and_calendar_inputs():
     with pytest.raises(TypeError):
         DemandGenerator(["A"])
-    with pytest.raises(ValueError, match="period_frequency"):
+    with pytest.raises(ValueError, match="freq"):
         DemandGenerator(
             ["A"],
             start_date="2025-01-01",
-            period_frequency="not-a-frequency",
+            freq="not-a-frequency",
             random_seed=1,
             negative_demand_handling="raise",
         )
@@ -30,7 +30,7 @@ def test_generator_requires_explicit_reproducibility_and_calendar_inputs():
         DemandGenerator(
             ["1", 2],
             start_date="2025-01-01",
-            period_frequency="D",
+            freq="D",
             random_seed=1,
             negative_demand_handling="raise",
         )
@@ -39,7 +39,7 @@ def test_generator_requires_explicit_reproducibility_and_calendar_inputs():
             DemandGenerator(
                 ["A"],
                 start_date="2025-01-01",
-                period_frequency=frequency,
+                freq=frequency,
                 random_seed=1,
                 negative_demand_handling="raise",
             )
@@ -61,20 +61,20 @@ def test_negative_draw_handling_is_explicit():
     default_rejecting = DemandGenerator(
         ["A"],
         start_date="2025-01-01",
-        period_frequency="D",
+        freq="D",
         random_seed=1,
     )
     rejecting = DemandGenerator(
         ["A"],
         start_date="2025-01-01",
-        period_frequency="D",
+        freq="D",
         random_seed=1,
         negative_demand_handling="raise",
     )
     clipping = DemandGenerator(
         ["A"],
         start_date="2025-01-01",
-        period_frequency="D",
+        freq="D",
         random_seed=1,
         negative_demand_handling="clip_zero",
     )
@@ -164,7 +164,7 @@ def test_samplers_are_reproducible_from_the_generator_seed():
     other_seed = DemandGenerator(
         ["A", "B"],
         start_date="2025-01-06",
-        period_frequency="W-MON",
+        freq="W-MON",
         random_seed=18,
     ).sample(10, _poisson)
 
@@ -213,7 +213,7 @@ def test_negative_sampler_draws_follow_negative_demand_handling():
     clipping = DemandGenerator(
         ["A", "B"],
         start_date="2025-01-06",
-        period_frequency="W-MON",
+        freq="W-MON",
         random_seed=17,
         negative_demand_handling="clip_zero",
     )
@@ -236,14 +236,14 @@ def test_engine_runs_on_a_poisson_sampler():
     generator = DemandGenerator(
         skus,
         start_date=opening_date + pd.Timedelta(days=1),
-        period_frequency="D",
+        freq="D",
         random_seed=5,
     )
     inventory = InventoryStateDataFrame(
         skus, max_lead_time=1, allow_backorders=False,
     ).initialize_zero(start_date=opening_date)
     policy = OrderUpToPolicy(
-        lead_time=1, review_period=1, service_level=0.9, allow_backorders=False,
+        lead_time=1, review_period=1, freq="D", service_level=0.9, allow_backorders=False,
     ).fit(
         pd.DataFrame({
             "unique_id": skus,
@@ -254,7 +254,6 @@ def test_engine_runs_on_a_poisson_sampler():
         target_probability=0.9,
         protection_horizon=2,
         forecast_origin=opening_date,
-        forecast_frequency="D",
         target_end_date_column="target_end_date",
     )
 
@@ -263,7 +262,7 @@ def test_engine_runs_on_a_poisson_sampler():
         demand_source=generator.sample(10, _poisson),
         inventory=inventory,
         n_periods=10,
-        period_frequency="D",
+        freq="D",
         warmup_periods=0,
         scoring_periods=10,
         settlement_periods=0,

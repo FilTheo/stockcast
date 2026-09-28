@@ -55,7 +55,7 @@ def _demand(skus: list, n_periods: int, seed: int) -> pd.DataFrame:
 def _order_up_to(skus, *, lead_time, review, backorders):
     horizon = lead_time + review
     policy = sc.OrderUpToPolicy(
-        lead_time=lead_time, review_period=review, service_level=0.9,
+        lead_time=lead_time, review_period=review, freq="D", service_level=0.9,
         allow_backorders=backorders,
     )
     targets = pd.DataFrame({
@@ -64,7 +64,7 @@ def _order_up_to(skus, *, lead_time, review, backorders):
         "end": ORIGIN + horizon * DAY,
     })
     return policy.fit(
-        targets, forecast_origin=ORIGIN, forecast_frequency="D", target_column="S",
+        targets, forecast_origin=ORIGIN, target_column="S",
         target_end_date_column="end", protection_horizon=horizon,
         target_probability=0.9,
     )
@@ -80,7 +80,7 @@ def _state(skus, *, max_lead_time, backorders, on_hand):
 
 def _run(engine, policy, demand, state, n_periods, **options):
     return engine.run(
-        policy, demand, state, n_periods, period_frequency="D",
+        policy, demand, state, n_periods, freq="D",
         warmup_periods=0, scoring_periods=n_periods, settlement_periods=0,
         order_during_settlement=False, demand_source_name="benchmark",
         random_seed=None, **options,

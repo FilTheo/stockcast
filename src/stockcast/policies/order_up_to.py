@@ -45,12 +45,12 @@ class OrderUpToPolicy(BasePolicy):
     Example:
         ```python
         policy = OrderUpToPolicy(
-            lead_time=2, review_period=4, service_level=0.95, allow_backorders=False,
+            lead_time=2, review_period=4, freq="D", service_level=0.95,
+            allow_backorders=False,
         ).fit(
             targets,                          # unique_id, S: the 95% quantile over 6 days
             target_column="S",
             forecast_origin=pd.Timestamp("2026-01-05"),
-            forecast_frequency="D",
         )
         decision = policy.predict(state, current_period=1)
         ```
@@ -60,6 +60,7 @@ class OrderUpToPolicy(BasePolicy):
                  lead_time: int,
                  review_period: Optional[int] = None,
                  *,
+                 freq: Optional[str] = None,
                  service_level: Optional[float] = None,
                  allow_backorders: bool,
                  schedule: Optional[DecisionSchedule] = None):
@@ -69,11 +70,17 @@ class OrderUpToPolicy(BasePolicy):
         Args:
             lead_time: Lead time in periods (L)
             review_period: Review period in periods (R)
+            freq: Length of one period, a pandas frequency such as ``"D"``
+                or ``"W-MON"``; ``lead_time`` and ``review_period`` count
+                periods of this length. Optional when ``fit`` can read it
+                from per-period forecast dates.
             service_level: Target probability, or None for external planner targets
             allow_backorders: Explicitly choose backorders or lost sales
             schedule: Optional DecisionSchedule; replaces periodic shorthand.
         """
         super().__init__(lead_time, review_period, service_level, allow_backorders, schedule=schedule)
+        self.freq = freq
+        self._freq_offset = None if freq is None else _require_forward_frequency(freq, "freq")
         self.policy_name = "Order-Up-To (R,S)"
         self.safety_factor = NormalDist().inv_cdf(self.service_level) if self.service_level is not None else None
 
@@ -85,7 +92,6 @@ class OrderUpToPolicy(BasePolicy):
         self,
         forecast_df: pd.DataFrame,
         *,
-        forecast_frequency: str,
         forecast_origin: Optional[pd.Timestamp] = None,
         target_column: Optional[str] = None,
         target_end_date_column: Optional[str] = None,
@@ -116,9 +122,14 @@ class OrderUpToPolicy(BasePolicy):
         ``forecast_origin + protection_horizon`` periods. Give the origin, a
         direct target's end-date column, or both (they must then agree).
 
+        The period length is the policy's ``freq``. Without it, mean/std mode
+        reads it from the forecast dates when every SKU has at least three
+        evenly spaced dates on a standard calendar (daily, weekly, monthly,
+        quarterly or yearly, with any step such as ``"2D"``); a direct target
+        has one date per SKU, so it needs ``freq``.
+
         Args:
             forecast_df: Target or forecast DataFrame.
-            forecast_frequency: Explicit pandas frequency for forecast horizons.
             forecast_origin: Information-set date at which the forecast or
                 direct target was created. Optional when
                 ``target_end_date_column`` (direct mode) or
@@ -146,9 +157,7 @@ class OrderUpToPolicy(BasePolicy):
         protection_period = schedule_protection_horizon(
             self.schedule, self.lead_time, protection_horizon, "protection_horizon",
         )
-        forecast_offset = _require_forward_frequency(
-            forecast_frequency, "forecast_frequency",
-        )
+        forecast_offset = self._freq_offset
 
         direct_mode = target_column is not None
         normal_mode = mean_column is not None or std_column is not None
@@ -169,6 +178,12 @@ class OrderUpToPolicy(BasePolicy):
             else:
                 probability = validate_target_probability(
                     self.service_level, target_probability, target_column,
+                )
+            if forecast_offset is None:
+                raise ValueError(
+                    "freq is required: a direct target has one date per SKU, so the "
+                    "period length cannot be read from it; create the policy with "
+                    "freq, for example OrderUpToPolicy(..., freq=\"D\")"
                 )
             prepared_targets = prepare_direct_targets(
                 forecast_df,
@@ -201,7 +216,7 @@ class OrderUpToPolicy(BasePolicy):
                 "independent_normal_target",
             )
             method = "independent_normal"
-            prepared_forecasts, origin = prepare_independent_normal_forecasts(
+            prepared_forecasts, origin, forecast_offset = prepare_independent_normal_forecasts(
                 forecast_df,
                 sku_column,
                 mean_column,

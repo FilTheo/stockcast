@@ -156,7 +156,7 @@ sku, opening = "tea_250g", pd.Timestamp("2026-01-05")
 
 # Demand to play forward, and the stock we start with.
 demand = DemandGenerator([sku], start_date=opening + pd.Timedelta(days=1),
-                         period_frequency="D", random_seed=3,
+                         freq="D", random_seed=3,
                          negative_demand_handling="clip_zero").seasonal(
     n_periods=56, base=6.0, amplitude=2.0, season_length=7, std=2.0)
 inventory = InventoryStateDataFrame.from_observed(
@@ -168,9 +168,9 @@ target = pd.DataFrame({"unique_id": [sku],
                        "target": [np.quantile(paths.sum(axis=1), 0.95)]})
 
 # Order up to that target every 4 days; deliveries take 2 days.
-policy = OrderUpToPolicy(lead_time=2, review_period=4, service_level=0.95,
+policy = OrderUpToPolicy(lead_time=2, review_period=4, freq="D", service_level=0.95,
                          allow_backorders=False).fit(
-    target, target_column="target", forecast_origin=opening, forecast_frequency="D")
+    target, target_column="target", forecast_origin=opening)
 
 result = SimulationEngine().run(policy=policy, demand_source=demand, inventory=inventory)
 

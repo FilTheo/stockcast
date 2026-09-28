@@ -123,10 +123,9 @@ house_rule = ReorderPointPolicy(lead_time=2, review_period=7,
 ```
 
 Fixed values are planning levels, so they need `service_level=None` (the
-default). Dates are optional: with `forecast_origin` and
-`forecast_frequency`, the run checks that the values were set no later than
-the opening date. Without them, give the run a `period_frequency` when the
-demand is dated.
+default). Dates are optional: with `forecast_origin` (and the policy's
+`freq`), the run checks that the values were set no later than the opening
+date. Give the policy or the run a `freq` when the demand is dated.
 
 ### From a forecast
 
@@ -155,6 +154,7 @@ dates too. The window of $s$ is checked at every decision.
     sQ = ReorderPointPolicy(
         lead_time=L,
         review_period=1,
+        freq="D",
         policy_type="sQ",
         service_level=0.95,
         order_quantity=30.0,
@@ -162,7 +162,6 @@ dates too. The window of $s$ is checked at every decision.
     ).fit(
         targets,
         forecast_origin=opening_date,
-        forecast_frequency="D",
         reorder_point_column="s",
         reorder_end_date_column="s_end",
     )
@@ -187,12 +186,11 @@ dates too. The window of $s$ is checked at every decision.
         "s_end": [opening_date + pd.Timedelta(days=6)],
     })
     sS = ReorderPointPolicy(
-        lead_time=2, review_period=4, policy_type="sS",
+        lead_time=2, review_period=4, freq="D", policy_type="sS",
         service_level=None, allow_backorders=False,
     ).fit(
         planned,
         forecast_origin=opening_date,
-        forecast_frequency="D",
         reorder_point_column="s",
         order_up_to_column="S",
         reorder_end_date_column="s_end",
@@ -261,6 +259,7 @@ values, provider levels need `service_level=None` and take optional dates.
 |---|---|
 | `policy_type` | `"sQ"` or `"sS"`; optional: giving `order_quantity` means `"sQ"`, otherwise `"sS"` |
 | `lead_time`, `review_period` / `schedule` | as for every policy |
+| `freq` | $\Delta$, the length of one period; needed for column targets, optional for fixed values and providers |
 | `service_level` | $\alpha$ for quantile mode, `None` for planner mode |
 | `order_quantity` | $Q$; $(s, Q)$ only |
 | `allow_backorders` | `True` or `False` |
@@ -275,7 +274,7 @@ values, provider levels need `service_level=None` and take optional dates.
 | `reorder_horizon` | $H$: defaults to $L + R$ for periodic schedules; required otherwise, checked as $(u - t) + L$ |
 | `reorder_end_date_column` | optional; last date covered by $s$: origin $+ H\Delta$ |
 | `target_probability` | $\alpha$, quantile mode only; defaults to `service_level` |
-| `forecast_origin`, `forecast_frequency` | as for [every target](../forecast-targets.md#the-fit-arguments); optional for fixed values and providers |
+| `forecast_origin` | as for [every target](../forecast-targets.md#the-fit-arguments); optional for fixed values and providers |
 
 The window arguments (`reorder_horizon`, `reorder_end_date_column`,
 `target_probability`, `order_up_to_column`) belong to column targets.

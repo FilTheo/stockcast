@@ -26,9 +26,9 @@ $$
 \text{date}_p = \text{opening date} + (p + 1)\,\Delta ,
 $$
 
-where $\Delta$ is `period_frequency`, any forward pandas frequency: `"D"`,
+where $\Delta$ is `freq`, any forward pandas frequency: `"D"`,
 `"W-MON"`, `"MS"`, `"h"`, `"15min"`, and so on (by default the policy's
-`forecast_frequency`). The engine checks each period's date against this
+`freq`). The engine checks each period's date against this
 formula before running; a date off this grid is an error, never rounded.
 
 Period 0 is the first period after the opening date, the day you counted the
@@ -94,7 +94,7 @@ from stockcast.utils import DemandGenerator
 generator = DemandGenerator(
     ["tea_250g", "coffee_1kg"],
     start_date=opening_date + pd.Timedelta(days=1),   # date of period 0
-    period_frequency="D",
+    freq="D",
     random_seed=7,
     negative_demand_handling="clip_zero",
 )
@@ -225,7 +225,7 @@ stock = InventoryStateDataFrame.from_observed(
 policy = ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=False).fit(
     reorder_point=10.0, order_up_to_level=25.0,
 )
-result = SimulationEngine().run(policy, future, stock, period_frequency="D")
+result = SimulationEngine().run(policy, future, stock, freq="D")
 result.run_settings["demand_period_offset"]
 ```
 

@@ -266,7 +266,7 @@ received immediately:
 from stockcast.core import OrderLines
 from stockcast.utils import place_order_lines
 
-state = inventory_8.advance_period(period_frequency="D", is_review_period=True)
+state = inventory_8.advance_period(freq="D", is_review_period=True)
 now = int(state.get_dataframe()["period"].iloc[0])
 lines = OrderLines(pd.DataFrame({
     "unique_id":      [sku, sku, sku],

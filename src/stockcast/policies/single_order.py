@@ -5,7 +5,6 @@ import math
 import pandas as pd
 
 from stockcast.core.decision_schedule import OneTimeSchedule
-from stockcast.core.data_structures import _require_forward_frequency
 from stockcast.policies._target_validation import validate_forecast_origin
 from stockcast.policies.order_up_to import OrderUpToPolicy
 
@@ -62,6 +61,8 @@ class SingleOrderPolicy(OrderUpToPolicy):
 
     Args:
         lead_time: Periods from the order to the start of the season, >= 0.
+        freq: Length of one period, a pandas frequency such as ``"D"``;
+            ``lead_time`` and ``selling_horizon`` count periods of this length.
         selling_horizon: Length of the season in periods, >= 1.
         decision_period: Demand period of the single decision (default 0).
         service_level: Probability the target represents, or ``None``.
@@ -72,6 +73,7 @@ class SingleOrderPolicy(OrderUpToPolicy):
         self,
         lead_time: int,
         *,
+        freq=None,
         selling_horizon: int,
         decision_period: int = 0,
         service_level=None,
@@ -85,6 +87,7 @@ class SingleOrderPolicy(OrderUpToPolicy):
             raise ValueError("selling_horizon must be an integer >= 1")
         super().__init__(
             lead_time,
+            freq=freq,
             service_level=service_level,
             allow_backorders=allow_backorders,
             schedule=OneTimeSchedule(decision_period),
@@ -96,7 +99,6 @@ class SingleOrderPolicy(OrderUpToPolicy):
         self,
         target_df,
         *,
-        forecast_frequency,
         target_column,
         forecast_origin=None,
         target_end_date_column=None,
@@ -110,7 +112,6 @@ class SingleOrderPolicy(OrderUpToPolicy):
 
         Args:
             target_df: One row per SKU.
-            forecast_frequency: Period frequency, such as ``"D"``.
             target_column: Column with the season target.
             forecast_origin: Date of the last information used, normally the date
                 before the decision.
@@ -123,7 +124,13 @@ class SingleOrderPolicy(OrderUpToPolicy):
         Returns:
             The fitted policy (``self``).
         """
-        offset = _require_forward_frequency(forecast_frequency, "forecast_frequency")
+        offset = self._freq_offset
+        if offset is None:
+            raise ValueError(
+                "freq is required: a season target has one date per SKU, so the "
+                "period length cannot be read from it; create the policy with freq, "
+                'for example SingleOrderPolicy(..., freq="D")'
+            )
         # The generic direct-target validator counts periods from the point
         # immediately preceding the first covered demand. Information was
         # available earlier, at origin; preserve that actual cutoff below.
@@ -132,7 +139,6 @@ class SingleOrderPolicy(OrderUpToPolicy):
         super().fit(
             target_df,
             forecast_origin=coverage_origin,
-            forecast_frequency=forecast_frequency,
             target_column=target_column,
             target_end_date_column=target_end_date_column,
             target_probability=target_probability,

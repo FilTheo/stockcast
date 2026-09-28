@@ -71,11 +71,11 @@ def _demand(n_periods, seed=0):
 def _policy(lead=2, *, every=1, backorders=True, targets=(30.0, 25.0)):
     horizon = lead + every
     policy = sc.OrderUpToPolicy(
-        lead_time=lead, review_period=every, service_level=0.9, allow_backorders=backorders,
+        lead_time=lead, review_period=every, freq="D", service_level=0.9, allow_backorders=backorders,
     )
     return policy.fit(
         pd.DataFrame({"unique_id": SKUS, "S": list(targets), "end": ORIGIN + horizon * DAY}),
-        forecast_origin=ORIGIN, forecast_frequency="D", target_column="S",
+        forecast_origin=ORIGIN, target_column="S",
         target_end_date_column="end", protection_horizon=horizon,
         target_probability=0.9,
     )
@@ -85,7 +85,7 @@ def _run(state=None, policy=None, *, n_periods=20, engine=None, **options):
     engine = engine or SimulationEngine()
     return engine.run(
         policy or _policy(), _demand(n_periods), state if state is not None else _state(),
-        n_periods, period_frequency="D", warmup_periods=0, scoring_periods=n_periods,
+        n_periods, freq="D", warmup_periods=0, scoring_periods=n_periods,
         settlement_periods=0, order_during_settlement=False,
         demand_source_name="delivery_outcome_test", random_seed=None, **options,
     )
@@ -414,7 +414,7 @@ def test_shelf_life_lots_receive_only_what_arrived():
 def test_run_comparison_accepts_outcomes():
     comparison = SimulationEngine().run_comparison(
         [_policy(), _policy(targets=(40.0, 35.0))], _demand(15), _state(), 15,
-        labels=["low", "high"], period_frequency="D", warmup_periods=0,
+        labels=["low", "high"], freq="D", warmup_periods=0,
         scoring_periods=15, settlement_periods=0, order_during_settlement=False,
         demand_source_name="delivery_outcome_test", random_seed=None,
         supply=SupplyModel([Supplier("w", lead_time=2, delivery=DeliveryOutcome())]),

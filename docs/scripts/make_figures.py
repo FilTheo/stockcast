@@ -81,7 +81,7 @@ def tea_demand(n_periods=56):
     demand = DemandGenerator(
         [SKU],
         start_date=OPENING + pd.Timedelta(days=1),
-        period_frequency="D",
+        freq="D",
         random_seed=3,
         negative_demand_handling="clip_zero",
     ).seasonal(n_periods=n_periods, base=6.0, amplitude=2.0, season_length=7, std=2.0)
@@ -114,13 +114,13 @@ def tea_policy(probability):
     return OrderUpToPolicy(
         lead_time=LEAD_TIME,
         review_period=REVIEW_PERIOD,
+        freq="D",
         service_level=probability,
         allow_backorders=False,
     ).fit(
         target,
         target_column="target",
         forecast_origin=OPENING,
-        forecast_frequency="D",
         target_end_date_column="target_end_date",
     )
 
@@ -299,11 +299,11 @@ def fig_reorder_point():
         "s_end_date": [OPENING + pd.Timedelta(days=horizon)],
     })
     policy = ReorderPointPolicy(
-        lead_time=LEAD_TIME, review_period=1, policy_type="sQ",
+        lead_time=LEAD_TIME, review_period=1, freq="D", policy_type="sQ",
         service_level=0.95, order_quantity=30.0,
         allow_backorders=False,
     ).fit(
-        targets, forecast_origin=OPENING, forecast_frequency="D",
+        targets, forecast_origin=OPENING,
         reorder_point_column="s", reorder_end_date_column="s_end_date",
     )
     events = tea_run(policy, demand).to_event_frame()

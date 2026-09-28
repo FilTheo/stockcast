@@ -105,7 +105,7 @@ def test_simulation_result_exposes_normalized_event_frame():
         demand_source=demand_df,
         inventory=inventory,
         n_periods=2,
-        period_frequency="D",
+        freq="D",
         warmup_periods=0,
         scoring_periods=2,
         settlement_periods=0,
@@ -155,7 +155,7 @@ def test_inventory_evaluator_supports_builtin_and_custom_metrics():
         demand_source=demand_df,
         inventory=inventory,
         n_periods=2,
-        period_frequency="D",
+        freq="D",
         warmup_periods=0,
         scoring_periods=2,
         settlement_periods=0,
@@ -293,7 +293,7 @@ def test_fixed_ordering_cost_is_sku_level_and_row_order_independent():
         demand,
         inventory,
         n_periods=1,
-        period_frequency="D",
+        freq="D",
         warmup_periods=0,
         scoring_periods=1,
         settlement_periods=0,
@@ -353,7 +353,7 @@ def test_multi_sku_coverage_needs_no_grain_confirmation():
         "y": [2.0, 2.0],
     })
     result = SimulationEngine().run(
-        policy=policy, demand_source=demand, inventory=inventory, period_frequency="D",
+        policy=policy, demand_source=demand, inventory=inventory, freq="D",
     )
     evaluator = InventoryEvaluator().fit(result, window="scoring")
     row = evaluator.evaluate(
@@ -383,7 +383,7 @@ def _costed_run():
         "y": [5.0, 2.0, 4.0, 1.0, 6.0, 3.0, 2.0, 2.0],
     })
     return SimulationEngine().run(
-        policy=policy, demand_source=demand, inventory=inventory, period_frequency="D",
+        policy=policy, demand_source=demand, inventory=inventory, freq="D",
     )
 
 
@@ -461,7 +461,7 @@ def _turns_run(frequency, n_periods=6):
     )
     demand = pd.DataFrame({"unique_id": "A", "date": dates, "y": 5.0})
     return SimulationEngine().run(
-        policy=policy, demand_source=demand, inventory=inventory, period_frequency=frequency,
+        policy=policy, demand_source=demand, inventory=inventory, freq=frequency,
     ).to_event_frame()
 
 

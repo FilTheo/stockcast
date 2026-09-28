@@ -45,7 +45,7 @@ lead_time, review_period = 2, 4
 horizon = lead_time + review_period
 
 demand = DemandGenerator(
-    [sku], start_date=opening_date + pd.Timedelta(days=1), period_frequency="D",
+    [sku], start_date=opening_date + pd.Timedelta(days=1), freq="D",
     random_seed=3, negative_demand_handling="clip_zero",
 ).seasonal(n_periods=56, base=6.0, amplitude=2.0, season_length=7, std=2.0)
 demand["y"] = demand["y"].round()
@@ -61,11 +61,11 @@ target = pd.DataFrame({
     "target_end_date": [opening_date + pd.Timedelta(days=horizon)],
 })
 policy = OrderUpToPolicy(
-    lead_time=lead_time, review_period=review_period,
+    lead_time=lead_time, review_period=review_period, freq="D",
     service_level=0.95, allow_backorders=False,
 ).fit(
     target, target_column="target",
-    forecast_origin=opening_date, forecast_frequency="D",
+    forecast_origin=opening_date,
     target_end_date_column="target_end_date",
 )
 
@@ -97,7 +97,7 @@ rest from them and records it in the run manifest:
 | Setting | Read from | Set it yourself when |
 |---|---|---|
 | `n_periods` | the demand table's `period` column (here 56) | demand comes from a function |
-| `period_frequency` | the policy's `forecast_frequency` (here `"D"`) | a custom policy records none |
+| `freq` | the policy's `freq` (here `"D"`) | a custom policy has none |
 | run windows | score every period | you want a warm-up or settlement window |
 | `demand_source_name`, `random_seed` | not recorded | you want the manifest to name the demand or its seed |
 

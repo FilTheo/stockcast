@@ -75,7 +75,7 @@ def test_summary_uses_event_frame_and_catches_final_stockout():
         demand,
         inventory,
         n_periods=2,
-        period_frequency="D",
+        freq="D",
         warmup_periods=0,
         scoring_periods=2,
         settlement_periods=0,
@@ -111,7 +111,7 @@ def test_summary_rejects_missing_event_quantities_instead_of_using_zero():
         demand,
         inventory,
         n_periods=1,
-        period_frequency="D",
+        freq="D",
         warmup_periods=0,
         scoring_periods=1,
         settlement_periods=0,
@@ -144,7 +144,7 @@ def test_negative_demand_is_rejected():
     demand = pd.DataFrame({"unique_id": ["A"], "y": [-1.0]})
 
     with pytest.raises(ValueError, match="demand_df.y"):
-        inventory.process_demand(demand, period_frequency="D")
+        inventory.process_demand(demand, freq="D")
 
 
 def test_duplicate_demand_rows_are_rejected():
@@ -154,7 +154,7 @@ def test_duplicate_demand_rows_are_rejected():
     demand = pd.DataFrame({"unique_id": ["A", "A"], "y": [1.0, 2.0]})
 
     with pytest.raises(ValueError, match="duplicate"):
-        inventory.process_demand(demand, period_frequency="D")
+        inventory.process_demand(demand, freq="D")
 
 
 def test_unknown_demand_sku_is_rejected():
@@ -164,7 +164,7 @@ def test_unknown_demand_sku_is_rejected():
     demand = pd.DataFrame({"unique_id": ["B"], "y": [1.0]})
 
     with pytest.raises(ValueError, match="unknown SKUs"):
-        inventory.process_demand(demand, period_frequency="D")
+        inventory.process_demand(demand, freq="D")
 
 
 @pytest.mark.parametrize(
@@ -292,6 +292,7 @@ def test_forecasts_are_sorted_by_horizon_before_target_calculation():
     policy = OrderUpToPolicy(
         lead_time=1,
         review_period=1,
+        freq="D",
         service_level=0.5,
         allow_backorders=False,
     ).fit(
@@ -301,7 +302,6 @@ def test_forecasts_are_sorted_by_horizon_before_target_calculation():
         target_probability=0.5,
         protection_horizon=2,
         forecast_origin=pd.Timestamp("2025-01-01"),
-        forecast_frequency="D",
         forecast_date_column="date",
     )
 
@@ -321,6 +321,7 @@ def test_missing_forecast_horizon_fails_fast():
         OrderUpToPolicy(
             lead_time=1,
             review_period=2,
+            freq="D",
             service_level=0.95,
             allow_backorders=False,
         ).fit(
@@ -330,7 +331,6 @@ def test_missing_forecast_horizon_fails_fast():
             target_probability=0.95,
             protection_horizon=3,
             forecast_origin=pd.Timestamp("2025-01-01"),
-            forecast_frequency="D",
             forecast_date_column="date",
         )
 
@@ -345,6 +345,7 @@ def test_precomputed_one_row_target_is_allowed():
     policy = OrderUpToPolicy(
         lead_time=7,
         review_period=7,
+        freq="D",
         service_level=0.95,
         allow_backorders=False,
     ).fit(
@@ -353,7 +354,6 @@ def test_precomputed_one_row_target_is_allowed():
         target_probability=0.95,
         protection_horizon=14,
         forecast_origin=pd.Timestamp("2025-01-01"),
-        forecast_frequency="D",
         target_end_date_column="target_end",
     )
 
@@ -393,6 +393,7 @@ def test_reorder_point_validates_schedule_protection_window():
     policy = ReorderPointPolicy(
         lead_time=3,
         review_period=1,
+        freq="D",
         policy_type="sQ",
         service_level=0.95,
         order_quantity=5,
@@ -407,7 +408,6 @@ def test_reorder_point_validates_schedule_protection_window():
             target_probability=0.95,
             reorder_horizon=3,
             forecast_origin=pd.Timestamp("2025-01-01"),
-            forecast_frequency="D",
             reorder_end_date_column="reorder_end",
         )
 
@@ -434,7 +434,7 @@ def test_plots_work_from_event_frame():
         demand,
         inventory,
         n_periods=1,
-        period_frequency="D",
+        freq="D",
         warmup_periods=0,
         scoring_periods=1,
         settlement_periods=0,
@@ -469,7 +469,7 @@ def test_plot_inventory_accepts_numeric_sku_scalar():
         demand,
         inventory,
         n_periods=1,
-        period_frequency="D",
+        freq="D",
         warmup_periods=0,
         scoring_periods=1,
         settlement_periods=0,
@@ -549,4 +549,4 @@ def test_positions_can_be_read_before_the_shortage_mode_is_set():
     assert state.allow_backorders is None
     assert state.inventory_position()["inventory_position"].tolist() == [5.0]
     with pytest.raises(ValueError, match="allow_backorders must be explicitly supplied"):
-        state.advance_period(period_frequency="D", is_review_period=False)
+        state.advance_period(freq="D", is_review_period=False)

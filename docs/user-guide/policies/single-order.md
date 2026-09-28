@@ -61,11 +61,12 @@ origin = pd.Timestamp("2026-03-30")                          # last observed day
 selling_day = origin + pd.Timedelta(days=1)
 
 policy = SingleOrderPolicy(
-    lead_time=0, selling_horizon=1, service_level=alpha, allow_backorders=False,
+    lead_time=0, freq="D", selling_horizon=1, service_level=alpha,
+    allow_backorders=False,
 ).fit(
     pd.DataFrame({"unique_id": ["sandwich"], "target": [quantity],
                   "target_end": [selling_day]}),
-    forecast_origin=origin, forecast_frequency="D",
+    forecast_origin=origin,
     target_column="target",
     target_end_date_column="target_end",
 )
@@ -112,12 +113,13 @@ origin = pd.Timestamp("2026-11-30")
 season_totals = np.random.default_rng(1).poisson(40, size=(10_000, season)).sum(axis=1)
 
 seasonal = SingleOrderPolicy(
-    lead_time=L, selling_horizon=season, service_level=alpha, allow_backorders=False,
+    lead_time=L, freq="D", selling_horizon=season, service_level=alpha,
+    allow_backorders=False,
 ).fit(
     pd.DataFrame({"unique_id": ["advent_calendar"],
                   "target": [np.quantile(season_totals, alpha)],
                   "target_end": [origin + pd.Timedelta(days=L + season)]}),
-    forecast_origin=origin, forecast_frequency="D",
+    forecast_origin=origin,
     target_column="target",
     target_end_date_column="target_end",
 )

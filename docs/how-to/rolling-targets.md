@@ -29,7 +29,7 @@ Eight weeks of sales before the opening give the model a history:
 
 ```python
 history = DemandGenerator(
-    [sku], start_date=opening_date - pd.Timedelta(days=55), period_frequency="D",
+    [sku], start_date=opening_date - pd.Timedelta(days=55), freq="D",
     random_seed=4, negative_demand_handling="clip_zero",
 ).seasonal(n_periods=56, base=6.0, amplitude=2.0, season_length=7, std=2.0)
 history["y"] = history["y"].round()
@@ -54,11 +54,11 @@ def fit_at(t):
         "target_end_date": [origin + pd.Timedelta(days=horizon)],
     })
     return OrderUpToPolicy(
-        lead_time=lead_time, review_period=review_period,
+        lead_time=lead_time, review_period=review_period, freq="D",
         service_level=0.95, allow_backorders=False,
     ).fit(
         target, target_column="target",
-        forecast_origin=origin, forecast_frequency="D",
+        forecast_origin=origin,
         target_end_date_column="target_end_date",
     )
 ```

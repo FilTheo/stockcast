@@ -26,12 +26,12 @@ def test_inventory_matches_delivery_calendar_oracle(backorders, lead, review, de
         on_hand_column="stock", start_date=origin,
     )
     policy = OrderUpToPolicy(
-        lead_time=lead, schedule=PeriodicSchedule(review, start=review if delayed_start else 0), service_level=0.95,
+        lead_time=lead, freq="D", schedule=PeriodicSchedule(review, start=review if delayed_start else 0), service_level=0.95,
         allow_backorders=backorders,
     ).fit(
         pd.DataFrame({"unique_id": ["A"], "target": [target],
                       "end": [origin + pd.Timedelta(days=lead + review)]}),
-        forecast_origin=origin, forecast_frequency="D", target_column="target",
+        forecast_origin=origin, target_column="target",
         target_end_date_column="end", target_probability=0.95,
         protection_horizon=lead + review,
     )
@@ -42,7 +42,7 @@ def test_inventory_matches_delivery_calendar_oracle(backorders, lead, review, de
             "period": range(len(demand)),
             "date": pd.date_range(origin + pd.Timedelta(days=1), periods=len(demand)),
         }),
-        n_periods=len(demand), period_frequency="D",
+        n_periods=len(demand), freq="D",
         warmup_periods=0, scoring_periods=20, settlement_periods=4,
         order_during_settlement=False, demand_source_name="independent_reference",
         random_seed=142,

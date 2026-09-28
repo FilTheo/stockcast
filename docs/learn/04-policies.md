@@ -38,13 +38,13 @@ target = pd.DataFrame({
 policy = OrderUpToPolicy(
     lead_time=lead_time,          # L: periods from order to delivery
     review_period=review_period,  # R: periods between ordering opportunities
+    freq="D",                     # one period is one day
     service_level=0.95,           # the probability the target represents
     allow_backorders=False,       # lost sales
 ).fit(
     target,
     target_column="target",                # the 95% quantile over H = L + R days
     forecast_origin=opening_date,          # the forecast used data up to this date
-    forecast_frequency="D",
     target_end_date_column="target_end_date",  # optional: checked against origin + H
 )
 policy

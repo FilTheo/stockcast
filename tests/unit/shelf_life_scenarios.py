@@ -87,12 +87,12 @@ def state_frame(skus, *, max_lead, backorders, on_hand, pipeline=None):
 def order_up_to(skus, targets, *, lead, every, backorders):
     horizon = lead + every
     policy = OrderUpToPolicy(
-        lead_time=lead, schedule=PeriodicSchedule(every), service_level=0.9,
+        lead_time=lead, freq="D", schedule=PeriodicSchedule(every), service_level=0.9,
         allow_backorders=backorders,
     )
     return policy.fit(
         pd.DataFrame({"unique_id": skus, "S": targets, "end": ORIGIN + horizon * DAY}),
-        forecast_origin=ORIGIN, forecast_frequency="D", target_column="S",
+        forecast_origin=ORIGIN, target_column="S",
         target_end_date_column="end", protection_horizon=horizon,
         target_probability=0.9,
     )
@@ -216,7 +216,7 @@ def run_kwargs(scenario: dict, *, legacy: bool = False) -> dict:
         demand_source=demand,
         inventory=scenario.pop("state"),
         n_periods=n_periods,
-        period_frequency="D",
+        freq="D",
         warmup_periods=warmup,
         scoring_periods=n_periods - warmup - settlement,
         settlement_periods=settlement,

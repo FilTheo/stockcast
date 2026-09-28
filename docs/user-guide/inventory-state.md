@@ -148,7 +148,7 @@ steps are public:
 
 | Method | Does |
 |---|---|
-| `advance_period(period_frequency=..., is_review_period=...)` | Move to the next period, receive due deliveries, serve old backorders |
+| `advance_period(freq=..., is_review_period=...)` | Move to the next period, receive due deliveries, serve old backorders |
 | `stockcast.utils.update_inventory_with_orders(state, decision)` | Place an `OrderDecision` (zero lead time: received now) |
 | `stockcast.utils.place_order_lines(state, lines)` | Place order lines with explicit due periods |
 | `fulfill_demand(demand_df)` | Serve the current period's demand |

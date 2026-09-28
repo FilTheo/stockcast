@@ -45,6 +45,7 @@ target = pd.DataFrame({"unique_id": ["coffee"], "order_up_to": [forecast]})
 policy = OrderUpToPolicy(
     lead_time=lead_time,
     review_period=review_period,
+    freq="W-MON",
     service_level=service_level,
     allow_backorders=False,
 )
@@ -52,7 +53,6 @@ policy.fit(
     target,
     target_column="order_up_to",
     forecast_origin=today,
-    forecast_frequency="W-MON",
 )
 
 # The shelf today: 40 packs.

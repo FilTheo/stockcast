@@ -73,13 +73,13 @@ target = pd.DataFrame({
 policy = OrderUpToPolicy(
     lead_time=2,
     review_period=4,
+    freq="D",
     service_level=0.95,
     allow_backorders=False,
 ).fit(
     target,
     target_column="S",
     forecast_origin=opening_date,
-    forecast_frequency="D",
     target_end_date_column="S_end",
 )
 policy.get_target_metadata()
@@ -95,6 +95,7 @@ policy.get_target_metadata()
 |---|---|
 | `lead_time` | $L$, integer $\ge 0$ |
 | `review_period` | $R$, integer $\ge 1$; or pass `schedule=` for other calendars |
+| `freq` | $\Delta$, the length of one period, such as `"D"`; optional when `fit` reads it from per-period forecast dates |
 | `service_level` | $\alpha$, or `None` for [planner targets](../forecast-targets.md#three-ways-to-fit-a-target) |
 | `allow_backorders` | `True` or `False` |
 | `schedule` | any [`DecisionSchedule`](../decision-schedules.md) |
@@ -108,7 +109,7 @@ policy.get_target_metadata()
 - **independent normal**: `mean_column`, `std_column`, and
   `forecast_date_column`.
 
-Both take `forecast_frequency` and `forecast_origin`. The window
+Both take `forecast_origin`. The window
 `protection_horizon` defaults to $L + R$ and the probability
 `target_probability` to the `service_level`; pass them only to have them
 checked. A direct target can give an end-date column

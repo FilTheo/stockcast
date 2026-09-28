@@ -134,7 +134,7 @@ def test_engine_expires_opening_stock_before_demand():
         demand,
         inventory,
         n_periods=4,
-        period_frequency="D",
+        freq="D",
         warmup_periods=0,
         scoring_periods=4,
         settlement_periods=0,
@@ -179,7 +179,7 @@ def test_engine_tracks_arriving_lot_dates():
         demand,
         inventory,
         n_periods=6,
-        period_frequency="D",
+        freq="D",
         warmup_periods=0,
         scoring_periods=6,
         settlement_periods=0,
@@ -218,7 +218,7 @@ def test_engine_shelf_life_changes_outcomes():
             demand,
             inventory,
             n_periods=6,
-            period_frequency="D",
+            freq="D",
             warmup_periods=0,
             scoring_periods=6,
             settlement_periods=0,
@@ -256,7 +256,7 @@ def test_reused_shelf_life_process_resets_fifo_ledger_between_runs():
             demand,
             inventory,
             n_periods=3,
-            period_frequency="D",
+            freq="D",
             warmup_periods=0,
             scoring_periods=3,
             settlement_periods=0,
@@ -287,7 +287,7 @@ def test_engine_fifo_accounts_for_backorder_clearance():
         _daily_demand([3.0, 1.0]),
         inventory,
         n_periods=2,
-        period_frequency="D",
+        freq="D",
         warmup_periods=0,
         scoring_periods=2,
         settlement_periods=0,
@@ -319,7 +319,7 @@ def test_opening_lots_must_balance_opening_inventory():
             _daily_demand([0.0]),
             inventory,
             n_periods=1,
-            period_frequency="D",
+            freq="D",
             warmup_periods=0,
             scoring_periods=1,
             settlement_periods=0,
@@ -348,7 +348,7 @@ def test_expired_opening_lots_reject_by_default_or_write_off_explicitly():
         "demand_source": _daily_demand([0.0]),
         "inventory": inventory,
         "n_periods": 1,
-        "period_frequency": "D",
+        "freq": "D",
         "warmup_periods": 0,
         "scoring_periods": 1,
         "settlement_periods": 0,
@@ -407,7 +407,7 @@ def _comparison_inputs(scale=1.0):
     ]
     demand = _daily_demand([value * scale for value in (3.1, 0.0, 2.7, 4.3, 1.9)])
     common = dict(
-        period_frequency="D", warmup_periods=0, scoring_periods=5, settlement_periods=0,
+        freq="D", warmup_periods=0, scoring_periods=5, settlement_periods=0,
         order_during_settlement=False, demand_source_name="shelf_comparison",
         random_seed=None, opening_lots=_opening_lots(10.0 * scale, "2024-12-31"),
     )
@@ -448,7 +448,7 @@ def test_ledger_balances_tolerate_rounding_at_gram_scale():
     demand = _daily_demand([9350724.238, 8158535.541, 27385.002, 8574042.766, 335855.753])
     result = run_with_shelf_life(
         3,
-        policy, demand, inventory, 5, period_frequency="D", warmup_periods=0,
+        policy, demand, inventory, 5, freq="D", warmup_periods=0,
         scoring_periods=5, settlement_periods=0, order_during_settlement=False,
         demand_source_name="gram_scale", random_seed=None, opening_lots=lots,
     )

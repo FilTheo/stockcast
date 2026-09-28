@@ -785,7 +785,7 @@ class _PeriodRun:
             sim_period = int(state.period)
         else:
             state = self.frame(state, []).advance_period(
-                period_frequency=self.period_offset.freqstr,
+                freq=self.period_offset.freqstr,
                 is_review_period=review,
             )
             sim_period = int(state.data['period'].iloc[0])
@@ -1217,7 +1217,7 @@ class SimulationEngine:
         inventory: InventoryStateDataFrame,
         n_periods: Optional[int] = None,
         *,
-        period_frequency: Optional[str] = None,
+        freq: Optional[str] = None,
         warmup_periods: int = 0,
         scoring_periods: Optional[int] = None,
         settlement_periods: int = 0,
@@ -1251,10 +1251,11 @@ class SimulationEngine:
                 policy's, or be unset to take the policy's.
             n_periods: Number of demand periods. Inferred from a DataFrame;
                 required for a callable.
-            period_frequency: Length of one period, a pandas frequency such as
-                ``"D"``. Period ``p`` is dated opening date + ``(p + 1)`` periods.
-                Defaults to the policy's ``forecast_frequency``; required when
-                the policy records none.
+            freq: Length of one period, a pandas frequency such as ``"D"``.
+                Period ``p`` is dated opening date + ``(p + 1)`` periods.
+                Defaults to the policy's ``freq`` (given or read at ``fit``);
+                required when the policy has none. If given, it must match
+                the policy's.
             warmup_periods: Leading periods excluded from scoring (default 0).
             scoring_periods: Periods that metrics describe by default (>= 1).
                 Defaults to the periods left after warmup and settlement. The
@@ -1287,7 +1288,7 @@ class SimulationEngine:
                 window, or windows that do not add up.
         """
         demand_source, demand_period_offset = self._complete_frame_calendar(
-            demand_source, inventory, [policy], period_frequency,
+            demand_source, inventory, [policy], freq,
         )
         n_periods = self._resolve_n_periods(demand_source, n_periods)
         if not isinstance(n_periods, int) or isinstance(n_periods, bool) or n_periods < 0:
@@ -1352,12 +1353,9 @@ class SimulationEngine:
             raise ValueError("policy must be fitted before simulation")
         if not isinstance(inventory, InventoryStateDataFrame):
             raise TypeError("inventory must be an InventoryStateDataFrame")
-        if period_frequency is None:
-            period_frequency = self._infer_period_frequency([policy])
-        period_offset = _require_forward_frequency(
-            period_frequency,
-            "period_frequency",
-        )
+        if freq is None:
+            freq = self._infer_period_frequency([policy])
+        period_offset = _require_forward_frequency(freq, "freq")
         schedule_manifest = policy.schedule.to_manifest()
         if not isinstance(schedule_manifest, dict):
             raise TypeError("decision schedule manifest must be a dictionary")
@@ -2619,6 +2617,7 @@ class SimulationEngine:
             policy.allow_backorders,
             getattr(policy, "selling_horizon", None),
         )
+        frequency = SimulationEngine._policy_frequency(policy)
         for period, snapshot in policy_schedule.items():
             if not isinstance(period, int) or isinstance(period, bool):
                 raise ValueError("policy_schedule keys must be integer decision periods")
@@ -2643,6 +2642,17 @@ class SimulationEngine:
                     "policy_schedule snapshots may change fitted targets only; policy class, "
                     "lead_time, review_period, service_level, and backorder mode must match"
                 )
+            snapshot_frequency = SimulationEngine._policy_frequency(snapshot)
+            if (
+                frequency is not None
+                and snapshot_frequency is not None
+                and snapshot_frequency != frequency
+            ):
+                raise ValueError(
+                    f"policy_schedule period {period} has freq "
+                    f"{snapshot_frequency.freqstr}, but the policy has freq "
+                    f"{frequency.freqstr}; snapshots may change fitted targets only"
+                )
             decision_date = opening_date + period * period_offset
             SimulationEngine._validate_policy_information_origin(
                 snapshot,
@@ -2652,6 +2662,16 @@ class SimulationEngine:
             )
             validated[period] = copy.deepcopy(snapshot)
         return validated
+
+    @staticmethod
+    def _policy_frequency(policy: BasePolicy):
+        """The period length a fitted policy records (its ``freq``, given or read), or None."""
+        get_metadata = getattr(policy, "get_target_metadata", None)
+        metadata = get_metadata() if callable(get_metadata) else {}
+        frequency = metadata.get("forecast_frequency") if isinstance(metadata, dict) else None
+        if frequency is None:
+            return None
+        return _require_forward_frequency(frequency, "policy freq")
 
     @staticmethod
     def _validate_policy_information_origin(
@@ -2670,25 +2690,28 @@ class SimulationEngine:
             raise ValueError("fitted policy target metadata must include forecast_origin")
         if "forecast_frequency" not in metadata:
             raise ValueError("fitted policy target metadata must include forecast_frequency")
-        undated = (metadata["forecast_origin"] is None, metadata["forecast_frequency"] is None)
-        if all(undated):
-            # Undated planning levels (for example fixed reorder points) claim no
-            # information date, so there is no origin to check.
-            return
-        if any(undated):
+        if metadata["forecast_frequency"] is None:
+            if metadata["forecast_origin"] is None:
+                # Undated planning levels (for example fixed reorder points)
+                # claim no information date, so there is nothing to check.
+                return
             raise ValueError(
-                "fitted policy target metadata must give both forecast_origin and "
-                "forecast_frequency, or neither"
+                "fitted policy target metadata gives a forecast_origin without a "
+                "forecast_frequency"
             )
         policy_frequency = _require_forward_frequency(
             metadata["forecast_frequency"],
-            "policy forecast_frequency",
+            "policy freq",
         )
         if policy_frequency != expected_frequency:
             raise ValueError(
-                f"policy forecast_frequency {policy_frequency.freqstr} must match "
-                f"simulation period_frequency {expected_frequency.freqstr}"
+                f"policy freq {policy_frequency.freqstr} must match the run's freq "
+                f"{expected_frequency.freqstr}"
             )
+        if metadata["forecast_origin"] is None:
+            # Levels with a period length but no information date: the
+            # frequency sets the calendar; there is no origin to check.
+            return
         origin = pd.Timestamp(metadata["forecast_origin"])
         allowed = pd.Timestamp(latest_allowed_origin)
         if (exact and origin != allowed) or (not exact and origin > allowed):
@@ -2939,7 +2962,7 @@ class SimulationEngine:
         inventory: InventoryStateDataFrame,
         n_periods: Optional[int] = None,
         *,
-        period_frequency: Optional[str] = None,
+        freq: Optional[str] = None,
         warmup_periods: int = 0,
         scoring_periods: Optional[int] = None,
         settlement_periods: int = 0,
@@ -2991,7 +3014,7 @@ class SimulationEngine:
         )
         return self._run_comparison(
             policies, demand_source, inventory, n_periods,
-            period_frequency=period_frequency,
+            freq=freq,
             warmup_periods=warmup_periods,
             scoring_periods=scoring_periods,
             settlement_periods=settlement_periods,
@@ -3007,7 +3030,7 @@ class SimulationEngine:
 
     def _run_comparison(
         self, policies, demand_source, inventory, n_periods, *,
-        period_frequency, warmup_periods, scoring_periods,
+        freq, warmup_periods, scoring_periods,
         settlement_periods, order_during_settlement, demand_source_name,
         random_seed, labels, policy_schedules, order_constraints, callbacks,
         branch_run_options: dict,
@@ -3039,11 +3062,11 @@ class SimulationEngine:
         # before any branch runs. The branches get the table as given and
         # number it again, so each records the period shift it removed.
         numbered, _ = self._complete_frame_calendar(
-            demand_source, inventory, policies, period_frequency,
+            demand_source, inventory, policies, freq,
         )
         n_periods = self._resolve_n_periods(numbered, n_periods)
-        if period_frequency is None:
-            period_frequency = self._infer_period_frequency(policies)
+        if freq is None:
+            freq = self._infer_period_frequency(policies)
         if policy_schedules is None:
             policy_schedules = [None] * len(policies)
         elif len(policy_schedules) != len(policies):
@@ -3081,7 +3104,7 @@ class SimulationEngine:
                 shared_demand,
                 inv_copy,
                 n_periods,
-                period_frequency=period_frequency,
+                freq=freq,
                 warmup_periods=warmup_periods,
                 scoring_periods=scoring_periods,
                 settlement_periods=settlement_periods,
@@ -3123,7 +3146,7 @@ class SimulationEngine:
         return int(periods.max()) + 1
 
     @classmethod
-    def _complete_frame_calendar(cls, demand_source, inventory, policies, period_frequency):
+    def _complete_frame_calendar(cls, demand_source, inventory, policies, freq):
         """Number a demand DataFrame's rows as run periods (``_complete_demand_calendar``).
 
         Returns the frame and the period shift removed from it. Needs the
@@ -3141,26 +3164,24 @@ class SimulationEngine:
         if opening_dates.isna().any() or opening_dates.nunique() != 1:
             return demand_source, 0
         try:
-            frequency = (
-                period_frequency if period_frequency is not None
-                else cls._infer_period_frequency(policies)
-            )
-            offset = _require_forward_frequency(frequency, "period_frequency")
+            frequency = freq if freq is not None else cls._infer_period_frequency(policies)
+            offset = _require_forward_frequency(frequency, "freq")
         except (TypeError, ValueError):
             if (
-                period_frequency is None
+                freq is None
                 and 'period' not in demand_source.columns
                 and all(getattr(policy, "fitted_", False) for policy in policies)
             ):
                 raise ValueError(
-                    "period_frequency is required: the policy records no "
-                    "forecast_frequency, so the demand dates cannot be numbered"
+                    "freq is required: the policy has no freq, so the demand dates "
+                    "cannot be numbered; give the policy freq=..., or pass freq= to "
+                    "the run"
                 ) from None
             return demand_source, 0
-        if period_frequency is not None and {'period', 'date'} <= set(demand_source.columns):
+        if freq is not None and {'period', 'date'} <= set(demand_source.columns):
             try:
                 recorded = _require_forward_frequency(
-                    cls._infer_period_frequency(policies), "policy forecast_frequency",
+                    cls._infer_period_frequency(policies), "policy freq",
                 )
             except (TypeError, ValueError):
                 recorded = offset
@@ -3280,12 +3301,12 @@ class SimulationEngine:
                 frequencies.add(frequency)
         if not frequencies:
             raise ValueError(
-                "period_frequency is required: the policy records no "
-                "forecast_frequency in its target metadata"
+                "freq is required: the policy has no freq; give the policy freq=..., "
+                "or pass freq= to the run"
             )
         if len(frequencies) != 1:
             raise ValueError(
-                "period_frequency is required: the policies record different "
+                "freq is required: the policies record different "
                 f"forecast frequencies {sorted(frequencies)}"
             )
         return frequencies.pop()

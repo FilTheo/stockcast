@@ -36,7 +36,7 @@ from stockcast.policies._target_validation import (
     prepare_inventory_positions,
     resolve_target_window,
     schedule_protection_horizon,
-    validate_forecast_origin_and_frequency,
+    validate_forecast_origin,
     validate_schedule_coverage,
     validate_target_probability,
 )
@@ -71,6 +71,10 @@ class ReorderPointPolicy(BasePolicy):
 
     ``S`` is never interpreted as a quantile: in the literature ``s`` and ``S``
     are generally determined jointly. Stockcast only requires ``S >= s``.
+
+    ``freq`` is the length of one period (a pandas frequency such as ``"D"``);
+    ``lead_time`` and ``review_period`` count periods of this length. Forecast
+    targets need it; fixed values and target providers may omit it.
     """
 
     def __init__(
@@ -78,6 +82,7 @@ class ReorderPointPolicy(BasePolicy):
         lead_time: int,
         review_period: Optional[int] = None,
         *,
+        freq: Optional[str] = None,
         policy_type: Optional[Literal["sQ", "sS"]] = None,
         service_level: Optional[float] = None,
         order_quantity: Optional[float] = None,
@@ -87,6 +92,8 @@ class ReorderPointPolicy(BasePolicy):
         super().__init__(
             lead_time, review_period, service_level, allow_backorders, schedule=schedule,
         )
+        self.freq = freq
+        self._freq_offset = None if freq is None else _require_forward_frequency(freq, "freq")
         if policy_type is None:
             policy_type = "sQ" if order_quantity is not None else "sS"
         if policy_type not in ("sQ", "sS"):
@@ -114,7 +121,6 @@ class ReorderPointPolicy(BasePolicy):
         self,
         target_df: Optional[pd.DataFrame] = None,
         *,
-        forecast_frequency: Optional[str] = None,
         reorder_point_column: Optional[str] = None,
         forecast_origin: Optional[pd.Timestamp] = None,
         reorder_end_date_column: Optional[str] = None,
@@ -142,13 +148,12 @@ class ReorderPointPolicy(BasePolicy):
            with ``target_df``.
 
         Sources 2 and 3 are planning levels: they need ``service_level=None``
-        and claim no window. ``forecast_origin`` and ``forecast_frequency`` are
-        optional for them; when given, the run checks the origin as for
-        source 1.
+        and claim no window. Their dates are optional: ``forecast_origin``
+        needs the policy's ``freq``, and the run then checks it as for source
+        1; ``freq`` alone records the period length without an origin.
 
         Args:
             target_df: One row per SKU (sources 1 and 3; optional for 2).
-            forecast_frequency: Explicit pandas frequency of one period.
             reorder_point_column: Column holding ``s``.
             forecast_origin: Last observed demand date used to build ``s``.
             reorder_end_date_column: Optional column with the date of the last
@@ -192,7 +197,6 @@ class ReorderPointPolicy(BasePolicy):
                 )
             return self._fit_columns(
                 target_df,
-                forecast_frequency=forecast_frequency,
                 reorder_point_column=reorder_point_column,
                 forecast_origin=forecast_origin,
                 reorder_end_date_column=reorder_end_date_column,
@@ -217,7 +221,7 @@ class ReorderPointPolicy(BasePolicy):
                 "fixed values and target providers are planning levels without a "
                 "probability; create the policy with service_level=None"
             )
-        dates = self._planning_dates(forecast_origin, forecast_frequency)
+        dates = self._planning_dates(forecast_origin)
         if sources[0] == "reorder_point":
             return self._fit_fixed(
                 target_df, reorder_point, order_up_to_level, sku_column, dates,
@@ -226,17 +230,16 @@ class ReorderPointPolicy(BasePolicy):
             raise ValueError("order_up_to_level goes with reorder_point, not target_provider")
         return self._fit_provider(target_df, target_provider, sku_column, dates)
 
-    @staticmethod
-    def _planning_dates(forecast_origin, forecast_frequency):
-        """Optional dates of planning levels: both or neither."""
-        if (forecast_origin is None) != (forecast_frequency is None):
-            raise ValueError(
-                "give both forecast_origin and forecast_frequency, or neither, "
-                "for fixed values and target providers"
-            )
+    def _planning_dates(self, forecast_origin):
+        """Optional dates of planning levels: an origin needs ``freq``."""
         if forecast_origin is None:
-            return None, None
-        return validate_forecast_origin_and_frequency(forecast_origin, forecast_frequency)
+            return None, self._freq_offset
+        if self._freq_offset is None:
+            raise ValueError(
+                "freq is required: forecast_origin dates the levels in periods; "
+                'create the policy with freq, for example ReorderPointPolicy(..., freq="D")'
+            )
+        return validate_forecast_origin(forecast_origin), self._freq_offset
 
     @staticmethod
     def _fixed_values(value, name: str):
@@ -390,7 +393,6 @@ class ReorderPointPolicy(BasePolicy):
         self,
         target_df,
         *,
-        forecast_frequency,
         reorder_point_column,
         forecast_origin,
         reorder_end_date_column,
@@ -400,9 +402,13 @@ class ReorderPointPolicy(BasePolicy):
         sku_column,
     ) -> "ReorderPointPolicy":
         """Mode 1: dated, window-checked targets from table columns."""
-        if forecast_frequency is None:
-            raise ValueError("forecast_frequency is required for reorder_point_column targets")
-        offset = _require_forward_frequency(forecast_frequency, "forecast_frequency")
+        offset = self._freq_offset
+        if offset is None:
+            raise ValueError(
+                "freq is required: reorder_point_column targets have one date per "
+                "SKU, so the period length cannot be read from them; create the "
+                'policy with freq, for example ReorderPointPolicy(..., freq="D")'
+            )
         horizon = schedule_protection_horizon(
             self.schedule, self.lead_time, reorder_horizon, "reorder_horizon",
         )

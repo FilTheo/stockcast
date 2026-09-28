@@ -9,7 +9,7 @@ these meanings.
 |---|---|---|
 | $i$ | A SKU | `unique_id` |
 | $t$ | A demand period, counted from 0 | `demand_period` in the ledger; keys of schedules |
-| $\Delta$ | The length of one period, a pandas frequency | `period_frequency`, `forecast_frequency` |
+| $\Delta$ | The length of one period, a pandas frequency | `freq` |
 | $L$ | Lead time: periods from order to delivery, $L \ge 0$ | `lead_time` |
 | $R$ | Review period: periods between ordering opportunities, $R \ge 1$ | `review_period`, `PeriodicSchedule(every=R)` |
 | $u$ | The next decision period after $t$ | `schedule.next_decision_period(t)` |

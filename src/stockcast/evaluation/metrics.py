@@ -8,6 +8,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from stockcast.core.data_structures import _STANDARD_FREQUENCIES, _standard_frequency
+
 
 class BaseInventoryMetric(ABC):
     """Base class for a named, configurable metric.
@@ -580,21 +582,6 @@ def peak_ending_on_hand(event_frame: pd.DataFrame, context: Optional[dict] = Non
     return float(totals.max())
 
 
-# Standard year lengths for period frequencies read from ledger dates. Other
-# frequencies (business days, hours, ...) have no single convention and must be
-# given as context["periods_per_year"].
-_PERIODS_PER_YEAR = (
-    (pd.offsets.Day, 365.0),
-    (pd.offsets.Week, 52.0),
-    (pd.offsets.MonthBegin, 12.0),
-    (pd.offsets.MonthEnd, 12.0),
-    (pd.offsets.QuarterBegin, 4.0),
-    (pd.offsets.QuarterEnd, 4.0),
-    (pd.offsets.YearBegin, 1.0),
-    (pd.offsets.YearEnd, 1.0),
-)
-
-
 def _periods_per_year(period_events: pd.DataFrame, context: dict) -> float:
     """``context['periods_per_year']``, or the standard value for the ledger's dates."""
     if "periods_per_year" in context:
@@ -603,25 +590,23 @@ def _periods_per_year(period_events: pd.DataFrame, context: dict) -> float:
             raise ValueError("context['periods_per_year'] must be > 0")
         return value
     ask = "pass context={'periods_per_year': ...}, for example 365 for daily periods"
-    dates = pd.DatetimeIndex([])
+    dates = []
     if "date" in period_events.columns:
-        dates = pd.DatetimeIndex(pd.to_datetime(period_events["date"]).unique()).sort_values()
-    if len(dates) < 3:
+        dates = period_events["date"]
+    offset, problem = _standard_frequency(dates)
+    if problem == "few":
         raise ValueError(
             f"inventory_turns cannot tell the period length from fewer than three dates; {ask}"
         )
-    frequency = pd.infer_freq(dates)
-    if frequency is None:
+    if problem == "irregular":
         raise ValueError(
             f"inventory_turns cannot tell the period length from irregular dates; {ask}"
         )
-    offset = pd.tseries.frequencies.to_offset(frequency)
-    for kind, per_year in _PERIODS_PER_YEAR:
-        if type(offset) is kind:
-            return per_year / offset.n
-    raise ValueError(
-        f"inventory_turns has no standard number of {frequency!r} periods per year; {ask}"
-    )
+    if problem is not None:
+        raise ValueError(
+            f"inventory_turns has no standard number of {problem!r} periods per year; {ask}"
+        )
+    return dict(_STANDARD_FREQUENCIES)[type(offset)] / offset.n
 
 
 def inventory_turns(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:

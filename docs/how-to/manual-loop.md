@@ -10,7 +10,7 @@ public.
 
 | Step | Call | Does |
 |---|---|---|
-| 1. Receive | `state.advance_period(period_frequency=..., is_review_period=...)` | moves to the next period, receives due deliveries, serves old backorders first |
+| 1. Receive | `state.advance_period(freq=..., is_review_period=...)` | moves to the next period, receives due deliveries, serves old backorders first |
 | 2. Decide | `policy.predict(state, current_period=...)`, then `update_inventory_with_orders(state, decision, policy=policy)` | places the order: into the pipeline, or received now if $L = 0$ |
 | 3. Meet demand | `state.fulfill_demand(demand_rows)` | serves this period's demand; lost sales or backorders |
 
@@ -32,7 +32,7 @@ ending_on_hand = []
 
 for p in range(56):
     review = p % review_period == 0
-    state = state.advance_period(period_frequency="D", is_review_period=review)   # 1
+    state = state.advance_period(freq="D", is_review_period=review)   # 1
     if review:
         now = int(state.get_dataframe()["period"].iloc[0])
         decision = policy.predict(state, current_period=now)                      # 2

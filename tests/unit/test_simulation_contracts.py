@@ -98,7 +98,7 @@ def test_missing_sku_period_is_rejected_before_inventory_mutation():
             demand,
             inventory,
             n_periods=1,
-            period_frequency="D",
+            freq="D",
             **_run_contract(1),
         )
     assert inventory.data["on_hand"].tolist() == [5.0, 5.0]
@@ -117,7 +117,7 @@ def test_missing_calendar_period_is_rejected():
             demand,
             _inventory(),
             n_periods=3,
-            period_frequency="D",
+            freq="D",
             **_run_contract(3),
         )
 
@@ -125,10 +125,10 @@ def test_missing_calendar_period_is_rejected():
 def test_missing_dates_are_never_derived_from_an_assumed_frequency():
     demand = pd.DataFrame({"unique_id": ["A"], "period": [0], "y": [1.0]})
     # No frequency given and none recorded by the (custom) policy: rejected.
-    with pytest.raises(ValueError, match="period_frequency is required"):
+    with pytest.raises(ValueError, match="freq is required"):
         SimulationEngine().run(_policy(), demand, _inventory())
     # A declared frequency dates period p as opening date + (p + 1) periods.
-    result = SimulationEngine().run(_policy(), demand, _inventory(), period_frequency="D")
+    result = SimulationEngine().run(_policy(), demand, _inventory(), freq="D")
     assert result.to_event_frame()["date"].tolist() == [pd.Timestamp("2025-01-02")]
 
 
@@ -144,7 +144,7 @@ def test_weekly_frequency_validates_calendar_and_is_recorded():
         demand,
         _inventory(opening_date="2025-01-06"),
         n_periods=2,
-        period_frequency="W-MON",
+        freq="W-MON",
         **_run_contract(2),
     )
 
@@ -169,7 +169,7 @@ def test_simulation_frequency_must_advance_time(frequency):
             demand,
             _inventory(),
             n_periods=1,
-            period_frequency=frequency,
+            freq=frequency,
             **_run_contract(1),
         )
 
@@ -187,7 +187,7 @@ def test_wrong_date_for_declared_frequency_is_rejected():
             demand,
             _inventory(opening_date="2025-01-06"),
             n_periods=1,
-            period_frequency="W-MON",
+            freq="W-MON",
             **_run_contract(1),
         )
 
@@ -198,14 +198,14 @@ def test_first_decision_uses_schedule_and_old_opening_option_fails_explicitly():
     policy = FixedOrderPolicy(lead_time=0, review_period=3, service_level=None,
                               allow_backorders=False, order_quantity=10)
     result = SimulationEngine().run(policy, demand, _inventory(), 1,
-                                    period_frequency="D", **_run_contract(1))
+                                    freq="D", **_run_contract(1))
     event = result.to_event_frame().iloc[0]
     assert event["event_type"] == "period"
     assert event["received_units"] == 10
     assert event["fulfilled_units"] == 4
     assert event["ending_on_hand"] == 6
     with pytest.raises(TypeError, match="initial_decision"):
-        SimulationEngine().run(policy, demand, _inventory(), 1, period_frequency="D",
+        SimulationEngine().run(policy, demand, _inventory(), 1, freq="D",
                                initial_decision="before_first_demand", **_run_contract(1))
 
 
@@ -228,7 +228,7 @@ def test_comparison_materializes_callable_once_and_copies_policies():
         demand_source,
         _inventory(),
         n_periods=2,
-        period_frequency="D",
+        freq="D",
         labels=["first", "second"],
         **_run_contract(2),
     )
@@ -256,7 +256,7 @@ def test_comparison_rejects_duplicate_user_labels_before_demand_is_materialized(
             demand_source,
             _inventory(),
             n_periods=1,
-            period_frequency="D",
+            freq="D",
             labels=["same", "same"],
             **_run_contract(1),
         )
@@ -280,7 +280,7 @@ def test_run_does_not_mutate_input_or_include_pre_run_history():
         demand,
         inventory,
         n_periods=1,
-        period_frequency="D",
+        freq="D",
         **_run_contract(1),
     )
 
@@ -305,7 +305,7 @@ def test_demand_identifier_types_must_match_inventory_identifiers():
             demand,
             _inventory(),
             n_periods=1,
-            period_frequency="D",
+            freq="D",
             **_run_contract(1),
         )
 
@@ -326,7 +326,7 @@ def test_numeric_identifiers_are_preserved_through_orders_and_events():
         demand,
         inventory,
         n_periods=1,
-        period_frequency="D",
+        freq="D",
         **_run_contract(1),
     )
 
@@ -348,7 +348,7 @@ def test_policy_schedule_updates_targets_only_at_declared_decisions():
         demand,
         _inventory(),
         n_periods=2,
-        period_frequency="D",
+        freq="D",
         policy_schedule={1: _policy(order_quantity=10.0)},
         **_run_contract(2),
     )
@@ -377,7 +377,7 @@ def test_policy_schedule_rejects_non_decision_periods():
             demand,
             _inventory(),
             n_periods=1,
-            period_frequency="D",
+            freq="D",
             policy_schedule={1: _policy(review_period=2)},
             **_run_contract(1),
         )
@@ -396,7 +396,7 @@ def test_policy_schedule_rejects_configuration_changes():
             demand,
             _inventory(),
             n_periods=1,
-            period_frequency="D",
+            freq="D",
             policy_schedule={0: FixedOrderPolicy(
                 order_quantity=2.0,
                 lead_time=2,
@@ -420,7 +420,7 @@ def test_run_windows_control_scoring_and_settlement_ordering():
         demand,
         _inventory(),
         n_periods=4,
-        period_frequency="D",
+        freq="D",
         warmup_periods=1,
         scoring_periods=2,
         settlement_periods=1,
@@ -454,7 +454,7 @@ def test_clipped_demand_diagnostics_are_recorded_in_run_manifest():
     generator = DemandGenerator(
         ["A"],
         start_date=pd.Timestamp("2025-01-02"),
-        period_frequency="D",
+        freq="D",
         random_seed=1,
         negative_demand_handling="clip_zero",
     )
@@ -462,7 +462,7 @@ def test_clipped_demand_diagnostics_are_recorded_in_run_manifest():
         demand = generator.trend(2, initial=0.0, growth_rate=-1.0, std=0.0)
     result = SimulationEngine().run(
         _policy(), demand, _inventory(), n_periods=2,
-        period_frequency="D",
+        freq="D",
         **_run_contract(2),
     )
     provenance = result.run_manifest["demand_source"]["generation_provenance"]
@@ -486,7 +486,7 @@ def test_run_window_lengths_must_match_total_periods():
             demand,
             _inventory(),
             n_periods=1,
-            period_frequency="D",
+            freq="D",
             warmup_periods=0,
             scoring_periods=1,
             settlement_periods=1,
@@ -516,7 +516,7 @@ def test_initial_policy_cannot_use_a_future_information_origin():
             demand,
             _inventory(),
             n_periods=1,
-            period_frequency="D",
+            freq="D",
             **_run_contract(1),
         )
 
@@ -548,7 +548,7 @@ def test_scheduled_policy_origin_must_equal_its_decision_date():
             demand,
             _inventory(),
             n_periods=2,
-            period_frequency="D",
+            freq="D",
             policy_schedule={1: wrong_snapshot},
             **_run_contract(2),
         )
@@ -570,13 +570,13 @@ def test_policy_forecast_frequency_must_match_simulation_periods():
         allow_backorders=False,
     )
 
-    with pytest.raises(ValueError, match="must match simulation period_frequency"):
+    with pytest.raises(ValueError, match="must match the run's freq"):
         SimulationEngine().run(
             policy,
             demand,
             _inventory(),
             n_periods=1,
-            period_frequency="D",
+            freq="D",
             **_run_contract(1),
         )
 
@@ -595,11 +595,10 @@ def _daily_demand(values, skus=("A",), start="2025-01-02"):
 def _order_up_to(frequency="D"):
     from stockcast.policies import OrderUpToPolicy
 
-    return OrderUpToPolicy(1, 1, service_level=0.9, allow_backorders=False).fit(
+    return OrderUpToPolicy(1, 1, freq=frequency, service_level=0.9, allow_backorders=False).fit(
         pd.DataFrame({"unique_id": ["A"], "S": [8.0]}),
         target_column="S",
         forecast_origin=pd.Timestamp("2025-01-01"),
-        forecast_frequency=frequency,
     )
 
 
@@ -621,7 +620,7 @@ def test_minimal_run_matches_the_fully_explicit_run():
         demand_source=demand,
         inventory=_inventory(),
         n_periods=6,
-        period_frequency="D",
+        freq="D",
         warmup_periods=0,
         scoring_periods=6,
         settlement_periods=0,
@@ -687,18 +686,18 @@ def test_n_periods_is_required_for_callable_demand():
     assert result.run_settings["scoring_periods"] == 3
 
 
-def test_period_frequency_comes_from_the_policy_or_must_be_given():
+def test_run_freq_comes_from_the_policy_or_must_be_given():
     demand = _daily_demand([3, 5, 2])
-    with pytest.raises(ValueError, match="period_frequency is required"):
+    with pytest.raises(ValueError, match="freq is required"):
         SimulationEngine().run(policy=_policy(), demand_source=demand, inventory=_inventory())
     result = SimulationEngine().run(
-        policy=_policy(), demand_source=demand, inventory=_inventory(), period_frequency="D",
+        policy=_policy(), demand_source=demand, inventory=_inventory(), freq="D",
     )
     assert result.run_settings["scoring_periods"] == 3
-    with pytest.raises(ValueError, match="must match simulation period_frequency"):
+    with pytest.raises(ValueError, match="must match the run's freq"):
         SimulationEngine().run(
             policy=_order_up_to(), demand_source=demand, inventory=_inventory(),
-            period_frequency="2D",
+            freq="2D",
         )
 
 
@@ -805,7 +804,7 @@ def test_float_residue_shortage_is_not_flagged(monkeypatch, arrays, backorders):
     policy = FixedOrderPolicy(
         lead_time=1, review_period=1, allow_backorders=backorders, order_quantity=0.0,
     )
-    result = SimulationEngine().run(policy, demand, inventory, period_frequency="D")
+    result = SimulationEngine().run(policy, demand, inventory, freq="D")
     events = result.to_event_frame()
     assert 0 < events["shortage_units"].iloc[0] < 1e-12
     assert not events["stockout_flag"].iloc[0]
@@ -854,35 +853,35 @@ def test_comparison_dict_maps_schedules_by_label():
 
 def test_date_only_demand_without_a_frequency_names_the_missing_frequency():
     demand = _daily_demand([3, 5, 2]).drop(columns="period")
-    with pytest.raises(ValueError, match="period_frequency is required.*cannot be numbered"):
+    with pytest.raises(ValueError, match="freq is required.*cannot be numbered"):
         SimulationEngine().run(policy=_policy(), demand_source=demand, inventory=_inventory())
     result = SimulationEngine().run(
-        policy=_policy(), demand_source=demand, inventory=_inventory(), period_frequency="D",
+        policy=_policy(), demand_source=demand, inventory=_inventory(), freq="D",
     )
     assert len(result.to_event_frame()) == 3
 
 
-def _fixed_reorder_point(**dates):
+def _fixed_reorder_point(freq=None, **dates):
     from stockcast.policies import ReorderPointPolicy
 
-    return ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=False).fit(
+    return ReorderPointPolicy(lead_time=1, review_period=1, freq=freq, allow_backorders=False).fit(
         reorder_point=2.0, order_up_to_level=6.0, **dates,
     )
 
 
 def test_undated_fixed_levels_run_on_the_demand_calendar():
     demand = _daily_demand([3, 5, 2, 4], skus=("A", "B"))
-    with pytest.raises(ValueError, match="period_frequency is required"):
+    with pytest.raises(ValueError, match="freq is required"):
         SimulationEngine().run(
             policy=_fixed_reorder_point(), demand_source=demand,
             inventory=_inventory(skus=("A", "B")),
         )
     result = SimulationEngine().run(
         policy=_fixed_reorder_point(), demand_source=demand,
-        inventory=_inventory(skus=("A", "B")), period_frequency="D",
+        inventory=_inventory(skus=("A", "B")), freq="D",
     )
     dated = SimulationEngine().run(
-        policy=_fixed_reorder_point(forecast_origin=pd.Timestamp("2025-01-01"), forecast_frequency="D"),
+        policy=_fixed_reorder_point(forecast_origin=pd.Timestamp("2025-01-01"), freq="D"),
         demand_source=demand, inventory=_inventory(skus=("A", "B")),
     )
     events = result.to_event_frame()
@@ -894,20 +893,37 @@ def test_undated_fixed_levels_run_on_the_demand_calendar():
 
 
 def test_dated_fixed_levels_are_checked_against_the_opening_date():
-    policy = _fixed_reorder_point(forecast_origin=pd.Timestamp("2025-02-01"), forecast_frequency="D")
+    policy = _fixed_reorder_point(forecast_origin=pd.Timestamp("2025-02-01"), freq="D")
     with pytest.raises(ValueError, match="forecast_origin"):
         SimulationEngine().run(
             policy=policy, demand_source=_daily_demand([3, 5]), inventory=_inventory(),
         )
 
 
-def test_policy_metadata_with_only_one_date_is_rejected():
+def test_policy_metadata_with_an_origin_but_no_frequency_is_rejected():
     policy = _fixed_reorder_point()
-    policy.target_metadata_["forecast_frequency"] = "D"
-    with pytest.raises(ValueError, match="both forecast_origin and forecast_frequency, or neither"):
+    policy.target_metadata_["forecast_origin"] = "2025-01-01T00:00:00"
+    with pytest.raises(ValueError, match="forecast_origin without a forecast_frequency"):
         SimulationEngine().run(
             policy=policy, demand_source=_daily_demand([3, 5]), inventory=_inventory(),
-            period_frequency="D",
+            freq="D",
+        )
+
+
+def test_fixed_levels_with_freq_and_no_origin_set_the_run_calendar():
+    demand = _daily_demand([3, 5, 2, 4], skus=("A", "B"))
+    policy = _fixed_reorder_point(freq="D")
+    metadata = policy.get_target_metadata()
+    assert (metadata["forecast_origin"], metadata["forecast_frequency"]) == (None, "D")
+    result = SimulationEngine().run(policy, demand, _inventory(skus=("A", "B")))
+    explicit = SimulationEngine().run(
+        _fixed_reorder_point(), demand, _inventory(skus=("A", "B")), freq="D",
+    )
+    assert result.run_settings["period_frequency"] == "D"
+    pd.testing.assert_frame_equal(result.to_event_frame(), explicit.to_event_frame())
+    with pytest.raises(ValueError, match="policy freq W-MON must match the run's freq D"):
+        SimulationEngine().run(
+            _fixed_reorder_point(freq="W-MON"), demand, _inventory(skus=("A", "B")), freq="D",
         )
 
 
@@ -946,7 +962,7 @@ def test_shifted_date_period_table_runs_as_the_renumbered_table(backorders):
     runs = {
         shift: SimulationEngine().run(
             _levels(backorders), _shifted(demand, shift), _inventory(skus=("A", "B")),
-            period_frequency="D", warmup_periods=2,
+            freq="D", warmup_periods=2,
         )
         for shift in (0, 12, -3)
     }
@@ -967,7 +983,7 @@ def test_shifted_table_in_run_comparison_records_the_shift_in_every_branch():
     policies = {"lost sales": _levels(False), "backorders": _levels(True)}
     shifted, reference = (
         SimulationEngine().run_comparison(
-            policies, frame, _inventory(skus=("A", "B")), period_frequency="D",
+            policies, frame, _inventory(skus=("A", "B")), freq="D",
             warmup_periods=1,
         )
         for frame in (_shifted(demand, 12), demand)
@@ -980,7 +996,7 @@ def test_shifted_table_in_run_comparison_records_the_shift_in_every_branch():
 
 def test_generator_history_slice_runs_with_its_own_period_numbers():
     generator = DemandGenerator(
-        ["coffee", "tea"], start_date="2026-01-05", period_frequency="W-MON", random_seed=0,
+        ["coffee", "tea"], start_date="2026-01-05", freq="W-MON", random_seed=0,
     )
     sales = generator.sample(20, lambda rng, periods: rng.poisson(20, periods.size))
     future = sales[sales["date"] > "2026-03-23"]
@@ -988,9 +1004,9 @@ def test_generator_history_slice_runs_with_its_own_period_numbers():
     stock = InventoryStateDataFrame(["coffee", "tea"]).initialize_zero(
         start_date=pd.Timestamp("2026-03-23")
     )
-    result = SimulationEngine().run(_levels(False), future, stock, period_frequency="W-MON")
+    result = SimulationEngine().run(_levels(False), future, stock, freq="W-MON")
     renumbered = SimulationEngine().run(
-        _levels(False), future.drop(columns="period"), stock, period_frequency="W-MON",
+        _levels(False), future.drop(columns="period"), stock, freq="W-MON",
     )
     assert result.run_settings["demand_period_offset"] == 12
     assert renumbered.run_settings["demand_period_offset"] == 0
@@ -1027,7 +1043,7 @@ def test_period_numbering_that_does_not_follow_the_dates_is_rejected(how, messag
     demand = _break(_daily_demand([3, 5, 2, 4], skus=("A", "B")), how)
     with pytest.raises(ValueError, match=message):
         SimulationEngine().run(
-            _levels(False), demand, _inventory(skus=("A", "B")), period_frequency="D",
+            _levels(False), demand, _inventory(skus=("A", "B")), freq="D",
         )
 
 
@@ -1041,14 +1057,14 @@ def test_period_only_table_must_count_from_the_opening_date():
         with pytest.raises(ValueError, match=message):
             SimulationEngine().run(
                 _levels(False), demand, _inventory(), n_periods=n_periods,
-                period_frequency="D",
+                freq="D",
             )
 
 
 def test_dates_on_or_before_the_opening_date_are_rejected():
     demand = _daily_demand([3, 5, 2, 4], start="2024-12-31")
     with pytest.raises(ValueError, match="on or before the inventory's opening date 2025-01-01"):
-        SimulationEngine().run(_levels(False), demand, _inventory(), period_frequency="D")
+        SimulationEngine().run(_levels(False), demand, _inventory(), freq="D")
 
 
 def test_schedule_with_no_decision_in_the_run_is_rejected():
@@ -1061,7 +1077,7 @@ def test_schedule_with_no_decision_in_the_run_is_rejected():
         )
         with pytest.raises(ValueError, match=r"no decision in this run's periods 0..7"):
             SimulationEngine().run(
-                policy, _daily_demand([3] * 8), _inventory(), period_frequency="D",
+                policy, _daily_demand([3] * 8), _inventory(), freq="D",
             )
 
 
@@ -1073,7 +1089,7 @@ def test_decisions_only_in_settlement_without_ordering_are_rejected():
         policy = ReorderPointPolicy(0, schedule=ExplicitSchedule(periods), allow_backorders=False)
         return SimulationEngine().run(
             policy.fit(reorder_point=4.0, order_up_to_level=9.0), _daily_demand([3] * 8),
-            _inventory(), period_frequency="D", **windows,
+            _inventory(), freq="D", **windows,
         )
 
     with pytest.raises(ValueError, match=r"falls in the settlement window \(periods 6..7\)"):
@@ -1082,3 +1098,38 @@ def test_decisions_only_in_settlement_without_ordering_are_rejected():
     assert ordering.to_event_frame()["decision_flag"].sum() == 2
     warm_up_only = run((0,), warmup_periods=2, settlement_periods=2, order_during_settlement=False)
     assert warm_up_only.to_event_frame()["decision_flag"].sum() == 1
+
+
+# freq: one name for the period length (93.21).
+
+def test_old_frequency_argument_names_are_rejected():
+    with pytest.raises(TypeError, match="period_frequency"):
+        SimulationEngine().run(
+            _levels(False), _daily_demand([3, 5]), _inventory(), period_frequency="D",
+        )
+    with pytest.raises(TypeError, match="period_frequency"):
+        SimulationEngine().run_comparison(
+            [_levels(False)], _daily_demand([3, 5]), _inventory(), period_frequency="D",
+        )
+    with pytest.raises(TypeError, match="period_frequency"):
+        DemandGenerator(["A"], start_date="2025-01-02", period_frequency="D", random_seed=0)
+    with pytest.raises(TypeError, match="period_frequency"):
+        _inventory().advance_period(period_frequency="D", is_review_period=True)
+
+
+def test_rolling_snapshots_must_keep_the_policy_frequency():
+    from stockcast.policies import ReorderPointPolicy
+
+    def levels(freq, **dates):
+        return ReorderPointPolicy(1, 1, freq=freq, allow_backorders=False).fit(
+            reorder_point=4.0, order_up_to_level=9.0, **dates,
+        )
+
+    demand = _daily_demand([3, 5, 2, 4])
+    with pytest.raises(ValueError, match="period 2 has freq W-MON, but the policy has freq D"):
+        SimulationEngine().run(levels("D"), demand, _inventory(), policy_schedule={2: levels("W-MON")})
+    # An undated snapshot keeps the run's frequency.
+    updated = SimulationEngine().run(
+        levels("D"), demand, _inventory(), policy_schedule={2: levels(None)},
+    )
+    assert updated.run_settings["period_frequency"] == "D"

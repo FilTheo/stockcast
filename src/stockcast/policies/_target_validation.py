@@ -10,6 +10,7 @@ import pandas as pd
 from stockcast.core.data_structures import (
     _require_forward_frequency,
     _require_identifiers,
+    _standard_frequency,
 )
 
 
@@ -87,16 +88,6 @@ def validate_forecast_origin(forecast_origin) -> pd.Timestamp:
     if pd.isna(origin):
         raise ValueError("forecast_origin must be a valid timestamp")
     return origin
-
-
-def validate_forecast_origin_and_frequency(forecast_origin, forecast_frequency: str):
-    """Validate and normalize a forecast information origin and period frequency."""
-    origin = validate_forecast_origin(forecast_origin)
-    offset = _require_forward_frequency(
-        forecast_frequency,
-        "forecast_frequency",
-    )
-    return origin, offset
 
 
 def prepare_inventory_positions(
@@ -257,8 +248,10 @@ def prepare_independent_normal_forecasts(
 ) -> tuple:
     """Validate consecutive marginal mean/std forecasts for an explicit model.
 
-    Returns ``(forecasts_by_sku, origin)``. With ``forecast_origin=None`` the
-    origin is read from the forecast dates (``date - fh`` periods).
+    Returns ``(forecasts_by_sku, origin, offset)``. With ``forecast_origin=None``
+    the origin is read from the forecast dates (``date - fh`` periods); with
+    ``forecast_offset=None`` the period length is read from them
+    (``infer_step_frequency``).
     """
     if not isinstance(forecast_df, pd.DataFrame) or forecast_df.empty:
         raise ValueError("forecast_df must be a non-empty pandas DataFrame")
@@ -292,6 +285,8 @@ def prepare_independent_normal_forecasts(
     if dates.isna().any():
         raise ValueError(f"forecast_df.{forecast_date_column} must contain valid dates")
     prepared[forecast_date_column] = dates
+    if forecast_offset is None:
+        forecast_offset = infer_step_frequency(prepared, sku_column, forecast_date_column)
     if forecast_origin is None:
         first = prepared.iloc[0]
         forecast_origin = first[forecast_date_column] - int(first["fh"]) * forecast_offset
@@ -325,7 +320,41 @@ def prepare_independent_normal_forecasts(
                 f"got {actual_fh}"
             )
         by_sku[sku] = rows[rows["fh"] <= horizon].copy()
-    return by_sku, forecast_origin
+    return by_sku, forecast_origin, forecast_offset
+
+
+def infer_step_frequency(forecast_df: pd.DataFrame, sku_column: str, date_column: str):
+    """Read the period length from per-step forecast dates, or raise.
+
+    Every SKU needs at least three evenly spaced dates on one standard
+    calendar (``_standard_frequency``), the same for all SKUs. Anything else,
+    such as business days (dates that skip a weekend), is refused rather than
+    guessed.
+    """
+    ask = 'create the policy with freq, for example OrderUpToPolicy(..., freq="D")'
+    found = set()
+    for sku, rows in forecast_df.groupby(sku_column, sort=False):
+        offset, problem = _standard_frequency(rows[date_column])
+        if problem == "few":
+            reason = f"SKU {sku!r} has fewer than three forecast dates"
+        elif problem == "irregular":
+            reason = f"the forecast dates of SKU {sku!r} are not evenly spaced"
+        elif problem is not None:
+            reason = (
+                f"the forecast dates of SKU {sku!r} follow {problem!r}, which is not "
+                "a calendar Stockcast reads from dates (daily, weekly, monthly, "
+                "quarterly or yearly)"
+            )
+        else:
+            found.add(offset.freqstr)
+            continue
+        raise ValueError(f"freq is required: {reason}, so the period length cannot be read; {ask}")
+    if len(found) != 1:
+        raise ValueError(
+            "freq is required: the SKUs' forecast dates follow different frequencies "
+            f"{sorted(found)}; {ask}"
+        )
+    return _require_forward_frequency(found.pop(), "freq")
 
 
 def schedule_protection_horizon(
