@@ -48,7 +48,8 @@ def main():
         started = time.monotonic()
         work = output / path.stem
         work.mkdir(exist_ok=False)
-        shutil.copytree(root / "examples/notebooks/data", work / "examples/notebooks/data")
+        # Notebooks read their data relative to their own folder, as in Jupyter.
+        shutil.copytree(root / "examples/notebooks/data", work / "data")
         notebook = nbformat.read(path, as_version=4)
         nbformat.validate(notebook)
         # Upgrade the temporary copy before inserting a current-format cell.
