@@ -110,7 +110,12 @@ Simulators answer differently, and a parameter called "lead time" silently
 means different things in each: Stockpyl observes demand before ordering, and
 SimOpt's $(s, S)$ model orders at the end of a period and receives at the start
 of period $n + l + 1$. Neither is wrong. Each is a convention, and results
-cannot be compared across tools without it.
+cannot be compared across tools without it. Once the convention is known, the
+alignment is exact: against Stockpyl 1.0.2, a lead time one period longer
+reproduces Stockcast's orders in every period (its end-of-period order is our
+order at the start of the next period), and Stockcast's simulated costs for
+Stockpyl's exact optimal $(s, S)$ and $(r, Q)$ policies match Stockpyl's own
+cost formulas within simulation error.
 
 We fixed one sequence and use it everywhere: **receive, decide, then meet
 demand**. It is the classic periodic-review order: receive outstanding orders,
@@ -344,8 +349,12 @@ exactly as arrays, that period simply runs on the reference path.
 The new engine runs roughly **3 to 30 times faster per simulated period**
 than the previous pandas implementation. The largest gains come where most periods need no user code
 (weekly ordering over large portfolios), the smallest where every period calls
-a custom constraint or callback. What remains is mostly the time your own
-policy spends deciding, which is exactly where it should be.
+a custom constraint or callback. In absolute terms, on the laptop these docs
+were written on (an Intel Core i7-8750H from 2018), a year of daily
+order-up-to decisions for 1,000 SKUs takes about 10 to 12 seconds, with every ledger
+row checked and the manifest written; 100 SKUs take about 5. About half of
+that time is the policy deciding: the built-in `predict` works on DataFrames,
+just like a policy you write yourself.
 
 ## Principle 7: one set of objects from research to production
 

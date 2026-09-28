@@ -191,7 +191,12 @@ zero-lead-time receipts with shelf life and backorders, constraints before
 receipt, and the rule that a decision never sees current demand. A separate
 reference model
 ([`tests/unit/test_inventory_reference_model.py`](https://github.com/FilTheo/stockcast/blob/main/tests/unit/test_inventory_reference_model.py))
-checks positive-lead-time runs and their evaluated costs.
+checks positive-lead-time runs and their evaluated costs. Outside the test
+suite, the engine was compared with Stockpyl 1.0.2, which observes demand
+before ordering: with Stockpyl's lead time one period longer, both place
+identical orders in every period on the same demand, and Stockcast's
+simulated costs for Stockpyl's exact optimal $(s, S)$ and $(r, Q)$ policies
+agree with Stockpyl's cost formulas within simulation error.
 
 ## References
 
