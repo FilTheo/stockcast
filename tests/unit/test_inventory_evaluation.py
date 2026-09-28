@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -251,6 +252,31 @@ def test_cycle_service_uses_receipt_to_receipt_cycles():
     assert demand_period_service_level(events) == 0.8
     with pytest.raises(ValueError, match="include_partial_cycles"):
         cycle_service_level(events)
+
+
+def test_cycle_service_counts_arrival_cycles_per_sku_in_any_row_order():
+    # A: arrivals in periods 2, 4, 6 -> cycles {1}, {2, 3}, {4, 5}, {6}; shortages in 1, 3, 6,
+    # so only {4, 5} is clean. B: no arrival and no shortage -> one partial cycle.
+    events = pd.DataFrame({
+        "unique_id": ["A"] * 6 + ["B"] * 3,
+        "event_type": ["period"] * 9,
+        "period": [1, 2, 3, 4, 5, 6, 1, 2, 3],
+        "order_arrival_flag": [False, True, False, True, False, True, False, False, False],
+        "received_units": [0.0] * 9,
+        "shortage_units": [1.0, 0.0, 1.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0],
+    }).sample(frac=1.0, random_state=3)
+    complete, partial = {"include_partial_cycles": False}, {"include_partial_cycles": True}
+    sku_a, sku_b = events[events["unique_id"] == "A"], events[events["unique_id"] == "B"]
+
+    assert cycle_service_level(sku_a, complete) == 0.5
+    assert cycle_service_level(sku_a, partial) == 0.25
+    assert np.isnan(cycle_service_level(sku_b, complete))
+    assert cycle_service_level(sku_b, partial) == 1.0
+    assert cycle_service_level(events, complete) == 0.5
+    assert cycle_service_level(events, partial) == 0.4
+    # A copy of the portfolio under new SKU ids doubles every count: same share.
+    doubled = pd.concat([events, events.assign(unique_id=events["unique_id"] + "2")])
+    assert cycle_service_level(doubled, partial) == 0.4
 
 
 def test_terminal_and_order_metrics_have_explicit_grain():

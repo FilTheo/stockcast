@@ -418,6 +418,83 @@ def cycle_service_level(event_frame: pd.DataFrame, context: Optional[dict] = Non
         ["unique_id", "period", "shortage_units"]
         + (["order_arrival_flag"] if use_arrivals else ["received_units"]),
     )
+    cycle_outcomes = _cycle_outcomes(period_events, use_arrivals, include_partial)
+    if cycle_outcomes is None:
+        cycle_outcomes = _cycle_outcomes_reference(period_events, use_arrivals, include_partial)
+    if len(cycle_outcomes) == 0:
+        return np.nan
+    return float(np.mean(cycle_outcomes))
+
+
+def _numpy_numeric(series: pd.Series, kinds: str = "iuf") -> Optional[np.ndarray]:
+    """Values of a NumPy-typed column of the given kinds, else ``None``."""
+    if not isinstance(series.dtype, np.dtype) or series.dtype.kind not in kinds:
+        return None
+    return series.to_numpy()
+
+
+def _cycle_outcomes(
+    period_events: pd.DataFrame, use_arrivals: bool, include_partial: bool,
+) -> Optional[np.ndarray]:
+    """Vectorised cycle outcomes (``True`` = no shortage), or ``None`` to use the reference loop.
+
+    Covers the ledgers the engine writes: SKU ids without missing values, one row
+    per SKU and period, NumPy numeric columns with finite values and a boolean
+    arrival flag. Anything else, including invalid values that must raise the
+    reference loop's error, returns ``None``.
+    """
+    if period_events.empty:
+        return np.array([], dtype=bool)
+    skus = period_events["unique_id"]
+    if skus.isna().any():
+        return None
+    periods = _numpy_numeric(period_events["period"])
+    shortages = _numpy_numeric(period_events["shortage_units"])
+    if use_arrivals:
+        starts = _numpy_numeric(period_events["order_arrival_flag"], kinds="b")
+    else:
+        starts = _numpy_numeric(period_events["received_units"])
+    if periods is None or shortages is None or starts is None:
+        return None
+    shortages = shortages.astype(float)
+    if np.isnan(periods.astype(float)).any() or not np.isfinite(shortages).all():
+        return None
+    if not use_arrivals:
+        received = starts.astype(float)
+        if not np.isfinite(received).all():
+            return None
+        starts = received > 0
+
+    codes = pd.factorize(skus)[0]
+    order = np.lexsort((periods, codes))
+    codes, periods = codes[order], periods[order]
+    same_sku = codes[1:] == codes[:-1]
+    if (same_sku & (periods[1:] == periods[:-1])).any():
+        return None
+    starts = starts[order].astype(np.int64)
+    short = shortages[order] > 0
+
+    # Cycle number of each row within its SKU: arrivals so far (0 before the first).
+    n_rows = len(codes)
+    first_rows = np.flatnonzero(np.r_[True, ~same_sku])
+    sizes = np.diff(np.r_[first_rows, n_rows])
+    arrivals = np.cumsum(starts)
+    cycles = arrivals - np.repeat(arrivals[first_rows] - starts[first_rows], sizes)
+    last_cycles = np.repeat(cycles[np.r_[first_rows[1:], n_rows] - 1], sizes)
+
+    segment_starts = np.flatnonzero(np.r_[True, ~same_sku | (cycles[1:] != cycles[:-1])])
+    outcomes = ~np.logical_or.reduceat(short, segment_starts)
+    if not include_partial:
+        segment_cycles = cycles[segment_starts]
+        complete = (segment_cycles != 0) & (segment_cycles != last_cycles[segment_starts])
+        outcomes = outcomes[complete]
+    return outcomes
+
+
+def _cycle_outcomes_reference(
+    period_events: pd.DataFrame, use_arrivals: bool, include_partial: bool,
+) -> list:
+    """Cycle outcomes computed SKU by SKU and cycle by cycle (the reference path)."""
     cycle_outcomes = []
     for _, rows in period_events.groupby("unique_id", sort=False):
         rows = rows.sort_values("period").copy()
@@ -433,9 +510,7 @@ def cycle_service_level(event_frame: pd.DataFrame, context: Optional[dict] = Non
             if not include_partial and cycle_id in {0, last_cycle}:
                 continue
             cycle_outcomes.append(bool((cycle_rows["_shortage"] <= 0).all()))
-    if not cycle_outcomes:
-        return np.nan
-    return float(np.mean(cycle_outcomes))
+    return cycle_outcomes
 
 
 def sku_period_stockout_rate(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
