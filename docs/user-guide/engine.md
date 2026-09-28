@@ -22,7 +22,7 @@ result = SimulationEngine(verbose=0).run(
 | `policy` | A fitted policy. |
 | `demand_source` | A [demand table](demand.md), or a function `period -> DataFrame`. |
 | `inventory` | The opening `InventoryStateDataFrame`. |
-| `n_periods` | Number of demand periods to simulate. Read from a demand table's `period` column; needed for a demand function. |
+| `n_periods` | Number of demand periods to simulate. Read from a demand table; needed for a demand function. |
 | `period_frequency` | Length of one period, a pandas frequency such as `"D"`. Read from the policy's `forecast_frequency`; needed for a policy that records none. |
 | `warmup_periods`, `scoring_periods`, `settlement_periods` | Consecutive windows that add up to `n_periods`. Warm-up and settlement default to 0; scoring defaults to the rest and must be at least 1. |
 | `order_during_settlement` | Whether the policy may still order in the settlement window. Needed when `settlement_periods > 0`. |
@@ -132,7 +132,7 @@ list(result.run_manifest)
 | `package`, `dependencies` | Stockcast version (and source commit when available); Python, NumPy, pandas, and Matplotlib versions |
 | `policy` | Policy class, configuration, and target metadata |
 | `opening_inventory` | A fingerprint of the opening state and open orders |
-| `run_settings` | Frequency, windows, schedule, constraints, callbacks, supply, processes, timing convention |
+| `run_settings` | Frequency, windows, schedule, constraints, callbacks, supply, processes, timing convention, and `demand_period_offset`: the shift removed from a demand table's own period numbers (0 when none) |
 
 Store the manifest next to the ledger and any result can be traced back to
 its inputs.

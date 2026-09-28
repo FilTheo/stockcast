@@ -1129,6 +1129,48 @@ def _same_skus(left: pd.Series, right: pd.Series) -> bool:
     return left is right or (left.dtype == right.dtype and left.equals(right))
 
 
+def _date_text(stamp) -> str:
+    """A date for messages: the day alone when there is no time of day."""
+    stamp = pd.Timestamp(stamp)
+    return str(stamp.date()) if stamp == stamp.normalize() else str(stamp)
+
+
+def _demand_run_steps(dates: pd.Series, opening_date, offset) -> np.ndarray:
+    """Return the zero-based run period of each demand date.
+
+    Run period ``p`` is dated ``opening_date + (p + 1)`` periods, so the first
+    demand date is one period after the opening date and every date must lie
+    on that grid.
+    """
+    first = opening_date + offset
+    if dates.empty:
+        return np.zeros(0, dtype=np.int64)
+    early = dates <= opening_date
+    if early.any():
+        sample = sorted({_date_text(value) for value in dates[early]})[:3]
+        raise ValueError(
+            f"demand_source has dates on or before the inventory's opening date "
+            f"{_date_text(opening_date)} (for example {sample}); demand periods start "
+            f"one period after it, on {_date_text(first)}. Pass only the rows after "
+            "the opening date."
+        )
+    grid = pd.date_range(start=first, end=max(dates.max(), first), freq=offset)
+    steps = grid.get_indexer(pd.DatetimeIndex(dates))
+    if (steps < 0).any():
+        off_grid = sorted(str(value) for value in dates[steps < 0].unique())[:5]
+        raise ValueError(
+            f"demand_source.date values {off_grid} are not on the period grid "
+            f"starting {first} ({offset.freqstr})"
+        )
+    if steps.min() > 0:
+        raise ValueError(
+            f"demand_source dates must start one period after the inventory's opening "
+            f"date {_date_text(opening_date)}, on {_date_text(first)}; the earliest "
+            f"date given is {_date_text(dates.min())}"
+        )
+    return steps.astype(np.int64)
+
+
 # ============================================================================
 # SIMULATION ENGINE
 # ============================================================================
@@ -1195,15 +1237,19 @@ class SimulationEngine:
 
         Args:
             policy: A fitted policy.
-            demand_source: A DataFrame with ``unique_id``, ``period``, ``date`` and
-                ``y`` covering every SKU and period, or a callable
+            demand_source: A DataFrame with ``unique_id``, ``y`` and ``date``
+                and/or ``period``, covering every SKU and period, or a callable
                 ``period -> DataFrame`` (called once per period before the run).
+                Periods count from the inventory's opening date: period 0 is
+                dated one period after it. With a ``date`` column the dates set
+                the periods, and ``period`` may keep your own numbering (such as
+                12, 13, ...) as long as it advances one per period.
             inventory: The opening ``InventoryStateDataFrame``. Its
                 ``max_lead_time`` must cover the policy's lead time and the supply
                 model's longest delivery. Its ``allow_backorders`` must match the
                 policy's, or be unset to take the policy's.
-            n_periods: Number of demand periods. Inferred from a DataFrame's
-                ``period`` column (periods ``0..n-1``); required for a callable.
+            n_periods: Number of demand periods. Inferred from a DataFrame;
+                required for a callable.
             period_frequency: Length of one period, a pandas frequency such as
                 ``"D"``. Period ``p`` is dated opening date + ``(p + 1)`` periods.
                 Defaults to the policy's ``forecast_frequency``; required when
@@ -1239,7 +1285,7 @@ class SimulationEngine:
                 unfitted policy, a demand calendar with gaps, a target for the wrong
                 window, or windows that do not add up.
         """
-        demand_source = self._complete_frame_calendar(
+        demand_source, demand_period_offset = self._complete_frame_calendar(
             demand_source, inventory, [policy], period_frequency,
         )
         n_periods = self._resolve_n_periods(demand_source, n_periods)
@@ -1418,7 +1464,12 @@ class SimulationEngine:
 
         demand_source_type = "dataframe" if isinstance(demand_source, pd.DataFrame) else "callable"
         demand_data = self._materialize_demand_source(demand_source, n_periods)
-        demand_data = self._complete_demand_calendar(demand_data, opening_date, period_offset)
+        # A DataFrame was numbered above (its shift is already known); a
+        # callable's frames are numbered here.
+        demand_data, callable_offset = self._complete_demand_calendar(
+            demand_data, opening_date, period_offset, inventory.sku_column,
+        )
+        demand_period_offset += callable_offset
         demand_data = self._validate_demand_calendar(
             demand_data,
             inventory,
@@ -1485,6 +1536,7 @@ class SimulationEngine:
             'decision_schedule': copy.deepcopy(schedule_manifest),
             'decision_period_convention': 'zero_based_demand_period',
             'input_period_convention': 'zero_based',
+            'demand_period_offset': demand_period_offset,
             'event_period_convention': 'opening_period_plus_one',
             'warmup_periods': warmup_periods,
             'scoring_periods': scoring_periods,
@@ -2710,9 +2762,17 @@ class SimulationEngine:
         expected_periods = set(range(n_periods))
         actual_periods = set(validated['period'].unique().tolist())
         if actual_periods != expected_periods:
+            missing = sorted(expected_periods - actual_periods)
+            extra = sorted(actual_periods - expected_periods)
+            problems = [
+                f"{label} {values[:5]}{' ...' if len(values) > 5 else ''}"
+                for label, values in (("missing", missing), ("outside the run", extra))
+                if values
+            ]
             raise ValueError(
-                f"demand_source periods must equal 0..{max(n_periods - 1, 0)}; "
-                f"got {sorted(actual_periods)}"
+                f"demand_source must have every period 0..{max(n_periods - 1, 0)}, "
+                "counted from the inventory's opening date (period 0 is the first "
+                f"period after it); {', '.join(problems)}"
             )
 
         expected_skus = _require_identifiers(
@@ -2925,10 +2985,13 @@ class SimulationEngine:
             )
         if len(labels) != len(set(labels)):
             raise ValueError("labels must be unique")
-        demand_source = self._complete_frame_calendar(
+        # Numbering the table here sizes the run and reports calendar errors
+        # before any branch runs. The branches get the table as given and
+        # number it again, so each records the period shift it removed.
+        numbered, _ = self._complete_frame_calendar(
             demand_source, inventory, policies, period_frequency,
         )
-        n_periods = self._resolve_n_periods(demand_source, n_periods)
+        n_periods = self._resolve_n_periods(numbered, n_periods)
         if period_frequency is None:
             period_frequency = self._infer_period_frequency(policies)
         if policy_schedules is None:
@@ -3011,21 +3074,22 @@ class SimulationEngine:
 
     @classmethod
     def _complete_frame_calendar(cls, demand_source, inventory, policies, period_frequency):
-        """Add ``period`` or ``date`` to a demand DataFrame that has only one.
+        """Number a demand DataFrame's rows as run periods (``_complete_demand_calendar``).
 
-        Needs the opening date and the period length; when either is not yet
-        known (for example an unfitted policy), the frame is returned as given
-        and the usual checks report the problem.
+        Returns the frame and the period shift removed from it. Needs the
+        opening date and the period length; when either is not yet known (for
+        example an unfitted policy), the frame is returned as given and the
+        usual checks report the problem.
         """
         if not isinstance(demand_source, pd.DataFrame):
-            return demand_source
-        if ('period' in demand_source.columns) == ('date' in demand_source.columns):
-            return demand_source
+            return demand_source, 0
+        if 'period' not in demand_source.columns and 'date' not in demand_source.columns:
+            return demand_source, 0
         if not isinstance(inventory, InventoryStateDataFrame):
-            return demand_source
+            return demand_source, 0
         opening_dates = pd.to_datetime(inventory.get_dataframe()['date'], errors='coerce')
         if opening_dates.isna().any() or opening_dates.nunique() != 1:
-            return demand_source
+            return demand_source, 0
         try:
             frequency = (
                 period_frequency if period_frequency is not None
@@ -3042,21 +3106,39 @@ class SimulationEngine:
                     "period_frequency is required: the policy records no "
                     "forecast_frequency, so the demand dates cannot be numbered"
                 ) from None
-            return demand_source
-        return cls._complete_demand_calendar(demand_source, opening_dates.iloc[0], offset)
+            return demand_source, 0
+        if period_frequency is not None and {'period', 'date'} <= set(demand_source.columns):
+            try:
+                recorded = _require_forward_frequency(
+                    cls._infer_period_frequency(policies), "policy forecast_frequency",
+                )
+            except (TypeError, ValueError):
+                recorded = offset
+            if recorded != offset:
+                # The run rejects this frequency for the policy; report that
+                # rather than dates that are off its grid.
+                return demand_source, 0
+        return cls._complete_demand_calendar(
+            demand_source, opening_dates.iloc[0], offset, inventory.sku_column,
+        )
 
     @staticmethod
-    def _complete_demand_calendar(frame: pd.DataFrame, opening_date, offset) -> pd.DataFrame:
-        """Derive the missing one of ``period`` and ``date`` from the other.
+    def _complete_demand_calendar(
+        frame: pd.DataFrame, opening_date, offset, sku_column: str = 'unique_id',
+    ) -> tuple[pd.DataFrame, int]:
+        """Number a demand table's rows as run periods; return it and the shift removed.
 
-        Period ``p`` is dated ``opening_date + (p + 1)`` periods, the same grid
-        the calendar validation checks. A date off that grid is rejected.
+        Run period ``p`` is dated ``opening_date + (p + 1)`` periods, the same
+        grid the calendar validation checks. A table with only one of ``period``
+        and ``date`` gets the other. When it has both, the dates decide: the
+        ``period`` column may be the caller's own numbering if it differs from
+        the run period by one constant for every row; it is renumbered, and
+        that constant is returned. A date off the grid is rejected.
         """
         has_period, has_date = 'period' in frame.columns, 'date' in frame.columns
-        if has_period == has_date:
-            return frame
-        frame = frame.copy()
-        if has_period:
+        if not has_date:
+            if not has_period:
+                return frame, 0
             periods = pd.to_numeric(frame['period'], errors='coerce')
             if (
                 periods.isna().any()
@@ -3064,27 +3146,69 @@ class SimulationEngine:
                 or not np.equal(periods, np.floor(periods)).all()
                 or (periods < 0).any()
             ):
-                return frame  # the calendar validation reports it
+                return frame, 0  # the calendar validation reports it
             periods = periods.astype(int)
+            if len(periods) and periods.min() > 0:
+                raise ValueError(
+                    "demand periods count from the inventory's opening date: the first "
+                    f"demand period is 0 ({_date_text(opening_date + offset)}). Got "
+                    f"periods {periods.min()}..{periods.max()}. Add a date column so "
+                    "Stockcast can number them, or renumber them from 0."
+                )
+            frame = frame.copy()
             grid = {p: opening_date + (p + 1) * offset for p in pd.unique(periods)}
             frame.insert(frame.columns.get_loc('period') + 1, 'date', periods.map(grid))
-            return frame
+            return frame, 0
         dates = pd.to_datetime(frame['date'], errors='coerce')
         if dates.isna().any():
             raise ValueError("demand_source.date must contain complete valid dates")
-        first = opening_date + offset
-        grid = pd.date_range(start=first, end=max(dates.max(), first), freq=offset)
-        position = {stamp: index for index, stamp in enumerate(grid)}
-        periods = dates.map(position)
-        if periods.isna().any():
-            off_grid = sorted(str(value) for value in dates[periods.isna()].unique())[:5]
-            raise ValueError(
-                f"demand_source.date values {off_grid} are not on the period grid "
-                f"starting {first} ({offset.freqstr})"
+        steps = _demand_run_steps(dates, opening_date, offset)
+        if not has_period:
+            frame = frame.copy()
+            frame['date'] = dates
+            frame.insert(frame.columns.get_loc('date'), 'period', steps)
+            return frame, 0
+        if frame.empty:
+            return frame, 0
+        periods = pd.to_numeric(frame['period'], errors='coerce')
+        values = periods.to_numpy(dtype=float)
+        if periods.isna().any() or not np.isfinite(values).all():
+            raise ValueError("demand_source.period must contain finite integers")
+
+        def row_text(row):
+            sku = (
+                f"{sku_column} {frame[sku_column].iloc[row]!r} "
+                if sku_column in frame.columns else ""
             )
-        frame['date'] = dates
-        frame.insert(frame.columns.get_loc('date'), 'period', periods.astype(int))
-        return frame
+            return f"the row for {sku}dated {_date_text(dates.iloc[row])}"
+
+        fractional = np.flatnonzero(values != np.floor(values))
+        if fractional.size:
+            row = fractional[0]
+            raise ValueError(
+                f"demand_source.period must contain integers: {row_text(row)} has "
+                f"period {values[row]} (its date is run period {steps[row]})"
+            )
+        shifts = values.astype(np.int64) - steps
+        anchor = int(np.argmin(steps))  # a row of the first demand date
+        shift = int(shifts[anchor])
+        mismatched = np.flatnonzero(shifts != shift)
+        if mismatched.size:
+            row = mismatched[0]
+            raise ValueError(
+                f"demand_source period and date disagree: {row_text(row)} has period "
+                f"{shifts[row] + steps[row]}, but its date is run period {steps[row]}, "
+                f"which this table numbers {steps[row] + shift} (its first date, "
+                f"{_date_text(dates.iloc[anchor])}, is period {shift}). A table with "
+                "dates may number its periods from any start, one per period and the "
+                "same for every SKU; or drop the period column and Stockcast numbers "
+                "the rows by date."
+            )
+        if shift == 0:
+            return frame, 0
+        frame = frame.copy()
+        frame['period'] = periods - shift
+        return frame, shift
 
     @staticmethod
     def _infer_period_frequency(policies: Sequence[BasePolicy]) -> str:

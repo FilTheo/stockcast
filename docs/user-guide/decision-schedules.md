@@ -12,7 +12,8 @@ touching the ordering rule, and the other way round.
 | `OneTimeSchedule(period=0)` | exactly one period | A seasonal buy |
 | `ExplicitSchedule(periods=(...))` | the listed periods | A supplier's delivery calendar |
 
-Periods are **demand periods**, counted from 0 at the first demand row.
+Periods are **demand periods** of the run: period 0 is the first period after
+the opening date, whatever numbers your demand table uses.
 
 ```python
 from stockcast.core import ExplicitSchedule, OneTimeSchedule, PeriodicSchedule

@@ -10,12 +10,13 @@ from a forecast model. Stockcast reads all of them in the same simple format.
 |---|---|---|
 | `unique_id` | any hashable | SKU identifier, matching the inventory state |
 | `date` | timestamp | Calendar date of the period |
-| `period` | int | Demand period, `0 … n_periods − 1` |
+| `period` | int | Demand period, counted from the opening date: `0` is the first period after it |
 | `y` | float $\ge 0$ | Units demanded |
 
 Give `date`, `period`, or both: each follows from the other through the
-calendar below, so the engine adds the missing one. The table is a complete
-grid: every SKU in every period, exactly once.
+calendar below, so the engine adds the missing one. When the table has dates,
+the dates decide each row's period. The table is a complete grid: every SKU
+in every period, exactly once.
 
 ### The calendar
 
@@ -30,14 +31,23 @@ where $\Delta$ is `period_frequency`, any forward pandas frequency: `"D"`,
 `forecast_frequency`). The engine checks each period's date against this
 formula before running; a date off this grid is an error, never rounded.
 
+Period 0 is the first period after the opening date, the day you counted the
+stock. When you count the stock on the forecast origin, as you usually will,
+period 0 is the forecast's first step (`fh = 1`), period 1 is `fh = 2`, and
+so on. Decision schedules, the warm-up, scoring and settlement windows, and
+`policy_schedule` keys all count in these same periods.
+
 ### What the engine checks
 
 Before the first period is simulated, the whole table is validated:
 
 - the columns `unique_id`, `y`, and `date` or `period` are present;
-- periods are exactly $0, \dots, n - 1$;
+- periods are exactly $0, \dots, n - 1$: demand starts one period after the
+  opening date and has no gaps;
 - every period contains every SKU of the state, once;
 - each period's date follows the calendar formula above;
+- a `period` column next to dates advances one per period, the same way for
+  every SKU;
 - every `y` is finite and non-negative.
 
 A run therefore never starts on a table with gaps. Days without demand are
@@ -191,6 +201,41 @@ smooth_swings = generator.sample(n_periods=28, sampler=autocorrelated)
 
 The generator checks every sampler's output (numbers, finite, one per period)
 and applies the same negative-draw handling as the built-in methods.
+
+## Split a history into past and future
+
+A backtest splits a history in two: the past to fit your forecast, the future
+to play forward. The future keeps its own period numbers. `panel` numbers its
+days from 0, so the rows after 19 January are periods 14 to 27. Pass them as
+they are, with the stock counted on 19 January. The dates tell the engine that
+20 January is period 0 of the run; it renumbers the table and records the
+shift:
+
+```python
+from stockcast.core import InventoryStateDataFrame, SimulationEngine
+from stockcast.policies import ReorderPointPolicy
+
+past = panel[panel["date"] <= "2026-01-19"]       # periods 0 to 13
+future = panel[panel["date"] > "2026-01-19"]      # periods 14 to 27
+
+stock = InventoryStateDataFrame.from_observed(
+    pd.DataFrame({"unique_id": ["tea_250g", "coffee_1kg"], "on_hand": [20.0, 20.0]}),
+    start_date=pd.Timestamp("2026-01-19"),        # counted at the end of the past
+)
+policy = ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=False).fit(
+    reorder_point=10.0, order_up_to_level=25.0,
+)
+result = SimulationEngine().run(policy, future, stock, period_frequency="D")
+result.run_settings["demand_period_offset"]
+```
+
+```text
+14
+```
+
+Any numbering works the same way, such as a week number from your sales
+system, as long as it advances one per period for every SKU. A table with only
+a `period` column has no dates to go by, so its periods start at 0.
 
 ## Demand as a function
 

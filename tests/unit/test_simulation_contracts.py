@@ -111,7 +111,7 @@ def test_missing_calendar_period_is_rejected():
         "date": [pd.Timestamp("2025-01-02"), pd.Timestamp("2025-01-04")],
         "y": [1.0, 1.0],
     })
-    with pytest.raises(ValueError, match="periods must equal 0..2"):
+    with pytest.raises(ValueError, match=r"every period 0..2, .* missing \[1\]"):
         SimulationEngine().run(
             _policy(),
             demand,
@@ -181,7 +181,7 @@ def test_wrong_date_for_declared_frequency_is_rejected():
         "date": [pd.Timestamp("2025-01-08")],
         "y": [1.0],
     })
-    with pytest.raises(ValueError, match="must use date 2025-01-13"):
+    with pytest.raises(ValueError, match="not on the period grid starting 2025-01-13"):
         SimulationEngine().run(
             _policy(),
             demand,
@@ -779,7 +779,7 @@ def test_demand_may_give_only_dates_or_only_periods():
     with pytest.raises(ValueError, match="not on the period grid"):
         SimulationEngine().run(policy=_order_up_to(), demand_source=off_grid, inventory=_inventory())
     gap = full.drop(columns="period").iloc[[0, 2, 3]]
-    with pytest.raises(ValueError, match="periods must equal 0..3"):
+    with pytest.raises(ValueError, match=r"every period 0..3, .* missing \[1\]"):
         SimulationEngine().run(policy=_order_up_to(), demand_source=gap, inventory=_inventory())
 
 
@@ -909,3 +909,144 @@ def test_policy_metadata_with_only_one_date_is_rejected():
             policy=policy, demand_source=_daily_demand([3, 5]), inventory=_inventory(),
             period_frequency="D",
         )
+
+
+# A date+period table may keep its own period numbering (93.20).
+
+def _levels(backorders):
+    from stockcast.policies import ReorderPointPolicy
+
+    return ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=backorders).fit(
+        reorder_point=4.0, order_up_to_level=9.0,
+    )
+
+
+def _shifted(frame, shift):
+    return frame.assign(period=frame["period"] + shift)
+
+
+def _same_run(left, right):
+    pd.testing.assert_frame_equal(left.to_event_frame(), right.to_event_frame())
+    pd.testing.assert_frame_equal(left.to_order_frame(), right.to_order_frame())
+    pd.testing.assert_frame_equal(left.to_process_flow_frame(), right.to_process_flow_frame())
+    pd.testing.assert_frame_equal(left.to_callback_audit_frame(), right.to_callback_audit_frame())
+    left_manifest, right_manifest = _stable(left)[2], _stable(right)[2]
+    for manifest in (left_manifest, right_manifest):
+        manifest["run_settings"] = {
+            key: value for key, value in manifest["run_settings"].items()
+            if key != "demand_period_offset"
+        }
+    assert left_manifest == right_manifest
+    assert left_manifest["demand_source"]["sha256"] == right_manifest["demand_source"]["sha256"]
+
+
+@pytest.mark.parametrize("backorders", [False, True])
+def test_shifted_date_period_table_runs_as_the_renumbered_table(backorders):
+    demand = _daily_demand([3, 5, 2, 4, 6, 1, 7, 2], skus=("A", "B"))
+    runs = {
+        shift: SimulationEngine().run(
+            _levels(backorders), _shifted(demand, shift), _inventory(skus=("A", "B")),
+            period_frequency="D", warmup_periods=2,
+        )
+        for shift in (0, 12, -3)
+    }
+    for shift in (12, -3):
+        _same_run(runs[shift], runs[0])
+        assert runs[shift].run_settings["demand_period_offset"] == shift
+        assert runs[shift].run_manifest["run_settings"]["demand_period_offset"] == shift
+        settings = dict(runs[shift].run_settings)
+        settings.pop("demand_period_offset")
+        reference = dict(runs[0].run_settings)
+        assert reference.pop("demand_period_offset") == 0
+        assert settings == reference
+    assert runs[0].to_event_frame()["period"].min() == 1  # event periods are unchanged
+
+
+def test_shifted_table_in_run_comparison_records_the_shift_in_every_branch():
+    demand = _daily_demand([3, 5, 2, 4, 6, 1], skus=("A", "B"))
+    policies = {"lost sales": _levels(False), "backorders": _levels(True)}
+    shifted, reference = (
+        SimulationEngine().run_comparison(
+            policies, frame, _inventory(skus=("A", "B")), period_frequency="D",
+            warmup_periods=1,
+        )
+        for frame in (_shifted(demand, 12), demand)
+    )
+    for label in policies:
+        _same_run(shifted[label], reference[label])
+        assert shifted[label].run_settings["demand_period_offset"] == 12
+        assert reference[label].run_settings["demand_period_offset"] == 0
+
+
+def test_generator_history_slice_runs_with_its_own_period_numbers():
+    generator = DemandGenerator(
+        ["coffee", "tea"], start_date="2026-01-05", period_frequency="W-MON", random_seed=0,
+    )
+    sales = generator.sample(20, lambda rng, periods: rng.poisson(20, periods.size))
+    future = sales[sales["date"] > "2026-03-23"]
+    assert (future["period"].min(), future["period"].max()) == (12, 19)
+    stock = InventoryStateDataFrame(["coffee", "tea"]).initialize_zero(
+        start_date=pd.Timestamp("2026-03-23")
+    )
+    result = SimulationEngine().run(_levels(False), future, stock, period_frequency="W-MON")
+    renumbered = SimulationEngine().run(
+        _levels(False), future.drop(columns="period"), stock, period_frequency="W-MON",
+    )
+    assert result.run_settings["demand_period_offset"] == 12
+    assert renumbered.run_settings["demand_period_offset"] == 0
+    pd.testing.assert_frame_equal(result.to_event_frame(), renumbered.to_event_frame())
+    assert result.n_periods == 8
+
+
+def _break(frame, how):
+    frame = _shifted(frame, 12)
+    if how == "gap":
+        frame.loc[(frame["unique_id"] == "A") & (frame["period"] >= 14), "period"] += 1
+    elif how == "per-SKU shift":
+        frame.loc[frame["unique_id"] == "B", "period"] -= 12
+    elif how == "swapped":
+        rows = frame.index[(frame["unique_id"] == "A") & frame["period"].isin([13, 14])]
+        frame.loc[rows, "period"] = [14, 13]
+    elif how == "non-integer":
+        frame["period"] = frame["period"].astype(float)
+        frame.loc[1, "period"] = 13.5
+    return frame
+
+
+@pytest.mark.parametrize("how, message", [
+    ("gap", r"'A' dated 2025-01-04 has period 15, but its date is run period 2, "
+            r"which this table numbers 14 \(its first date, 2025-01-02, is period 12\)"),
+    ("per-SKU shift", r"'B' dated 2025-01-02 has period 0, but its date is run period 0, "
+                      r"which this table numbers 12"),
+    ("swapped", r"'A' dated 2025-01-03 has period 14, but its date is run period 1, "
+                r"which this table numbers 13"),
+    ("non-integer", r"must contain integers: the row for unique_id 'A' dated 2025-01-03 "
+                    r"has period 13.5 \(its date is run period 1\)"),
+])
+def test_period_numbering_that_does_not_follow_the_dates_is_rejected(how, message):
+    demand = _break(_daily_demand([3, 5, 2, 4], skus=("A", "B")), how)
+    with pytest.raises(ValueError, match=message):
+        SimulationEngine().run(
+            _levels(False), demand, _inventory(skus=("A", "B")), period_frequency="D",
+        )
+
+
+def test_period_only_table_must_count_from_the_opening_date():
+    demand = _shifted(_daily_demand([3, 5, 2, 4]), 12).drop(columns="date")
+    message = (
+        r"demand periods count from the inventory's opening date: the first demand "
+        r"period is 0 \(2025-01-02\). Got periods 12..15. Add a date column"
+    )
+    for n_periods in (None, 4):
+        with pytest.raises(ValueError, match=message):
+            SimulationEngine().run(
+                _levels(False), demand, _inventory(), n_periods=n_periods,
+                period_frequency="D",
+            )
+
+
+def test_dates_on_or_before_the_opening_date_are_rejected():
+    demand = _daily_demand([3, 5, 2, 4], start="2024-12-31")
+    with pytest.raises(ValueError, match="on or before the inventory's opening date 2025-01-01"):
+        SimulationEngine().run(_levels(False), demand, _inventory(), period_frequency="D")
+

@@ -651,7 +651,7 @@ def test_failed_demand_preflight_does_not_reset_callback():
     invalid_demand = _demand((0.0,))
     invalid_demand.loc[:, "date"] = pd.Timestamp("2025-01-03")
 
-    with pytest.raises(ValueError, match="must use date 2025-01-02"):
+    with pytest.raises(ValueError, match="dates must start .* on 2025-01-02"):
         SimulationEngine().run(
             _policy(),
             invalid_demand,

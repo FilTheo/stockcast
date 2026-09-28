@@ -8,11 +8,14 @@ keep their names and meanings; new columns may be added.
 | Column | Type | Meaning |
 |---|---|---|
 | `unique_id` | hashable | SKU identifier (the state's `sku_column`) |
-| `period` | int | demand period, `0 … n_periods − 1` |
+| `period` | int | demand period, `0 … n_periods − 1`, counted from the opening date |
 | `date` | timestamp | opening date $+ (\text{period} + 1)\,\Delta$ |
 | `y` | float $\ge 0$ | units demanded |
 
 `period` and `date` determine each other; a table may give either one or both.
+With both, the dates decide: `period` may keep your own numbering (for example
+14, 15, ...) if it advances one per period for every SKU, and the engine
+renumbers it from 0 (`run_settings["demand_period_offset"]` records the shift).
 
 ## Event ledger
 
@@ -25,7 +28,7 @@ columns are listed in `stockcast.evaluation.CANONICAL_EVENT_COLUMNS`.
 |---|---|
 | `unique_id` | SKU |
 | `event_type` | always `"period"`: one row per SKU and demand period |
-| `demand_period` | zero-based demand period, matching the demand table |
+| `demand_period` | zero-based demand period of the run, counted from the opening date |
 | `period` | state period (opening period + demand period + 1) |
 | `date` | the period's date |
 | `policy` | the policy's name |
