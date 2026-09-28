@@ -138,31 +138,49 @@ opening pipeline and every order placed during the run:
 |---|---|
 | `order_id` | the order line; deliveries of one line share it |
 | `unique_id`, `supplier_id` | SKU and supplier (`None` when unknown) |
-| `source` | `"opening"` or `"placed"` |
+| `source` | `"opening"` or `"placed"` (and `"delayed"` with [delivery outcomes](unreliable-deliveries.md)) |
 | `order_period`, `order_date` | when the line was ordered |
 | `due_period`, `due_date` | when this delivery is received, before that period's demand |
 | `lead_time` | realised `due_period - order_period` |
 | `ordered_quantity`, `delivery_quantity` | size of the whole line and of this delivery |
-| `status` | `"received"` or `"open"` at the end of the run |
+| `status` | `"received"` or `"open"` at the end of the run (or `"disrupted"` with delivery outcomes) |
 
 Per SKU and period, received deliveries add up to the ledger's
 `received_units`, and open ones to the final `on_order_end`. A few lines of
-pandas give supplier-level views:
+pandas give supplier-level views. Count the deliveries received rather than
+the placed rows, whose `mean_lead_time` would hide delays: a delayed
+delivery's real lead time is on its `"delayed"` row.
 
 ```python
-placed = orders[orders["source"] == "placed"]
-placed.groupby("supplier_id").agg(
+received = orders[orders["status"] == "received"]
+by_supplier = received.groupby("supplier_id").agg(
     deliveries=("delivery_quantity", "size"),
     units=("delivery_quantity", "sum"),
     mean_lead_time=("lead_time", "mean"),
-).round(2)
+)
+by_supplier.round(2)
 ```
 
 ```text
               deliveries   units  mean_lead_time
 supplier_id
-importer              28  232.89            4.43
+importer              27  227.49            4.41
 local_packer          14   99.81            1.00
+```
+
+These are the supplier deliveries received. When there is no opening pipeline
+(its receipts count in `received_units` but have no supplier) and no
+[delivery outcome](unreliable-deliveries.md) (short or late deliveries are
+marked `"disrupted"`; sum `received_quantity` there), they add up to the
+ledger's received units, as in this run:
+
+```python
+events = result.to_event_frame()
+round(float(by_supplier["units"].sum()), 2), round(float(events["received_units"].sum()), 2)
+```
+
+```text
+(327.3, 327.3)
 ```
 
 ## Same results, more detail

@@ -55,7 +55,7 @@ def update_inventory_with_orders(
 
     Example:
         ```python
-        from stockcast import InventoryStateDataFrame, OrderDecision
+        from stockcast.core import InventoryStateDataFrame
         from stockcast.utils import update_inventory_with_orders
 
         # Current inventory state

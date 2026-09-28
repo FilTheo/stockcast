@@ -51,7 +51,7 @@ policy
 ```
 
 ```text
-OrderUpToPolicy(lead_time=2, review_period=4, service_level=0.95, allow_backorders=lost_sales, status=fitted)
+OrderUpToPolicy(lead_time=2, review_period=4, service_level=0.95, allow_backorders=False, status=fitted)
 ```
 
 **Configuration** describes the operation: lead time, review rhythm, shortage

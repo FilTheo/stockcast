@@ -135,7 +135,7 @@ The order frame gains four columns, and its `status` can be `"disrupted"`:
 |---|---|
 | `scheduled_due_period` | the due period set when the order was placed |
 | `received_quantity` | received from this delivery on its `due_period` |
-| `delayed_quantity` | moved to a later period (a new row with the same `order_id`) |
+| `delayed_quantity` | moved to a later period: a new row with the same `order_id`, `source` `"delayed"`, and that quantity as its `delivery_quantity` (so sum `received_quantity`, not `delivery_quantity`, to total what arrived) |
 | `undelivered_quantity` | never arrived |
 
 ```python

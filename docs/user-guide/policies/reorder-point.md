@@ -124,8 +124,9 @@ house_rule = ReorderPointPolicy(lead_time=2, review_period=7,
 
 Fixed values are planning levels, so they need `service_level=None` (the
 default). Dates are optional: with `forecast_origin` (and the policy's
-`freq`), the run checks that the values were set no later than the opening
-date. Give the policy or the run a `freq` when the demand is dated.
+`freq`), the run checks that the values were set no later than the first
+decision's information date. The run always needs the period length, so give
+the policy or the run a `freq`.
 
 ### From a forecast
 

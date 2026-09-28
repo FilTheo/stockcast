@@ -72,7 +72,7 @@ result.to_callback_audit_frame()[["phase", "date", "before_value", "after_value"
 ```
 
 ```text
-               phase       date  before_value  after_value                             reason
+                 phase       date  before_value  after_value                            reason
 0  on_after_prediction 2026-01-22          17.0         25.5  stock up before the tea festival
 1      on_after_demand 2026-01-25          28.5         25.5      damaged packs found in count
 ```

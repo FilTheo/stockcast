@@ -60,7 +60,7 @@ InventoryEvaluator().fit(event_frame=events, window="scoring").evaluate(
 
 ```text
   unique_id  holding_cost  purchase_cost
-0  tea_250g        15.63          499.5
+0  tea_250g         15.63          499.5
 ```
 
 A column takes precedence over a context value with the same name. The same

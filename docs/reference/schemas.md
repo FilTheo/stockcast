@@ -106,7 +106,7 @@ next. See [Stock accounting](../user-guide/concepts/accounting.md).
 |---|---|
 | `order_id` | order line; deliveries of one line share it |
 | `unique_id`, `supplier_id` | SKU and supplier (`None` when unknown) |
-| `source` | `"opening"` or `"placed"` |
+| `source` | `"opening"`, `"placed"`, or (with delivery outcomes) `"delayed"`: the later delivery of a delayed quantity, a new row with the same `order_id` |
 | `order_period`, `order_date` | when the line was ordered (missing for opening orders without one) |
 | `due_period`, `due_date` | when this delivery is received, before that period's demand |
 | `lead_time` | realised `due_period - order_period` |
