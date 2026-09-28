@@ -13,7 +13,9 @@ touching the ordering rule, and the other way round.
 | `ExplicitSchedule(periods=(...))` | the listed periods | A supplier's delivery calendar |
 
 Periods are **demand periods** of the run: period 0 is the first period after
-the opening date, whatever numbers your demand table uses.
+the opening date, whatever numbers your demand table uses. A schedule must
+decide at least once in the run; one whose periods all fall outside it is an
+error, not a run without orders.
 
 ```python
 from stockcast.core import ExplicitSchedule, OneTimeSchedule, PeriodicSchedule

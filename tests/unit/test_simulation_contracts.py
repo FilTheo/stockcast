@@ -1050,3 +1050,16 @@ def test_dates_on_or_before_the_opening_date_are_rejected():
     with pytest.raises(ValueError, match="on or before the inventory's opening date 2025-01-01"):
         SimulationEngine().run(_levels(False), demand, _inventory(), period_frequency="D")
 
+
+def test_schedule_with_no_decision_in_the_run_is_rejected():
+    from stockcast.core.decision_schedule import ExplicitSchedule, OneTimeSchedule
+    from stockcast.policies import ReorderPointPolicy
+
+    for schedule in (ExplicitSchedule((12,)), OneTimeSchedule(8), ExplicitSchedule(())):
+        policy = ReorderPointPolicy(0, schedule=schedule, allow_backorders=False).fit(
+            reorder_point=4.0, order_up_to_level=9.0,
+        )
+        with pytest.raises(ValueError, match=r"no decision in this run's periods 0..7"):
+            SimulationEngine().run(
+                policy, _daily_demand([3] * 8), _inventory(), period_frequency="D",
+            )

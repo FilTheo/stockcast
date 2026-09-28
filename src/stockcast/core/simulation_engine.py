@@ -1362,12 +1362,21 @@ class SimulationEngine:
             raise TypeError("decision schedule manifest must be a dictionary")
         json.dumps(schedule_manifest, allow_nan=False)
         decision_periods = set()
+        scheduled = False
         for period in range(n_periods):
             enabled = policy.schedule.should_decide(period)
             if not isinstance(enabled, bool):
                 raise ValueError("schedule.should_decide must return bool")
+            scheduled = scheduled or enabled
             if enabled and (period < warmup_periods + scoring_periods or order_during_settlement):
                 decision_periods.add(period)
+        if not scheduled:
+            raise ValueError(
+                f"the policy's decision schedule {schedule_manifest} has no decision in "
+                f"this run's periods 0..{n_periods - 1}, so it would never order. "
+                "Schedule periods count from the inventory's opening date: period 0 "
+                "is the first demand period."
+            )
         # A run owns its state. Caller state and pre-run history remain
         # untouched, while result.history contains snapshots from this run.
         inventory = copy.deepcopy(inventory)

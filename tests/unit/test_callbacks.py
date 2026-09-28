@@ -156,7 +156,8 @@ def test_order_hold_runs_for_first_decision_but_not_without_prediction():
     assert len(opening.to_callback_audit_frame()) == 1
     delayed = _policy(review_period=3)
     delayed.schedule = PeriodicSchedule(3, start=3)
-    no_opening = _run(SimulationEngine(), [hold], policy=delayed)
+    # The first decision is in period 3: the hold, in period 1, sees no prediction.
+    no_opening = _run(SimulationEngine(), [hold], policy=delayed, values=(0.0,) * 4)
     assert no_opening.to_callback_audit_frame().empty
 
 
