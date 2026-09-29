@@ -47,8 +47,8 @@ target = pd.DataFrame({
 })
 ```
 
-Then fit the policy exactly as in the [Quickstart](../get-started/quickstart.md),
-with `forecast_origin=origin`. Notebooks
+Then fit the policy on it as in
+[Learn step 4](../learn/04-policies.md), with `forecast_origin=origin`. Notebooks
 [04](../notebooks/04_forecast_to_inventory_integration.ipynb),
 [04c](../notebooks/04c_cumulative_protection_target.ipynb),
 [04e](../notebooks/04e_cumulative_target_methods.ipynb), and

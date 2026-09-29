@@ -50,6 +50,10 @@ Stockcast needs Python 3.10+ and only NumPy, pandas, and Matplotlib.
 
 ## Quickstart
 
+A tea shop sells about six packs a day and orders every morning; deliveries
+arrive before it opens. Forecast tomorrow's demand, turn the forecast into
+orders, and simulate eight weeks:
+
 ```python
 import pandas as pd
 
@@ -58,62 +62,61 @@ from stockcast.evaluation import InventoryEvaluator, avg_on_hand, fill_rate
 from stockcast.policies import OrderUpToPolicy
 from stockcast.utils import DemandGenerator
 
+sku, today = "tea_250g", pd.Timestamp("2026-02-01")
 
-# Weekly sales of two products over 20 weeks: Poisson demand, 20 units a week.
-def poisson(rng, periods):
-    return rng.poisson(20, periods.size)
+# Twelve weeks of daily tea sales, about six packs a day.
+sales = DemandGenerator([sku], first_date="2026-01-05", freq="D", random_seed=3).sample(
+    84, lambda rng, periods: rng.poisson(6, periods.size))
+past, future = sales[sales["date"] <= today], sales[sales["date"] > today]
 
+# Forecast tomorrow from the last four weeks. Any model works; here, two
+# common ways to state the uncertainty.
+last_4_weeks = past["y"].tail(28)
+forecast = pd.DataFrame({
+    "unique_id": [sku],
+    "date": [today + pd.Timedelta(days=1)],   # the day it forecasts
+    "fh": [1],                                # one step ahead
+    "mean": [last_4_weeks.mean()],            # a moving average ...
+    "std": [last_4_weeks.std()],              # ... and its spread
+    "q95": [last_4_weeks.quantile(0.95)],     # or a 95% quantile forecast
+})
 
-generator = DemandGenerator(
-    ["coffee", "tea"], first_date="2026-01-05", freq="W-MON", random_seed=0,
-)
-sales = generator.sample(20, poisson)
-sales.head(3)
-#   unique_id     y  period       date
-# 0    coffee  22.0       0 2026-01-05
-# 1       tea  24.0       0 2026-01-05
-# 2    coffee   9.0       1 2026-01-12
-
-# Today is week 12: we know the past, the future is still to come.
-today = pd.Timestamp("2026-03-23")
-past = sales[sales["date"] <= today]
-future = sales[sales["date"] > today]
-
-# Forecast: the 95% quantile of next week's demand, for each product.
-# Here from the last 12 weeks; any quantile forecasting model works.
-forecast = past.groupby("unique_id", as_index=False)["y"].quantile(0.95)
-forecast["date"] = today + pd.Timedelta(weeks=1)   # the week it forecasts
-
-# The policy: order every Monday, delivered the same morning, so each order
-# covers one week. It orders up to the forecast.
-policy = OrderUpToPolicy(
-    lead_time=0, review_period=1, freq="W-MON", service_level=0.95, allow_backorders=False,
-)
-policy.fit(forecast, target_column="y")
-
-# The shelf today: 30 units of each product.
-stock = pd.DataFrame({"unique_id": ["coffee", "tea"], "date": today, "on_hand": [30, 30]})
-shelf = InventoryStateDataFrame.from_observed(stock)
-
-# Simulate the next 8 weeks and score the decisions.
+# 30 packs on the shelf today. Order every morning, delivered before opening,
+# up to the 95% quantile of tomorrow's demand.
+shelf = InventoryStateDataFrame.from_observed(
+    pd.DataFrame({"unique_id": [sku], "date": [today], "on_hand": [30]}))
+policy = OrderUpToPolicy(lead_time=0, review_period=1, freq="D",
+                         service_level=0.95, allow_backorders=False)
 engine = SimulationEngine()
-result = engine.run(policy, future, shelf)
 
-evaluator = InventoryEvaluator()
-evaluator.fit(result)
-print(evaluator.evaluate([fill_rate, avg_on_hand]).round(2))
+# From a mean and a spread, the policy computes the quantile...
+policy.fit(forecast, mean_column="mean", std_column="std")
+from_mean_std = engine.run(policy=policy, demand_source=future, inventory=shelf)
+
+# ...or it takes a quantile forecast as it is.
+policy.fit(forecast, target_column="q95")
+from_quantile = engine.run(policy=policy, demand_source=future, inventory=shelf)
+
+# Score the next eight weeks of each.
+metrics = [fill_rate, avg_on_hand]
+pd.concat({
+    "mean + std": InventoryEvaluator().fit(from_mean_std).evaluate(metrics),
+    "quantile": InventoryEvaluator().fit(from_quantile).evaluate(metrics),
+}).droplevel(1).round(2)
 ```
 
 ```text
-   fill_rate  avg_on_hand
-0       0.99         5.71
+            fill_rate  avg_on_hand
+mean + std       0.99         5.30
+quantile         0.99         5.69
 ```
 
-With a lead time, the forecast covers total demand over the lead time plus the
-review period instead; the
-[Quickstart](https://filtheo.github.io/stockcast/get-started/quickstart/)
-shows how, step by step. `result.to_event_frame()` holds the full record: one
-balanced row per SKU and period with every receipt, order, sale, and shortage.
+The same policy takes a mean and a spread or a quantile forecast, from any
+model. `from_mean_std.to_event_frame()` holds the full record: one balanced
+row per SKU and day with every receipt, order, sale, and shortage. With a lead
+time, an order must cover the lead time plus the review period;
+[Learn step 3](https://filtheo.github.io/stockcast/learn/03-forecast-targets/)
+shows how.
 
 ## Research and production
 

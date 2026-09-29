@@ -145,37 +145,60 @@ flowchart LR
 ## Stockcast in one screen
 
 ```python
-import numpy as np
 import pandas as pd
 
 from stockcast.core import InventoryStateDataFrame, SimulationEngine
+from stockcast.evaluation import InventoryEvaluator, avg_on_hand, fill_rate
 from stockcast.policies import OrderUpToPolicy
 from stockcast.utils import DemandGenerator
 
-sku, opening = "tea_250g", pd.Timestamp("2026-01-05")
+sku, today = "tea_250g", pd.Timestamp("2026-02-01")
 
-# Demand to play forward, and the stock we start with.
-demand = DemandGenerator([sku], first_date=opening + pd.Timedelta(days=1),
-                         freq="D", random_seed=3,
-                         negative_demand_handling="clip_zero").seasonal(
-    n_periods=56, base=6.0, amplitude=2.0, season_length=7, std=2.0)
-inventory = InventoryStateDataFrame.from_observed(
-    pd.DataFrame({"unique_id": [sku], "date": [opening], "on_hand": [30.0]}))
+# Twelve weeks of daily tea sales, about six packs a day.
+sales = DemandGenerator([sku], first_date="2026-01-05", freq="D", random_seed=3).sample(
+    84, lambda rng, periods: rng.poisson(6, periods.size))
+past, future = sales[sales["date"] <= today], sales[sales["date"] > today]
 
-# A forecast target: the 95% quantile of total demand over the next 6 days,
-# dated with the last day it covers.
-paths = np.random.default_rng(42).poisson(6.0, size=(10_000, 6))
-target = pd.DataFrame({"unique_id": [sku],
-                       "target": [np.quantile(paths.sum(axis=1), 0.95)],
-                       "date": [opening + pd.Timedelta(days=6)]})
+# Forecast tomorrow from the last four weeks. Any model works; here, two
+# common ways to state the uncertainty.
+last_4_weeks = past["y"].tail(28)
+forecast = pd.DataFrame({
+    "unique_id": [sku],
+    "date": [today + pd.Timedelta(days=1)],   # the day it forecasts
+    "fh": [1],                                # one step ahead
+    "mean": [last_4_weeks.mean()],            # a moving average ...
+    "std": [last_4_weeks.std()],              # ... and its spread
+    "q95": [last_4_weeks.quantile(0.95)],     # or a 95% quantile forecast
+})
 
-# Order up to that target every 4 days; deliveries take 2 days.
-policy = OrderUpToPolicy(lead_time=2, review_period=4, freq="D", service_level=0.95,
-                         allow_backorders=False).fit(target, target_column="target")
+# 30 packs on the shelf today. Order every morning, delivered before opening,
+# up to the 95% quantile of tomorrow's demand.
+shelf = InventoryStateDataFrame.from_observed(
+    pd.DataFrame({"unique_id": [sku], "date": [today], "on_hand": [30]}))
+policy = OrderUpToPolicy(lead_time=0, review_period=1, freq="D",
+                         service_level=0.95, allow_backorders=False)
+engine = SimulationEngine()
 
-result = SimulationEngine().run(policy=policy, demand_source=demand, inventory=inventory)
+# From a mean and a spread, the policy computes the quantile...
+policy.fit(forecast, mean_column="mean", std_column="std")
+from_mean_std = engine.run(policy=policy, demand_source=future, inventory=shelf)
 
-result.to_event_frame()   # one row per SKU and day: every unit, accounted for
+# ...or it takes a quantile forecast as it is.
+policy.fit(forecast, target_column="q95")
+from_quantile = engine.run(policy=policy, demand_source=future, inventory=shelf)
+
+# Score the next eight weeks of each.
+metrics = [fill_rate, avg_on_hand]
+pd.concat({
+    "mean + std": InventoryEvaluator().fit(from_mean_std).evaluate(metrics),
+    "quantile": InventoryEvaluator().fit(from_quantile).evaluate(metrics),
+}).droplevel(1).round(2)
+```
+
+```text
+            fill_rate  avg_on_hand
+mean + std       0.99         5.30
+quantile         0.99         5.69
 ```
 
 The [Quickstart](get-started/quickstart.md) walks through each of these lines.

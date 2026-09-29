@@ -163,6 +163,63 @@ def fig_tea_demand():
     save(fig, "tea-demand.svg")
 
 
+def quickstart_runs():
+    """The Quickstart: one daily policy fitted on a mean/std and on a quantile forecast."""
+    today = pd.Timestamp("2026-02-01")
+    sales = DemandGenerator([SKU], first_date="2026-01-05", freq="D", random_seed=3).sample(
+        84, lambda rng, periods: rng.poisson(6, periods.size))
+    past, future = sales[sales["date"] <= today], sales[sales["date"] > today]
+    last_4_weeks = past["y"].tail(28)
+    forecast = pd.DataFrame({
+        "unique_id": [SKU],
+        "date": [today + pd.Timedelta(days=1)],
+        "fh": [1],
+        "mean": [last_4_weeks.mean()],
+        "std": [last_4_weeks.std()],
+        "q95": [last_4_weeks.quantile(0.95)],
+    })
+    shelf = InventoryStateDataFrame.from_observed(
+        pd.DataFrame({"unique_id": [SKU], "date": [today], "on_hand": [30]}))
+    policy = OrderUpToPolicy(lead_time=0, review_period=1, freq="D",
+                             service_level=0.95, allow_backorders=False)
+    runs = {}
+    for label, fit_args in (
+        ("mean + std", {"mean_column": "mean", "std_column": "std"}),
+        ("quantile", {"target_column": "q95"}),
+    ):
+        policy.fit(forecast, **fit_args)
+        level = float(policy.get_target_levels()["target_level"].iloc[0])
+        result = SimulationEngine().run(policy=policy, demand_source=future, inventory=shelf)
+        runs[label] = (level, result.to_event_frame())
+    return past, runs
+
+
+def fig_quickstart_run():
+    past, runs = quickstart_runs()
+    fig, (ax1, ax2) = plt.subplots(
+        2, 1, figsize=(8.6, 4.8), sharex=True,
+        gridspec_kw={"height_ratios": [1, 1.3], "hspace": 0.35},
+    )
+    events = runs["mean + std"][1]
+    ax1.bar(past["date"], past["y"], width=0.7, color=BASE, label="Past sales")
+    ax1.bar(events["date"], events["demand"], width=0.7, color=BLUE, label="Simulated weeks")
+    ax1.axvline(past["date"].iloc[-1] + pd.Timedelta(hours=12), color=INK2, linewidth=1)
+    ax1.set_title("Daily sales: four weeks to forecast from, eight to simulate")
+    ax1.set_ylabel("Packs")
+    ax1.set_ylim(0, past["y"].max() * 1.45 + 2)
+    ax1.legend(loc="upper left", ncol=2)
+
+    for (label, (level, frame)), color in zip(runs.items(), (BLUE, ORANGE)):
+        ax2.plot(frame["date"], frame["ending_on_hand"], color=color,
+                 label=f"{label} (S = {level:.2f})")
+    ax2.set_title("Stock on the shelf at the end of each day")
+    ax2.set_ylabel("Packs")
+    ax2.set_ylim(0, 30)
+    ax2.legend(loc="upper right", ncol=1)
+    date_axis(ax2, pd.concat([past["date"], events["date"]]).reset_index(drop=True))
+    save(fig, "quickstart-run.svg")
+
+
 def fig_cumulative_vs_summed():
     paths = tea_paths()
     totals = paths.sum(axis=1)
@@ -421,6 +478,7 @@ def fig_dashboard():
 
 
 if __name__ == "__main__":
+    fig_quickstart_run()
     fig_tea_demand()
     fig_cumulative_vs_summed()
     fig_timing_window()
