@@ -57,6 +57,7 @@ def _order_up_to(skus, *, lead_time, review, backorders):
     policy = sc.OrderUpToPolicy(
         lead_time=lead_time, review_period=review, freq="D", service_level=0.9,
         allow_backorders=backorders,
+        date_column="end",
     )
     targets = pd.DataFrame({
         "unique_id": skus,
@@ -65,7 +66,7 @@ def _order_up_to(skus, *, lead_time, review, backorders):
     })
     return policy.fit(
         targets, forecast_origin=ORIGIN, target_column="S",
-        date_column="end", protection_horizon=horizon,
+        protection_horizon=horizon,
         target_probability=0.9,
     )
 
@@ -73,7 +74,7 @@ def _order_up_to(skus, *, lead_time, review, backorders):
 def _state(skus, *, max_lead_time, backorders, on_hand):
     state = sc.InventoryStateDataFrame(
         skus, max_lead_time=max_lead_time, allow_backorders=backorders,
-    ).initialize_zero(start_date=ORIGIN)
+    ).initialize_zero(opening_date=ORIGIN)
     state.data["on_hand"] = float(on_hand)
     return state
 

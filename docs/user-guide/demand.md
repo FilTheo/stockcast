@@ -30,9 +30,9 @@ from stockcast.core import SimulationEngine
 engine = SimulationEngine(sku_column="item", date_column="ds", demand_column="sales")
 ```
 
-`DemandGenerator`, the scheduled callbacks, `ShelfLife`,
-`InventoryStateDataFrame.from_observed` and every policy's `fit` take the
-names they need in the same way. For the demand table, a callback schedule
+`DemandGenerator`, the scheduled callbacks, `ShelfLife` and every policy take
+the names they need in their constructor in the same way;
+`InventoryStateDataFrame.from_observed` takes them in the call. For the demand table, a callback schedule
 or `ShelfLife`'s opening lots, a name you set must be a column of the table,
 and the table must not also hold the default name, so nothing is ever read by
 accident. Results and event ledgers always use the default names.
@@ -49,6 +49,9 @@ where $\Delta$ is `freq`, any forward pandas frequency: `"D"`,
 `"W-MON"`, `"MS"`, `"h"`, `"15min"`, and so on (by default the policy's
 `freq`). The engine checks each period's date against this
 formula before running; a date off this grid is an error, never rounded.
+The opening date itself must be a period date of `freq` too: a Monday for
+`"W-MON"`, the first of a month for `"MS"`. The same holds for a forecast
+origin and for `DemandGenerator(first_date=...)`.
 
 Period 0 is the first period after the opening date, the day you counted the
 stock. When you count the stock on the forecast origin, as you usually will,
@@ -239,7 +242,7 @@ future = panel[panel["date"] > "2026-01-19"]      # periods 14 to 27
 
 stock = InventoryStateDataFrame.from_observed(
     pd.DataFrame({"unique_id": ["tea_250g", "coffee_1kg"], "on_hand": [20.0, 20.0]}),
-    start_date=pd.Timestamp("2026-01-19"),        # counted at the end of the past
+    opening_date=pd.Timestamp("2026-01-19"),        # counted at the end of the past
 )
 policy = ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=False).fit(
     reorder_point=10.0, order_up_to_level=25.0,

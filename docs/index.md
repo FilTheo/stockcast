@@ -160,17 +160,18 @@ demand = DemandGenerator([sku], first_date=opening + pd.Timedelta(days=1),
                          negative_demand_handling="clip_zero").seasonal(
     n_periods=56, base=6.0, amplitude=2.0, season_length=7, std=2.0)
 inventory = InventoryStateDataFrame.from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), start_date=opening)
+    pd.DataFrame({"unique_id": [sku], "date": [opening], "on_hand": [30.0]}))
 
-# A forecast target: the 95% quantile of total demand over the next 6 days.
+# A forecast target: the 95% quantile of total demand over the next 6 days,
+# dated with the last day it covers.
 paths = np.random.default_rng(42).poisson(6.0, size=(10_000, 6))
 target = pd.DataFrame({"unique_id": [sku],
-                       "target": [np.quantile(paths.sum(axis=1), 0.95)]})
+                       "target": [np.quantile(paths.sum(axis=1), 0.95)],
+                       "date": [opening + pd.Timedelta(days=6)]})
 
 # Order up to that target every 4 days; deliveries take 2 days.
 policy = OrderUpToPolicy(lead_time=2, review_period=4, freq="D", service_level=0.95,
-                         allow_backorders=False).fit(
-    target, target_column="target", forecast_origin=opening)
+                         allow_backorders=False).fit(target, target_column="target")
 
 result = SimulationEngine().run(policy=policy, demand_source=demand, inventory=inventory)
 

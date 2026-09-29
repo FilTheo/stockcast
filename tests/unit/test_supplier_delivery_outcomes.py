@@ -51,7 +51,7 @@ OUTCOME_COLUMNS = [
 def _state(*, max_lead=6, backorders=True, on_hand=(10.0, 8.0), pipeline=None):
     state = sc.InventoryStateDataFrame(
         list(SKUS), max_lead_time=max_lead, allow_backorders=backorders,
-    ).initialize_zero(start_date=ORIGIN)
+    ).initialize_zero(opening_date=ORIGIN)
     state.data["on_hand"] = np.asarray(on_hand, dtype=float)
     if pipeline is not None:
         state.data["in_transit"] = [np.asarray(row, dtype=float) for row in pipeline]
@@ -72,11 +72,12 @@ def _policy(lead=2, *, every=1, backorders=True, targets=(30.0, 25.0)):
     horizon = lead + every
     policy = sc.OrderUpToPolicy(
         lead_time=lead, review_period=every, freq="D", service_level=0.9, allow_backorders=backorders,
+        date_column="end",
     )
     return policy.fit(
         pd.DataFrame({"unique_id": SKUS, "S": list(targets), "end": ORIGIN + horizon * DAY}),
         forecast_origin=ORIGIN, target_column="S",
-        date_column="end", protection_horizon=horizon,
+        protection_horizon=horizon,
         target_probability=0.9,
     )
 

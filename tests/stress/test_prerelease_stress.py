@@ -57,7 +57,7 @@ def opening_state(skus, *, max_lead, backorders, on_hand, backlog=None, pipeline
                   origin=ORIGIN):
     state = sc.InventoryStateDataFrame(
         list(skus), max_lead_time=max_lead, allow_backorders=backorders,
-    ).initialize_zero(start_date=origin)
+    ).initialize_zero(opening_date=origin)
     state.data["on_hand"] = np.asarray(on_hand, dtype=float)
     if backlog is not None:
         state.data["backorders"] = np.asarray(backlog, dtype=float)
@@ -68,9 +68,9 @@ def opening_state(skus, *, max_lead, backorders, on_hand, backlog=None, pipeline
 
 def fit_out(policy, skus, targets, *, horizon, origin=ORIGIN):
     return policy.fit(
-        pd.DataFrame({"unique_id": skus, "S": targets, "end": origin + horizon * DAY}),
+        pd.DataFrame({"unique_id": skus, "S": targets, policy.date_column: origin + horizon * DAY}),
         forecast_origin=origin, target_column="S",
-        date_column="end", protection_horizon=horizon,
+        protection_horizon=horizon,
         target_probability=policy.service_level,
     )
 
@@ -78,14 +78,14 @@ def fit_out(policy, skus, targets, *, horizon, origin=ORIGIN):
 def fit_reorder(policy, skus, s_values, S_values=None, *, origin=ORIGIN):
     """Periodic reorder-point policy: s covers the L + R protection window."""
     horizon = policy.lead_time + policy.schedule.every
-    frame = pd.DataFrame({"unique_id": skus, "s": s_values, "s_end": origin + horizon * DAY})
+    frame = pd.DataFrame({"unique_id": skus, "s": s_values, policy.date_column: origin + horizon * DAY})
     kwargs = {}
     if policy.policy_type == "sS":
         frame["S"] = S_values
         kwargs = dict(order_up_to_column="S")
     return policy.fit(
         frame, forecast_origin=origin, reorder_point_column="s",
-        date_column="s_end", target_probability=policy.service_level,
+        target_probability=policy.service_level,
         reorder_horizon=horizon, **kwargs,
     )
 
@@ -664,11 +664,10 @@ def test_single_season_newsvendor_is_profit_maximizing_at_the_critical_fractile(
 
     def profit(quantity):
         policy = sc.SingleOrderPolicy(lead, freq="D", selling_horizon=season, decision_period=decision,
-                                      service_level=fractile, allow_backorders=False)
+                                      service_level=fractile, allow_backorders=False, date_column="end")
         policy.fit(pd.DataFrame({"unique_id": skus, "q": quantity,
                                  "end": origin + (lead + season) * DAY}),
                    forecast_origin=origin, target_column="q",
-                   date_column="end",
                    target_probability=fractile)
         state = opening_state(skus, max_lead=lead, backorders=False, on_hand=[0.0] * n_skus)
         result = run_engine(sc.SimulationEngine(), policy, demand_frame(demand, skus), state,
@@ -753,9 +752,9 @@ def test_retailer_weekly_rolling_forecast_workflow_with_perishables():
             for sku in skus:
                 rows.append((sku, fh, date, by_weekday.at[date.dayofweek, sku], spread[sku]))
         frame = pd.DataFrame(rows, columns=["unique_id", "fh", "date", "mean", "std"])
-        return sc.OrderUpToPolicy(lead, review, freq="D", service_level=0.95, allow_backorders=False).fit(
+        return sc.OrderUpToPolicy(lead, review, freq="D", service_level=0.95, allow_backorders=False, date_column="date").fit(
             frame, forecast_origin=origin, mean_column="mean",
-            std_column="std", date_column="date",
+            std_column="std",
             protection_horizon=horizon, target_probability=0.95,
         )
 
@@ -906,24 +905,24 @@ def test_invalid_production_inputs_fail_closed(name):
     dict(target_column="q90", target_probability=0.95),
 ])
 def test_target_metadata_that_misstates_the_window_is_rejected(bad):
-    policy = sc.OrderUpToPolicy(1, 1, freq="D", service_level=0.95, allow_backorders=False)
+    policy = sc.OrderUpToPolicy(1, 1, freq="D", service_level=0.95, allow_backorders=False, date_column="end")
     horizon = bad.get("protection_horizon", 2)
     column = bad.get("target_column", "S")
     frame = pd.DataFrame({"unique_id": ["a"], column: [9.0],
                           "end": ORIGIN + (2 + bad.get("end_shift", 0)) * DAY})
     with pytest.raises(ValueError):
         policy.fit(frame, forecast_origin=ORIGIN, target_column=column,
-                   date_column="end", protection_horizon=horizon,
+                   protection_horizon=horizon,
                    target_probability=bad.get("target_probability", 0.95))
 
 
 def test_summing_marginal_quantiles_is_refused():
-    policy = sc.OrderUpToPolicy(1, 1, freq="D", service_level=0.9, allow_backorders=False)
+    policy = sc.OrderUpToPolicy(1, 1, freq="D", service_level=0.9, allow_backorders=False, date_column="date")
     frame = pd.DataFrame({"unique_id": ["a", "a"], "fh": [1, 2],
                           "date": [ORIGIN + DAY, ORIGIN + 2 * DAY], "mean": [3.0, 3.0], "std": [1.0, 1.0]})
     with pytest.raises(TypeError, match="aggregation_method"):
         policy.fit(frame, forecast_origin=ORIGIN, mean_column="mean",
-                   std_column="std", date_column="date", protection_horizon=2,
+                   std_column="std", protection_horizon=2,
                    target_probability=0.9, aggregation_method="sum_marginal_quantiles")
 
 

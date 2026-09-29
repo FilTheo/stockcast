@@ -52,7 +52,7 @@ def _decision(skus, quantities):
 
 def _inventory(skus=("A",)):
     return InventoryStateDataFrame(list(skus), max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
 
 

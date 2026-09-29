@@ -87,7 +87,7 @@ supply = SupplyModel(
     random_seed=7,
 )
 inventory_4 = InventoryStateDataFrame.from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), start_date=opening_date,
+    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), opening_date=opening_date,
     max_lead_time=4,                                      # room for a 2-period delay
 )
 

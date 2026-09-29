@@ -91,7 +91,7 @@ policy = ReorderPointPolicy(
 
 state = InventoryStateDataFrame.from_observed(
     pd.DataFrame({"unique_id": ["tea_250g", "coffee_1kg"], "on_hand": [22.0, 14.0]}),
-    start_date=opening_date,
+    opening_date=opening_date,
 )
 policy.predict(state, current_period=0).get_dataframe()[
     ["unique_id", "inventory_position", "reorder_point", "target_level", "order_quantity"]]
@@ -160,11 +160,11 @@ dates too. The window of $s$ is checked at every decision.
         service_level=0.95,
         order_quantity=30.0,
         allow_backorders=False,
+        date_column="s_end",
     ).fit(
         targets,
         forecast_origin=opening_date,
         reorder_point_column="s",
-        date_column="s_end",
     )
     sQ.get_parameters()
     ```
@@ -189,12 +189,12 @@ dates too. The window of $s$ is checked at every decision.
     sS = ReorderPointPolicy(
         lead_time=2, review_period=4, freq="D", policy_type="sS",
         service_level=None, allow_backorders=False,
+        date_column="s_end",
     ).fit(
         planned,
         forecast_origin=opening_date,
         reorder_point_column="s",
         order_up_to_column="S",
-        date_column="s_end",
     )
     sS.get_parameters()
     ```
@@ -264,6 +264,8 @@ values, provider levels need `service_level=None` and take optional dates.
 | `service_level` | $\alpha$ for quantile mode, `None` for planner mode |
 | `order_quantity` | $Q$; $(s, Q)$ only |
 | `allow_backorders` | `True` or `False` |
+| `sku_column` | SKU column of the tables given to `fit` and `predict` (default `"unique_id"`) |
+| `date_column` | column with the last date covered by $s$, origin $+ H\Delta$ (default `"date"`); the origin follows from it. Column targets only |
 
 | `fit` | Meaning |
 |---|---|
@@ -273,12 +275,11 @@ values, provider levels need `service_level=None` and take optional dates.
 | `reorder_point_column` | column holding $s$ |
 | `order_up_to_column` | column holding $S$; $(s, S)$ only |
 | `reorder_horizon` | $H$: defaults to $L + R$ for periodic schedules; required otherwise, checked as $(u - t) + L$ |
-| `date_column` | column with the last date covered by $s$, origin $+ H\Delta$ (default `"date"`); the origin follows from it |
 | `target_probability` | $\alpha$, quantile mode only; defaults to `service_level` |
 | `forecast_origin` | as for [every target](../forecast-targets.md#the-fit-arguments); optional for fixed values and providers |
 
-The window arguments (`reorder_horizon`, `date_column`,
-`target_probability`, `order_up_to_column`) belong to column targets.
+The window arguments (`reorder_horizon`, `target_probability`,
+`order_up_to_column`) and a named `date_column` belong to column targets.
 
 ## Good to know
 

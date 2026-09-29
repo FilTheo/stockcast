@@ -68,16 +68,12 @@ def fit_policy(observed, origin):
     target = pd.DataFrame({
         "unique_id": [sku],
         "target": [round(horizon * rate + z * np.sqrt(horizon * rate))],
-        "target_end_date": [origin + pd.Timedelta(days=horizon)],
+        "date": [origin + pd.Timedelta(days=horizon)],   # the last day it covers
     })
     return OrderUpToPolicy(
         lead_time=lead_time, review_period=review_period, freq="D",
         service_level=0.95, allow_backorders=False,
-    ).fit(
-        target, target_column="target",
-        forecast_origin=origin,
-        date_column="target_end_date",
-    )
+    ).fit(target, target_column="target")
 
 
 supplier_rules = OrderingConstraints([OrderMultiple(6, mode="adjust")])   # cases of 6

@@ -46,7 +46,7 @@ def _policy():
 
 def _inventory():
     stock = pd.DataFrame({"unique_id": SKUS, "on_hand": [20.0, 15.0]})
-    return InventoryStateDataFrame.from_observed(stock, start_date=OPENING)
+    return InventoryStateDataFrame.from_observed(stock, opening_date=OPENING)
 
 
 def _hold(sku_column="unique_id", date_column="date", period_column="period"):
@@ -193,3 +193,84 @@ def test_callbacks_and_shelf_life_reject_missing_named_columns():
     lots = pd.DataFrame({"unique_id": ["tea"], "received_date": [OPENING], "quantity": [1.0]})
     with pytest.raises(ValueError, match=r"opening_lots is missing columns: \['item'\]"):
         ShelfLife(10, lots, sku_column="item")
+
+
+def test_policies_take_their_table_column_names_in_the_constructor():
+    from stockcast.policies import ReorderPointPolicy, SingleOrderPolicy
+
+    end = OPENING + pd.Timedelta(days=3)
+    default_table = pd.DataFrame({"unique_id": SKUS, "S": [30.0, 25.0], "date": end})
+    renamed_table = default_table.rename(columns={"unique_id": "item", "date": "end"})
+    default = OrderUpToPolicy(1, 2, freq="D", allow_backorders=False).fit(
+        default_table, target_column="S",
+    )
+    renamed = OrderUpToPolicy(
+        1, 2, freq="D", allow_backorders=False, sku_column="item", date_column="end",
+    ).fit(renamed_table, target_column="S")
+    assert renamed.get_target_metadata() == default.get_target_metadata()
+    pd.testing.assert_frame_equal(
+        renamed.get_target_levels().rename(columns={"item": "unique_id"}),
+        default.get_target_levels(),
+    )
+    stock = InventoryStateDataFrame.from_observed(
+        pd.DataFrame({"item": SKUS, "on_hand": [20.0, 15.0]}), opening_date=OPENING,
+        sku_column="item",
+    )
+    assert renamed.predict(stock, current_period=0).get_dataframe()["order_quantity"].tolist() == (
+        default.predict(_inventory(), current_period=0).get_dataframe()["order_quantity"].tolist()
+    )
+
+    reorder = ReorderPointPolicy(
+        1, 2, freq="D", allow_backorders=False, sku_column="item", date_column="end",
+    ).fit(renamed_table.assign(s=5.0), reorder_point_column="s", order_up_to_column="S")
+    assert reorder.get_target_metadata()["forecast_origin"] == OPENING.isoformat()
+    assert reorder.get_parameters().columns.tolist() == ["item", "reorder_point", "order_up_to_level"]
+
+    season = SingleOrderPolicy(
+        1, freq="D", selling_horizon=2, allow_backorders=False,
+        sku_column="item", date_column="end",
+    ).fit(renamed_table, target_column="S")
+    assert season.get_target_metadata()["forecast_origin"] == OPENING.isoformat()
+
+
+@pytest.mark.parametrize("name", ["sku_column", "date_column"])
+def test_policy_fit_no_longer_takes_column_names(name):
+    policy = OrderUpToPolicy(1, 2, freq="D", allow_backorders=False)
+    with pytest.raises(TypeError, match=name):
+        policy.fit(pd.DataFrame({"unique_id": SKUS, "S": 1.0}), target_column="S",
+                   forecast_origin=OPENING, **{name: "x"})
+    with pytest.raises(ValueError, match=f"{name} must be a non-empty column name"):
+        OrderUpToPolicy(1, 2, freq="D", allow_backorders=False, **{name: ""})
+
+
+def test_a_named_policy_date_column_must_exist():
+    policy = OrderUpToPolicy(1, 2, freq="D", allow_backorders=False, date_column="end")
+    with pytest.raises(ValueError, match="date column 'end' not found in target_df"):
+        policy.fit(pd.DataFrame({"unique_id": SKUS, "S": 1.0}), target_column="S",
+                   forecast_origin=OPENING)
+
+
+def test_normal_from_history_reads_the_generators_own_columns():
+    generator = DemandGenerator(
+        SKUS, first_date=OPENING, freq="D", random_seed=2,
+        sku_column="item", demand_column="sales",
+    )
+    history = generator.normal(10, mean=5.0, std=1.0)
+    future = generator.normal_from_history(history, 3)
+    assert list(future.columns) == ["item", "sales", "period", "date"]
+    with pytest.raises(TypeError):
+        generator.normal_from_history(history, 3, "sales")
+
+
+def test_the_stock_table_and_opening_date_names():
+    stock = pd.DataFrame({"unique_id": SKUS, "on_hand": [20.0, 15.0]})
+    state = InventoryStateDataFrame(SKUS).initialize_from_observed(
+        stock_df=stock, opening_date=OPENING,
+    )
+    assert state.get_dataframe()["date"].iloc[0] == OPENING
+    with pytest.raises(TypeError, match="start_date"):
+        InventoryStateDataFrame.from_observed(stock, start_date=OPENING)
+    with pytest.raises(TypeError, match="start_date"):
+        InventoryStateDataFrame(SKUS).initialize_zero(start_date=OPENING)
+    with pytest.raises(ValueError, match=r"give opening_date=\.\.\., or a date column in stock_df"):
+        InventoryStateDataFrame.from_observed(stock)

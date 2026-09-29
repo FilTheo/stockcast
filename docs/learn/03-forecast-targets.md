@@ -122,21 +122,22 @@ opening_date = pd.Timestamp("2026-01-05")
 target = pd.DataFrame({
     "unique_id": [sku],
     "target": [quantile_of_sum],
-    "target_end_date": [opening_date + pd.Timedelta(days=horizon)],
+    "date": [opening_date + pd.Timedelta(days=horizon)],   # the last day it covers
 })
 target
 ```
 
 ```text
-  unique_id  target target_end_date
-0  tea_250g    46.0      2026-01-11
+  unique_id  target       date
+0  tea_250g    46.0 2026-01-11
 ```
 
-When a policy is fitted (next step), you also say when the forecast was made
-(`forecast_origin`), the period length, the probability, and the horizon.
-Stockcast checks that the end date equals origin + $H$ periods and that $H$
-matches the policy's lead time and review period. A target built for a
-different window is caught at `fit`, before any simulation runs.
+When a policy is fitted (next step), the rest follows from the policy and the
+date: the period length (`freq`), the probability (`service_level`), and the
+horizon $H = L + R$. The forecast was made $H$ periods before the `date`, on
+the opening date here; you can also pass it as `forecast_origin`, and
+Stockcast checks that the two agree. A target built for a different window
+is caught at `fit` or before the run, never during it.
 
 ## Letting Stockcast combine means and standard deviations
 
@@ -156,9 +157,7 @@ daily = pd.DataFrame({
 
 policy = OrderUpToPolicy(lead_time=2, review_period=4, freq="D", service_level=0.95,
                          allow_backorders=False).fit(
-    daily,
-    mean_column="mean", std_column="std", date_column="date",
-    forecast_origin=opening_date,
+    daily, mean_column="mean", std_column="std",
 )
 policy.get_target_levels()
 ```

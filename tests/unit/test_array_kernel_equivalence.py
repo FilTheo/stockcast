@@ -108,7 +108,7 @@ def _demand(matrix: np.ndarray, skus: list) -> pd.DataFrame:
 def _state(skus, *, max_lead, backorders, on_hand, pipeline=None):
     state = sc.InventoryStateDataFrame(
         list(skus), max_lead_time=max_lead, allow_backorders=backorders,
-    ).initialize_zero(start_date=ORIGIN)
+    ).initialize_zero(opening_date=ORIGIN)
     state.data["on_hand"] = np.asarray(on_hand, dtype=float)
     if pipeline is not None:
         state.data["in_transit"] = [np.asarray(row, dtype=float) for row in pipeline]
@@ -119,11 +119,12 @@ def _order_up_to(skus, targets, *, lead, schedule, backorders, origin=ORIGIN):
     horizon = lead + (schedule.every if isinstance(schedule, sc.PeriodicSchedule) else 1)
     policy = sc.OrderUpToPolicy(
         lead_time=lead, freq="D", schedule=schedule, service_level=0.9, allow_backorders=backorders,
+        date_column="end",
     )
     return policy.fit(
         pd.DataFrame({"unique_id": skus, "S": targets, "end": origin + horizon * DAY}),
         forecast_origin=origin, target_column="S",
-        date_column="end", protection_horizon=horizon,
+        protection_horizon=horizon,
         target_probability=0.9,
     )
 
@@ -298,7 +299,7 @@ def test_non_canonical_opening_state_matches_dataframe_path(monkeypatch):
 def test_integer_orders_targets_and_sku_ids_match_dataframe_path(monkeypatch):
     skus = [101, 205, 309]
     state = sc.InventoryStateDataFrame(skus, max_lead_time=1, allow_backorders=False)
-    state.initialize_zero(start_date=ORIGIN)
+    state.initialize_zero(opening_date=ORIGIN)
     policy = ListedPolicy(1, {101: 4, 309: 7}, schedule=sc.ExplicitSchedule((0, 2, 5)),
                           allow_backorders=False)
     demand = pd.DataFrame({
@@ -315,7 +316,7 @@ def test_custom_sku_column_and_zero_max_lead_time_match_dataframe_path(monkeypat
     state = sc.InventoryStateDataFrame(
         pd.DataFrame({"item": skus}), max_lead_time=0, sku_column="item",
         allow_backorders=True,
-    ).initialize_zero(start_date=ORIGIN)
+    ).initialize_zero(opening_date=ORIGIN)
     policy = ListedPolicy(0, {"x": 3.5, "y": 1.0}, schedule=sc.PeriodicSchedule(1),
                           allow_backorders=True)
     policy.predict = lambda inventory_state_df, *, current_period, **kwargs: sc.OrderDecision(

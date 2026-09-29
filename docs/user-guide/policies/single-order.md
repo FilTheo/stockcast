@@ -63,16 +63,16 @@ selling_day = origin + pd.Timedelta(days=1)
 policy = SingleOrderPolicy(
     lead_time=0, freq="D", selling_horizon=1, service_level=alpha,
     allow_backorders=False,
+    date_column="target_end",
 ).fit(
     pd.DataFrame({"unique_id": ["sandwich"], "target": [quantity],
                   "target_end": [selling_day]}),
     forecast_origin=origin,
     target_column="target",
-    date_column="target_end",
 )
 
 kiosk = InventoryStateDataFrame(["sandwich"], max_lead_time=0, allow_backorders=False)
-kiosk.initialize_zero(start_date=origin)
+kiosk.initialize_zero(opening_date=origin)
 demand = pd.DataFrame({"unique_id": ["sandwich"], "period": [0],
                        "date": [selling_day], "y": [37.0]})
 
@@ -115,17 +115,17 @@ season_totals = np.random.default_rng(1).poisson(40, size=(10_000, season)).sum(
 seasonal = SingleOrderPolicy(
     lead_time=L, freq="D", selling_horizon=season, service_level=alpha,
     allow_backorders=False,
+    date_column="target_end",
 ).fit(
     pd.DataFrame({"unique_id": ["advent_calendar"],
                   "target": [np.quantile(season_totals, alpha)],
                   "target_end": [origin + pd.Timedelta(days=L + season)]}),
     forecast_origin=origin,
     target_column="target",
-    date_column="target_end",
 )
 
 shop = InventoryStateDataFrame(["advent_calendar"], max_lead_time=L, allow_backorders=False)
-shop.initialize_zero(start_date=origin)
+shop.initialize_zero(opening_date=origin)
 season_demand = pd.DataFrame({
     "unique_id": "advent_calendar",
     "period": range(L + season),

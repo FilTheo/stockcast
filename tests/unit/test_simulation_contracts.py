@@ -57,7 +57,7 @@ class OriginFixedOrderPolicy(FixedOrderPolicy):
 
 def _inventory(skus=("A",), opening_date="2025-01-01"):
     return InventoryStateDataFrame(list(skus), max_lead_time=3).initialize_zero(
-        start_date=pd.Timestamp(opening_date)
+        opening_date=pd.Timestamp(opening_date)
     )
 
 
@@ -320,7 +320,7 @@ def test_demand_identifier_types_must_match_inventory_identifiers():
 
 def test_numeric_identifiers_are_preserved_through_orders_and_events():
     inventory = InventoryStateDataFrame([1], max_lead_time=3).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     demand = pd.DataFrame({
         "unique_id": [1],
@@ -748,9 +748,9 @@ def test_unsized_pipeline_matches_an_explicitly_sized_one():
     counted = pd.DataFrame({"unique_id": ["A"], "on_hand": [6.0]})
     opening = pd.Timestamp("2025-01-01")
     for supply, size in ((None, 1), (SupplyModel([Supplier("far", lead_time=3)]), 3)):
-        unsized = InventoryStateDataFrame.from_observed(counted, start_date=opening)
+        unsized = InventoryStateDataFrame.from_observed(counted, opening_date=opening)
         sized = InventoryStateDataFrame.from_observed(
-            counted, start_date=opening, max_lead_time=size,
+            counted, opening_date=opening, max_lead_time=size,
         )
         runs = [
             SimulationEngine().run(
@@ -1010,7 +1010,7 @@ def test_generator_history_slice_runs_with_its_own_period_numbers():
     future = sales[sales["date"] > "2026-03-23"]
     assert (future["period"].min(), future["period"].max()) == (12, 19)
     stock = InventoryStateDataFrame(["coffee", "tea"]).initialize_zero(
-        start_date=pd.Timestamp("2026-03-23")
+        opening_date=pd.Timestamp("2026-03-23")
     )
     result = SimulationEngine().run(_levels(False), future, stock, freq="W-MON")
     renumbered = SimulationEngine().run(

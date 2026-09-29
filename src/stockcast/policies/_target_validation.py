@@ -10,11 +10,19 @@ import pandas as pd
 from stockcast.core.data_structures import (
     _require_forward_frequency,
     _require_identifiers,
+    _require_period_date,
     _standard_frequency,
 )
 
 
 _QUANTILE_COLUMN = re.compile(r"^(?:up|q|p)_?(\d+(?:\.\d+)?)$", re.IGNORECASE)
+
+
+def _require_column_name(value, name: str) -> str:
+    """Return a non-empty column name."""
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{name} must be a non-empty column name")
+    return value
 
 
 def validate_probability(value: float, name: str) -> float:
@@ -79,14 +87,21 @@ def validate_protection_horizon(value: int, expected: int, name: str = "protecti
     return value
 
 
-def validate_forecast_origin(forecast_origin) -> pd.Timestamp:
-    """Return a forecast information origin as a valid timestamp."""
+def validate_forecast_origin(forecast_origin, offset=None) -> pd.Timestamp:
+    """Return a forecast information origin as a valid timestamp.
+
+    With ``offset`` (the policy's ``freq``), the origin must be a period date
+    of that frequency: pandas would otherwise roll ``origin + k`` periods to
+    the next period date and shift the target's window.
+    """
     try:
         origin = pd.Timestamp(forecast_origin)
     except (TypeError, ValueError) as exc:
         raise ValueError("forecast_origin must be a valid timestamp") from exc
     if pd.isna(origin):
         raise ValueError("forecast_origin must be a valid timestamp")
+    if offset is not None:
+        _require_period_date(origin, offset, "forecast_origin")
     return origin
 
 
@@ -155,7 +170,7 @@ def read_date_column(frame: pd.DataFrame, date_column: str, frame_name: str) -> 
 
 def _missing_origin(horizon: int) -> ValueError:
     return ValueError(
-        "give forecast_origin, or a date column (date_column=...): the target "
+        "give forecast_origin, or a date column (the policy's date_column): the target "
         f"window ends {horizon} periods after the forecast origin, on the date of "
         "its last period"
     )
@@ -178,7 +193,7 @@ def resolve_target_window(
     """
     dates = read_date_column(target_df, date_column, "target_df")
     if forecast_origin is not None:
-        origin = validate_forecast_origin(forecast_origin)
+        origin = validate_forecast_origin(forecast_origin, forecast_offset)
         expected = origin + horizon * forecast_offset
         if dates is not None and not (dates == expected).all():
             actual = sorted(str(value) for value in dates.unique())
@@ -215,7 +230,11 @@ def prepare_direct_targets(
         raise ValueError("target_df must be a non-empty pandas DataFrame")
     _require_identifiers(target_df, sku_column, 'target_df', unique=False)
     if target_df[sku_column].duplicated().any():
-        raise ValueError("target_df must contain exactly one row per SKU")
+        raise ValueError(
+            "target_df must contain exactly one row per SKU: a target covers the "
+            "whole protection window. For one row per forecast step, use "
+            "mean_column and std_column, or compute the window's total first"
+        )
 
     prepared = target_df.copy()
     for column in target_columns:
@@ -270,7 +289,7 @@ def prepare_independent_normal_forecasts(
         raise _missing_origin(horizon)
     if not has_fh and dates is None:
         raise ValueError(
-            "forecast_df needs an fh column, or a date column (date_column=...), "
+            "forecast_df needs an fh column, or a date column (the policy's date_column), "
             "to place each step"
         )
     if not has_fh and forecast_origin is None:
@@ -297,6 +316,8 @@ def prepare_independent_normal_forecasts(
                 'OrderUpToPolicy(..., freq="D")'
             )
         forecast_offset = infer_step_frequency(prepared, sku_column, date_column)
+    if forecast_origin is not None:
+        _require_period_date(forecast_origin, forecast_offset, "forecast_origin")
 
     if has_fh:
         fh = pd.to_numeric(prepared["fh"], errors="coerce")
@@ -482,7 +503,15 @@ def validate_schedule_coverage(
             raise ValueError("next decision must be an integer strictly after this period")
         if not schedule.should_decide(next_period):
             raise ValueError("next decision must be an eligible opportunity")
-        validate_protection_horizon(horizon, next_period - period + lead_time, label)
+        needed = next_period - period + lead_time
+        if horizon != needed:
+            raise ValueError(
+                f"{label} {horizon} does not cover the decision at period {period}: "
+                f"the next decision is at period {next_period}, so this decision's "
+                f"window is {next_period - period} + lead_time {lead_time} = {needed} "
+                "periods; fit a policy for this decision with that horizon and pass "
+                "it in policy_schedule"
+            )
     if pd.Timestamp(forecast_origin) != information_date:
         raise ValueError("nonperiodic targets require the exact decision information origin")
     if pd.Timestamp(target_end_date) != information_date + horizon * offset:

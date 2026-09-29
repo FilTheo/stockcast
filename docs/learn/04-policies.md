@@ -32,7 +32,7 @@ paths = np.random.default_rng(42).poisson(6.0, size=(10_000, horizon))
 target = pd.DataFrame({
     "unique_id": [sku],
     "target": [np.quantile(paths.sum(axis=1), 0.95)],
-    "target_end_date": [opening_date + pd.Timedelta(days=horizon)],
+    "date": [opening_date + pd.Timedelta(days=horizon)],   # the last day it covers
 })
 
 policy = OrderUpToPolicy(
@@ -43,15 +43,13 @@ policy = OrderUpToPolicy(
     allow_backorders=False,       # lost sales
 ).fit(
     target,
-    target_column="target",                # the 95% quantile over H = L + R days
-    forecast_origin=opening_date,          # the forecast used data up to this date
-    date_column="target_end_date",  # optional: checked against origin + H
+    target_column="target",       # the 95% quantile over H = L + R days
 )
 policy
 ```
 
 ```text
-OrderUpToPolicy(lead_time=2, review_period=4, service_level=0.95, allow_backorders=False, status=fitted)
+OrderUpToPolicy(lead_time=2, review_period=4, freq='D', service_level=0.95, allow_backorders=False, status=fitted)
 ```
 
 **Configuration** describes the operation: lead time, review rhythm, shortage
@@ -65,7 +63,7 @@ Give the policy a state and it returns an `OrderDecision`:
 
 ```python
 inventory = InventoryStateDataFrame.from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), start_date=opening_date,
+    pd.DataFrame({"unique_id": [sku], "date": [opening_date], "on_hand": [30.0]}),
 )
 
 decision = policy.predict(inventory, current_period=0)

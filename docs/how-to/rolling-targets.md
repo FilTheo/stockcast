@@ -56,10 +56,10 @@ def fit_at(t):
     return OrderUpToPolicy(
         lead_time=lead_time, review_period=review_period, freq="D",
         service_level=0.95, allow_backorders=False,
+        date_column="target_end_date",
     ).fit(
         target, target_column="target",
         forecast_origin=origin,
-        date_column="target_end_date",
     )
 ```
 

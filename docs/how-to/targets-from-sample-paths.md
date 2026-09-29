@@ -83,9 +83,8 @@ target = pd.DataFrame({
     "target_end_date": [origin + pd.Timedelta(days=H)],
 })
 policy = OrderUpToPolicy(lead_time=2, review_period=4, freq="D", service_level=0.95,
-                         allow_backorders=False).fit(
+                         allow_backorders=False, date_column="target_end_date").fit(
     target, target_column="target", forecast_origin=origin,
-    date_column="target_end_date",
 )
 ```
 

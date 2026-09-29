@@ -58,7 +58,7 @@ def _policy(quantity=10.0, *, review_period=1, allow_backorders=False):
 
 def _inventory(on_hand=0.0):
     inventory = InventoryStateDataFrame(["A"], max_lead_time=2).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = float(on_hand)
     return inventory

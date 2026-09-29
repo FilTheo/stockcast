@@ -64,10 +64,10 @@ targets = pd.DataFrame({
     "target_end_date": yesterday + pd.Timedelta(days=HORIZON),
 })
 policy = OrderUpToPolicy(lead_time=LEAD_TIME, review_period=REVIEW_PERIOD, freq="D",
-                         service_level=0.95, allow_backorders=False).fit(
+                         service_level=0.95, allow_backorders=False,
+                         date_column="target_end_date").fit(
     targets, target_column="target",
     forecast_origin=yesterday,
-    date_column="target_end_date",
 )
 
 # 4. Propose, then apply the supplier's rules.

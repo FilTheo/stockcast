@@ -28,7 +28,7 @@ Usage:
     )
 """
 
-from typing import Union, Dict, Callable, List, Literal
+from typing import Union, Dict, Callable, List, Literal, Optional
 import warnings
 
 import numpy as np
@@ -37,6 +37,7 @@ import pandas as pd
 from stockcast.core.data_structures import (
     _require_forward_frequency,
     _require_identifiers,
+    _require_period_date,
 )
 
 
@@ -57,7 +58,8 @@ class DemandGenerator:
         skus: List of SKU identifiers.
         first_date: Date of demand period 0, the first period generated. For
             ``SimulationEngine`` this is one period after the inventory's
-            opening date (the state's ``start_date``).
+            opening date. It must be a period date of ``freq`` (for example a
+            Monday for ``"W-MON"``).
         freq: Length of one period, a pandas frequency such as ``"D"``.
         random_seed: Explicit random seed, or ``None`` for intentionally unseeded data.
         negative_demand_handling: Explicitly reject or clip negative draws.
@@ -128,6 +130,7 @@ class DemandGenerator:
         if pd.isna(self.first_date):
             raise ValueError("first_date must be a valid timestamp")
         self.period_offset = _require_forward_frequency(freq, "freq")
+        _require_period_date(self.first_date, self.period_offset, "first_date")
         if random_seed is not None and (
             not isinstance(random_seed, int) or isinstance(random_seed, bool)
         ):
@@ -384,8 +387,9 @@ class DemandGenerator:
         self,
         historical_df: pd.DataFrame,
         n_periods: int,
-        demand_column: str = 'y',
-        sku_column: str = 'unique_id',
+        *,
+        demand_column: Optional[str] = None,
+        sku_column: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Normal demand with each SKU's historical mean and standard deviation.
@@ -397,13 +401,18 @@ class DemandGenerator:
         Args:
             historical_df: DataFrame with historical demand data.
             n_periods: Number of periods to generate.
-            demand_column: Column name for demand values.
-            sku_column: Column name for SKU identifiers.
+            demand_column: Demand column of ``historical_df``; defaults to the
+                generator's ``demand_column``, so its own output can be passed.
+            sku_column: SKU column of ``historical_df``; defaults to the
+                generator's ``sku_column``.
 
         Returns:
-            DataFrame with columns [unique_id, y, period, date].
+            DataFrame with the generator's columns (default
+            ``[unique_id, y, period, date]``).
         """
         self._validate_n_periods(n_periods)
+        demand_column = self.demand_column if demand_column is None else demand_column
+        sku_column = self.sku_column if sku_column is None else sku_column
         required = [sku_column, demand_column]
         missing = [column for column in required if column not in historical_df.columns]
         if missing:

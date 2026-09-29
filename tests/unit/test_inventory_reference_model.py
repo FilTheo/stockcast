@@ -23,16 +23,17 @@ def test_inventory_matches_delivery_calendar_oracle(backorders, lead, review, de
         ["A"], max_lead_time=lead, allow_backorders=backorders,
     ).initialize_from_observed(
         pd.DataFrame({"unique_id": ["A"], "stock": [opening]}),
-        on_hand_column="stock", start_date=origin,
+        on_hand_column="stock", opening_date=origin,
     )
     policy = OrderUpToPolicy(
         lead_time=lead, freq="D", schedule=PeriodicSchedule(review, start=review if delayed_start else 0), service_level=0.95,
         allow_backorders=backorders,
+        date_column="end",
     ).fit(
         pd.DataFrame({"unique_id": ["A"], "target": [target],
                       "end": [origin + pd.Timedelta(days=lead + review)]}),
         forecast_origin=origin, target_column="target",
-        date_column="end", target_probability=0.95,
+        target_probability=0.95,
         protection_horizon=lead + review,
     )
     result = SimulationEngine().run(

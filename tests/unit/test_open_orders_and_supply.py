@@ -38,7 +38,7 @@ SKUS = ["beans", "milk"]
 def _state(*, max_lead=6, backorders=True, on_hand=(10.0, 8.0), pipeline=None):
     state = sc.InventoryStateDataFrame(
         list(SKUS), max_lead_time=max_lead, allow_backorders=backorders,
-    ).initialize_zero(start_date=ORIGIN)
+    ).initialize_zero(opening_date=ORIGIN)
     state.data["on_hand"] = np.asarray(on_hand, dtype=float)
     if pipeline is not None:
         state.data["in_transit"] = [np.asarray(row, dtype=float) for row in pipeline]
@@ -59,11 +59,12 @@ def _policy(lead=2, *, every=1, backorders=True, targets=(30.0, 25.0)):
     horizon = lead + every
     policy = sc.OrderUpToPolicy(
         lead_time=lead, review_period=every, freq="D", service_level=0.9, allow_backorders=backorders,
+        date_column="end",
     )
     return policy.fit(
         pd.DataFrame({"unique_id": SKUS, "S": list(targets), "end": ORIGIN + horizon * DAY}),
         forecast_origin=ORIGIN, target_column="S",
-        date_column="end", protection_horizon=horizon,
+        protection_horizon=horizon,
         target_probability=0.9,
     )
 
@@ -260,7 +261,7 @@ def test_editing_in_transit_after_declaring_orders_is_rejected():
     with pytest.raises(ValueError, match="must describe the same pipeline"):
         state._validate_ready_state()
     # Re-initializing declares a new, empty pipeline and drops the book.
-    state.initialize_zero(start_date=ORIGIN)
+    state.initialize_zero(opening_date=ORIGIN)
     assert state._open_orders is None
     state._validate_ready_state()
 
@@ -464,11 +465,14 @@ def test_policy_editing_its_own_state_copy_behaves_as_before():
             ]
             return super().predict(inventory_state_df, **kwargs)
 
-    policy = ScratchpadPolicy(lead_time=2, review_period=1, freq="D", service_level=0.9, allow_backorders=True)
+    policy = ScratchpadPolicy(
+        lead_time=2, review_period=1, freq="D", service_level=0.9, allow_backorders=True,
+        date_column="end",
+    )
     policy.fit(
         pd.DataFrame({"unique_id": SKUS, "S": [30.0, 25.0], "end": ORIGIN + 3 * DAY}),
         forecast_origin=ORIGIN, target_column="S",
-        date_column="end", protection_horizon=3,
+        protection_horizon=3,
         target_probability=0.9,
     )
     result = _run(_state(pipeline=[[3, 0, 4, 0, 0, 0], [0, 5, 0, 0, 0, 0]]), policy, n_periods=6)
@@ -483,11 +487,14 @@ def test_policies_may_read_open_orders_at_decisions():
             seen.append(inventory_state_df.open_orders())
             return super().predict(inventory_state_df, **kwargs)
 
-    policy = SupplierAwarePolicy(lead_time=2, review_period=1, freq="D", service_level=0.9, allow_backorders=True)
+    policy = SupplierAwarePolicy(
+        lead_time=2, review_period=1, freq="D", service_level=0.9, allow_backorders=True,
+        date_column="end",
+    )
     policy.fit(
         pd.DataFrame({"unique_id": SKUS, "S": [30.0, 25.0], "end": ORIGIN + 3 * DAY}),
         forecast_origin=ORIGIN, target_column="S",
-        date_column="end", protection_horizon=3,
+        protection_horizon=3,
         target_probability=0.9,
     )
     _run(_state(), policy, n_periods=5, supply=_two_suppliers())

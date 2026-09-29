@@ -77,7 +77,7 @@ def demand_frame(matrix: np.ndarray, skus: list) -> pd.DataFrame:
 def state_frame(skus, *, max_lead, backorders, on_hand, pipeline=None):
     state = InventoryStateDataFrame(
         list(skus), max_lead_time=max_lead, allow_backorders=backorders,
-    ).initialize_zero(start_date=ORIGIN)
+    ).initialize_zero(opening_date=ORIGIN)
     state.data["on_hand"] = np.asarray(on_hand, dtype=float)
     if pipeline is not None:
         state.data["in_transit"] = [np.asarray(row, dtype=float) for row in pipeline]
@@ -89,11 +89,12 @@ def order_up_to(skus, targets, *, lead, every, backorders):
     policy = OrderUpToPolicy(
         lead_time=lead, freq="D", schedule=PeriodicSchedule(every), service_level=0.9,
         allow_backorders=backorders,
+        date_column="end",
     )
     return policy.fit(
         pd.DataFrame({"unique_id": skus, "S": targets, "end": ORIGIN + horizon * DAY}),
         forecast_origin=ORIGIN, target_column="S",
-        date_column="end", protection_horizon=horizon,
+        protection_horizon=horizon,
         target_probability=0.9,
     )
 

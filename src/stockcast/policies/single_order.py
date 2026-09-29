@@ -69,6 +69,11 @@ class SingleOrderPolicy(OrderUpToPolicy):
         decision_period: Demand period of the single decision (default 0).
         service_level: Probability the target represents, or ``None``.
         allow_backorders: ``True`` or ``False``.
+        sku_column: SKU column of the tables given to ``fit`` and ``predict``
+            (default ``"unique_id"``).
+        date_column: Date column of the target table: the season's last
+            period (default ``"date"``). Read only if the column exists; a
+            column named explicitly must exist.
     """
 
     def __init__(
@@ -80,6 +85,8 @@ class SingleOrderPolicy(OrderUpToPolicy):
         decision_period: int = 0,
         service_level=None,
         allow_backorders: bool,
+        sku_column: str = "unique_id",
+        date_column: str = "date",
     ):
         if (
             not isinstance(selling_horizon, int)
@@ -93,6 +100,8 @@ class SingleOrderPolicy(OrderUpToPolicy):
             service_level=service_level,
             allow_backorders=allow_backorders,
             schedule=OneTimeSchedule(decision_period),
+            sku_column=sku_column,
+            date_column=date_column,
         )
         self.selling_horizon = selling_horizon
         self.policy_name = "Single seasonal order"
@@ -103,28 +112,24 @@ class SingleOrderPolicy(OrderUpToPolicy):
         *,
         target_column,
         forecast_origin=None,
-        date_column="date",
         target_probability=None,
-        sku_column="unique_id",
     ):
         """Bind the season target.
 
-        Give ``forecast_origin``, a date column, or both: the season ends
-        ``lead_time + selling_horizon`` periods after the origin.
+        Give ``forecast_origin``, the policy's date column, or both: the
+        season ends ``lead_time + selling_horizon`` periods after the origin,
+        on the date column's date.
 
         Args:
             target_df: One row per SKU.
             target_column: Column with the season target.
             forecast_origin: Date of the last information used, normally the date
-                before the decision. Optional when the date column dates the rows.
-            date_column: Column with the date of the last demand period each
-                row covers: the season's last period,
-                ``forecast_origin + (lead_time + selling_horizon)`` periods. The
-                origin follows from it, and is checked against it when also
-                given. Read only if the column exists.
+                before the decision. Optional when the date column dates the
+                rows (the season's last period, ``forecast_origin + (lead_time +
+                selling_horizon)`` periods); checked against it when both are
+                given.
             target_probability: Defaults to ``service_level``; if given, it must
                 equal it.
-            sku_column: SKU column name.
 
         Returns:
             The fitted policy (``self``).
@@ -139,16 +144,17 @@ class SingleOrderPolicy(OrderUpToPolicy):
         # The generic direct-target validator counts periods from the point
         # immediately preceding the first covered demand. Information was
         # available earlier, at origin; preserve that actual cutoff below.
-        origin = None if forecast_origin is None else validate_forecast_origin(forecast_origin)
+        origin = (
+            None if forecast_origin is None
+            else validate_forecast_origin(forecast_origin, offset)
+        )
         coverage_origin = None if origin is None else origin + self.lead_time * offset
         super().fit(
             target_df,
             forecast_origin=coverage_origin,
             target_column=target_column,
-            date_column=date_column,
             target_probability=target_probability,
             protection_horizon=self.selling_horizon,
-            sku_column=sku_column,
         )
         if origin is None:
             origin = (
@@ -217,3 +223,13 @@ class SingleOrderPolicy(OrderUpToPolicy):
                 "single-order opening pipeline must arrive by season start"
             )
         return super().predict(inventory_state_df, **kwargs)
+
+    def __repr__(self) -> str:
+        status = "fitted" if self.fitted_ else "not fitted"
+        return (
+            f"SingleOrderPolicy(lead_time={self.lead_time}, "
+            f"selling_horizon={self.selling_horizon}, "
+            f"decision_period={self.schedule.period}, freq={self.freq!r}, "
+            f"service_level={self.service_level}, "
+            f"allow_backorders={self.allow_backorders}, status={status})"
+        )

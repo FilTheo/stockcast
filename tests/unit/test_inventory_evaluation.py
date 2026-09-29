@@ -82,7 +82,7 @@ class MaxBackordersMetric(BaseInventoryMetric):
 
 def test_simulation_result_exposes_normalized_event_frame():
     inventory = InventoryStateDataFrame(["SKU_A"], max_lead_time=2).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = 5.0
     policy = FixedOrderPolicy(
@@ -133,7 +133,7 @@ def test_simulation_result_exposes_normalized_event_frame():
 
 def test_inventory_evaluator_supports_builtin_and_custom_metrics():
     inventory = InventoryStateDataFrame(["SKU_A"], max_lead_time=2).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     policy = FixedOrderPolicy(
         order_quantity=4.0,
@@ -300,7 +300,7 @@ def test_terminal_and_order_metrics_have_explicit_grain():
 
 def test_fixed_ordering_cost_is_sku_level_and_row_order_independent():
     inventory = InventoryStateDataFrame(["A", "B"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     demand = pd.DataFrame({
         "unique_id": ["A", "B"],
@@ -366,7 +366,7 @@ def test_system_inventory_metrics_aggregate_skus_by_period():
 
 def test_multi_sku_coverage_needs_no_grain_confirmation():
     inventory = InventoryStateDataFrame(["A", "B"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = [4.0, 8.0]
     policy = FixedOrderPolicy(
@@ -391,7 +391,7 @@ def test_multi_sku_coverage_needs_no_grain_confirmation():
 
 def _costed_run():
     inventory = InventoryStateDataFrame(["A", "B"], max_lead_time=2).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = [3.0, 9.0]
     policy = FixedOrderPolicy(
@@ -469,15 +469,17 @@ def test_grouping_by_one_column_is_warning_free():
 
 
 def _turns_run(frequency, n_periods=6):
+    # The opening date is a period date of the frequency (the first of the month for MS).
+    opening = pd.tseries.frequencies.to_offset(frequency).rollback(pd.Timestamp("2025-01-06"))
     inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-06")
+        opening_date=opening
     )
     inventory.data["on_hand"] = 30.0
     policy = FixedOrderPolicy(
         order_quantity=4.0, lead_time=1, review_period=1, allow_backorders=False,
     )
     dates = pd.date_range(
-        pd.Timestamp("2025-01-06") + pd.tseries.frequencies.to_offset(frequency),
+        opening + pd.tseries.frequencies.to_offset(frequency),
         periods=n_periods, freq=frequency,
     )
     demand = pd.DataFrame({"unique_id": "A", "date": dates, "y": 5.0})
@@ -510,7 +512,7 @@ def test_inventory_turns_asks_when_the_period_length_is_unclear():
 
 def test_a_full_ledger_is_scored_on_its_scoring_window_like_the_result():
     inventory = InventoryStateDataFrame(["A", "B"], max_lead_time=2).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = [3.0, 9.0]
     policy = FixedOrderPolicy(order_quantity=4.0, lead_time=2, review_period=2, allow_backorders=True)

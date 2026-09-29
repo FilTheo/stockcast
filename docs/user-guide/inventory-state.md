@@ -41,7 +41,7 @@ $$
     counts = pd.DataFrame({"unique_id": ["tea_250g", "coffee_1kg"],
                            "on_hand": [30.0, 12.0]})
 
-    state = InventoryStateDataFrame.from_observed(counts, start_date=opening_date)
+    state = InventoryStateDataFrame.from_observed(counts, opening_date=opening_date)
     ```
 
     The SKUs are the rows of `counts`. The stock column defaults to
@@ -50,7 +50,7 @@ $$
 
     A stock table can also carry its own date, just like a
     [forecast table](forecast-targets.md#three-ways-to-fit-a-target): with a
-    `date` column you can leave out `start_date`. Every row holds the same
+    `date` column you can leave out `opening_date`. Every row holds the same
     date, the day the shelf was counted; give both and Stockcast checks they
     agree.
 
@@ -64,7 +64,7 @@ $$
     A new product, or a what-if that starts from nothing:
 
     ```python
-    empty = InventoryStateDataFrame(["tea_250g"]).initialize_zero(start_date=opening_date)
+    empty = InventoryStateDataFrame(["tea_250g"]).initialize_zero(opening_date=opening_date)
     ```
 
 === "A full state table"
@@ -105,7 +105,7 @@ it is used.
 | `max_lead_time` | Length of the pipeline. Leave it out and it is sized when needed: a run makes room for the policy's lead time and the suppliers' longest delivery, and placing or declaring orders makes room for them. The new slots are empty. Give a number to fix it, for example to leave room for delayed deliveries |
 | `sku_column` | Name of the SKU column, default `"unique_id"` |
 | `allow_backorders` | `True` (backorders) or `False` (lost sales). Must match the policy's setting; leave it unset to take the policy's. Reading positions works without it; set it when you serve demand or place orders yourself (below) |
-| `start_date` | Opening date, if not supplied later by an initializer |
+| `opening_date` | Opening date, if not supplied later by an initializer |
 
 ## Open orders
 
@@ -116,7 +116,7 @@ them with `with_open_orders`, one row per scheduled delivery:
 ```python
 state = InventoryStateDataFrame(
     ["tea_250g"], max_lead_time=3, allow_backorders=False,
-).initialize_zero(start_date=opening_date).with_open_orders(pd.DataFrame({
+).initialize_zero(opening_date=opening_date).with_open_orders(pd.DataFrame({
     "unique_id":    ["tea_250g", "tea_250g", "tea_250g"],
     "supplier_id":  ["roaster", "importer", "importer"],
     "order_id":     ["PO-17", "PO-12", "PO-12"],   # PO-12 arrives in two parts

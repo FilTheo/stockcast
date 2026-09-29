@@ -54,7 +54,7 @@ def test_public_stockcast_exports():
 
 def test_summary_uses_event_frame_and_catches_final_stockout():
     inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = 10.0
     policy = NoOrderPolicy(
@@ -92,7 +92,7 @@ def test_summary_uses_event_frame_and_catches_final_stockout():
 
 def test_summary_rejects_missing_event_quantities_instead_of_using_zero():
     inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     policy = NoOrderPolicy(
         lead_time=1,
@@ -140,7 +140,7 @@ def test_simulation_engine_exposes_no_live_state_hook_surface():
 def test_negative_demand_is_rejected():
     inventory = InventoryStateDataFrame(
         ["A"], max_lead_time=1, allow_backorders=False
-    ).initialize_zero(start_date=pd.Timestamp("2025-01-01"))
+    ).initialize_zero(opening_date=pd.Timestamp("2025-01-01"))
     demand = pd.DataFrame({"unique_id": ["A"], "y": [-1.0]})
 
     with pytest.raises(ValueError, match="demand_df.y"):
@@ -150,7 +150,7 @@ def test_negative_demand_is_rejected():
 def test_duplicate_demand_rows_are_rejected():
     inventory = InventoryStateDataFrame(
         ["A"], max_lead_time=1, allow_backorders=False
-    ).initialize_zero(start_date=pd.Timestamp("2025-01-01"))
+    ).initialize_zero(opening_date=pd.Timestamp("2025-01-01"))
     demand = pd.DataFrame({"unique_id": ["A", "A"], "y": [1.0, 2.0]})
 
     with pytest.raises(ValueError, match="duplicate"):
@@ -160,7 +160,7 @@ def test_duplicate_demand_rows_are_rejected():
 def test_unknown_demand_sku_is_rejected():
     inventory = InventoryStateDataFrame(
         ["A"], max_lead_time=1, allow_backorders=False
-    ).initialize_zero(start_date=pd.Timestamp("2025-01-01"))
+    ).initialize_zero(opening_date=pd.Timestamp("2025-01-01"))
     demand = pd.DataFrame({"unique_id": ["B"], "y": [1.0]})
 
     with pytest.raises(ValueError, match="unknown SKUs"):
@@ -222,7 +222,7 @@ def test_opening_state_rejects_physically_inconsistent_backlog():
         ["A"],
         max_lead_time=1,
         allow_backorders=True,
-    ).initialize_zero(start_date=pd.Timestamp("2025-01-01"))
+    ).initialize_zero(opening_date=pd.Timestamp("2025-01-01"))
     inventory.data["on_hand"] = 2.0
     inventory.data["backorders"] = 1.0
 
@@ -237,7 +237,7 @@ def test_opening_state_rejects_physically_inconsistent_backlog():
 
 def test_multiple_order_events_accumulate_direct_period_flow():
     inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.allow_backorders = False
 
@@ -262,7 +262,7 @@ def test_multiple_order_events_accumulate_direct_period_flow():
 
 def test_expected_delivery_metadata_must_match_physical_lead_time():
     inventory = InventoryStateDataFrame(["A"], max_lead_time=2).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.allow_backorders = False
     decision = OrderDecision(
@@ -295,6 +295,7 @@ def test_forecasts_are_sorted_by_horizon_before_target_calculation():
         freq="D",
         service_level=0.5,
         allow_backorders=False,
+        date_column="date",
     ).fit(
         forecast,
         mean_column="mean",
@@ -302,7 +303,6 @@ def test_forecasts_are_sorted_by_horizon_before_target_calculation():
         target_probability=0.5,
         protection_horizon=2,
         forecast_origin=pd.Timestamp("2025-01-01"),
-        date_column="date",
     )
 
     assert policy.get_target_levels()["target_level"].iloc[0] == 30.0
@@ -324,6 +324,7 @@ def test_missing_forecast_horizon_fails_fast():
             freq="D",
             service_level=0.95,
             allow_backorders=False,
+            date_column="date",
         ).fit(
             forecast,
             mean_column="mean",
@@ -331,7 +332,6 @@ def test_missing_forecast_horizon_fails_fast():
             target_probability=0.95,
             protection_horizon=3,
             forecast_origin=pd.Timestamp("2025-01-01"),
-            date_column="date",
         )
 
 
@@ -348,13 +348,13 @@ def test_precomputed_one_row_target_is_allowed():
         freq="D",
         service_level=0.95,
         allow_backorders=False,
+        date_column="target_end",
     ).fit(
         forecast,
         target_column="target",
         target_probability=0.95,
         protection_horizon=14,
         forecast_origin=pd.Timestamp("2025-01-01"),
-        date_column="target_end",
     )
 
     assert policy.get_target_levels()["target_level"].iloc[0] == 123.0
@@ -372,7 +372,7 @@ def test_observed_opening_stock_requires_a_complete_sku_grid():
     inventory.initialize_from_observed(
         opening,
         on_hand_column="observed",
-        start_date=pd.Timestamp("2025-01-01"),
+        opening_date=pd.Timestamp("2025-01-01"),
     )
     assert inventory.get_dataframe()["on_hand"].tolist() == [3.0, 5.0]
 
@@ -380,7 +380,7 @@ def test_observed_opening_stock_requires_a_complete_sku_grid():
         inventory.initialize_from_observed(
             opening.iloc[:1],
             on_hand_column="observed",
-            start_date=pd.Timestamp("2025-01-01"),
+            opening_date=pd.Timestamp("2025-01-01"),
         )
 
 
@@ -398,6 +398,7 @@ def test_reorder_point_validates_schedule_protection_window():
         service_level=0.95,
         order_quantity=5,
         allow_backorders=False,
+        date_column="reorder_end",
     )
 
     # Every-period review: the window is L + R = 3 + 1, not the lead time alone.
@@ -408,13 +409,12 @@ def test_reorder_point_validates_schedule_protection_window():
             target_probability=0.95,
             reorder_horizon=3,
             forecast_origin=pd.Timestamp("2025-01-01"),
-            date_column="reorder_end",
         )
 
 
 def test_plots_work_from_event_frame():
     inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = 5.0
     policy = NoOrderPolicy(
@@ -450,7 +450,7 @@ def test_plots_work_from_event_frame():
 
 def test_plot_inventory_accepts_numeric_sku_scalar():
     inventory = InventoryStateDataFrame([101], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     policy = NoOrderPolicy(
         lead_time=1,
@@ -491,7 +491,7 @@ def _counted(on_hand=(40.0,), **kwargs):
     skus = ["a", "b", "c"][:len(on_hand)]
     return InventoryStateDataFrame.from_observed(
         pd.DataFrame({"unique_id": skus, "on_hand": list(on_hand)}),
-        start_date=pd.Timestamp("2026-03-23"), **kwargs,
+        opening_date=pd.Timestamp("2026-03-23"), **kwargs,
     )
 
 
@@ -501,28 +501,28 @@ def test_from_observed_equals_the_two_step_initializer():
         ["a", "b"], max_lead_time=2, allow_backorders=False,
     ).initialize_from_observed(
         pd.DataFrame({"unique_id": ["a", "b"], "on_hand": [40.0, 12.0]}),
-        on_hand_column="on_hand", start_date=pd.Timestamp("2026-03-23"),
+        on_hand_column="on_hand", opening_date=pd.Timestamp("2026-03-23"),
     )
     pd.testing.assert_frame_equal(one_step.get_dataframe(), two_step.get_dataframe())
     assert one_step.max_lead_time == two_step.max_lead_time == 2
     with pytest.raises(ValueError, match="duplicate|unique"):
         InventoryStateDataFrame.from_observed(
             pd.DataFrame({"unique_id": ["a", "a"], "on_hand": [1.0, 2.0]}),
-            start_date=pd.Timestamp("2026-03-23"),
+            opening_date=pd.Timestamp("2026-03-23"),
         )
 
 
 def test_observed_stock_reads_the_opening_date_from_a_date_column():
-    # A dated table gives the same state as passing its date as start_date.
+    # A dated table gives the same state as passing its date as opening_date.
     counts = pd.DataFrame({"unique_id": ["a", "b"], "on_hand": [40.0, 12.0]})
     for date in (pd.Timestamp("2026-03-23"), "2026-03-23", pd.Timestamp("2026-03-23 06:30")):
         dated = counts.assign(date=date)
         reference = InventoryStateDataFrame.from_observed(
-            counts, start_date=dated["date"].iloc[0], max_lead_time=2,
+            counts, opening_date=dated["date"].iloc[0], max_lead_time=2,
         ).get_dataframe()
         one_step = InventoryStateDataFrame.from_observed(dated, max_lead_time=2)
         both = InventoryStateDataFrame.from_observed(
-            dated, start_date=dated["date"].iloc[0], max_lead_time=2,
+            dated, opening_date=dated["date"].iloc[0], max_lead_time=2,
         )
         two_step = InventoryStateDataFrame(
             ["a", "b"], max_lead_time=2,
@@ -532,29 +532,29 @@ def test_observed_stock_reads_the_opening_date_from_a_date_column():
         assert one_step.get_dataframe()["date"].iloc[0] == pd.Timestamp(date)
 
 
-@pytest.mark.parametrize("dates, start_date, message", [
-    (None, None, r"give start_date=\.\.\., or a date column in opening_stock_df \(date_column"),
+@pytest.mark.parametrize("dates, opening_date, message", [
+    (None, None, r"give opening_date=\.\.\., or a date column in stock_df \(date_column"),
     (["2026-03-23", "2026-03-24"], None, "must hold one opening date for every SKU"),
-    (["2026-03-23", None], None, "opening_stock_df.date must contain valid dates"),
-    (["2026-03-23", "not a date"], None, "opening_stock_df.date must contain valid dates"),
-    (["2026-03-23", "2026-03-23"], "2026-03-24", "start_date 2026-03-24 00:00:00 does not match"),
-    (None, "not a date", "start_date must be a valid timestamp"),
-    (["2026-03-23", "2026-03-23"], pd.NaT, "start_date must be a valid timestamp"),
+    (["2026-03-23", None], None, "stock_df.date must contain valid dates"),
+    (["2026-03-23", "not a date"], None, "stock_df.date must contain valid dates"),
+    (["2026-03-23", "2026-03-23"], "2026-03-24", "opening_date 2026-03-24 00:00:00 does not match"),
+    (None, "not a date", "opening_date must be a valid timestamp"),
+    (["2026-03-23", "2026-03-23"], pd.NaT, "opening_date must be a valid timestamp"),
 ])
-def test_observed_stock_opening_date_fails_closed(dates, start_date, message):
+def test_observed_stock_opening_date_fails_closed(dates, opening_date, message):
     stock = pd.DataFrame({"unique_id": ["a", "b"], "on_hand": [40.0, 12.0]})
     if dates is not None:
         stock["date"] = dates
     with pytest.raises(ValueError, match=message):
-        InventoryStateDataFrame.from_observed(stock, start_date=start_date)
+        InventoryStateDataFrame.from_observed(stock, opening_date=opening_date)
     with pytest.raises(ValueError, match=message):
-        InventoryStateDataFrame(["a", "b"]).initialize_from_observed(stock, start_date=start_date)
+        InventoryStateDataFrame(["a", "b"]).initialize_from_observed(stock, opening_date=opening_date)
 
 
 def test_observed_stock_takes_the_date_column():
     counts = pd.DataFrame({"unique_id": ["a", "b"], "on_hand": [40.0, 12.0]})
     reference = InventoryStateDataFrame.from_observed(
-        counts, start_date=pd.Timestamp("2026-03-23"),
+        counts, opening_date=pd.Timestamp("2026-03-23"),
     ).get_dataframe()
     counted = counts.assign(counted_on=pd.Timestamp("2026-03-23"))
     one_step = InventoryStateDataFrame.from_observed(counted, date_column="counted_on")
@@ -563,34 +563,34 @@ def test_observed_stock_takes_the_date_column():
     )
     for state in (one_step, two_step):
         pd.testing.assert_frame_equal(state.get_dataframe(), reference)
-    with pytest.raises(ValueError, match="start_date 2026-03-24 00:00:00 does not match opening_stock_df.counted_on"):
+    with pytest.raises(ValueError, match="opening_date 2026-03-24 00:00:00 does not match stock_df.counted_on"):
         InventoryStateDataFrame.from_observed(
-            counted, date_column="counted_on", start_date=pd.Timestamp("2026-03-24"),
+            counted, date_column="counted_on", opening_date=pd.Timestamp("2026-03-24"),
         )
-    # A named column must exist, even when start_date is given.
-    with pytest.raises(ValueError, match="date column 'counted_on' not found in opening_stock_df"):
+    # A named column must exist, even when opening_date is given.
+    with pytest.raises(ValueError, match="date column 'counted_on' not found in stock_df"):
         InventoryStateDataFrame.from_observed(
-            counts, date_column="counted_on", start_date=pd.Timestamp("2026-03-23"),
+            counts, date_column="counted_on", opening_date=pd.Timestamp("2026-03-23"),
         )
     for bad in ("", None, 3):
         with pytest.raises(ValueError, match="date_column must be a non-empty column name"):
             InventoryStateDataFrame.from_observed(
-                counted, date_column=bad, start_date=pd.Timestamp("2026-03-23"),
+                counted, date_column=bad, opening_date=pd.Timestamp("2026-03-23"),
             )
 
 
 def test_from_observed_takes_the_sku_column():
     stock = pd.DataFrame({"sku": ["a", "b"], "on_hand": [40.0, 12.0]})
     state = InventoryStateDataFrame.from_observed(
-        stock, start_date=pd.Timestamp("2026-03-23"), sku_column="sku", max_lead_time=2,
+        stock, opening_date=pd.Timestamp("2026-03-23"), sku_column="sku", max_lead_time=2,
     )
     two_step = InventoryStateDataFrame(
         pd.DataFrame({"sku": ["a", "b"]}), max_lead_time=2, sku_column="sku",
-    ).initialize_from_observed(stock, start_date=pd.Timestamp("2026-03-23"))
+    ).initialize_from_observed(stock, opening_date=pd.Timestamp("2026-03-23"))
     assert state.sku_column == "sku"
     pd.testing.assert_frame_equal(state.get_dataframe(), two_step.get_dataframe())
     with pytest.raises(ValueError, match=r"stock_df is missing columns: \['unique_id'\]"):
-        InventoryStateDataFrame.from_observed(stock, start_date=pd.Timestamp("2026-03-23"))
+        InventoryStateDataFrame.from_observed(stock, opening_date=pd.Timestamp("2026-03-23"))
 
 
 def test_unsized_pipeline_grows_only_with_empty_far_slots():

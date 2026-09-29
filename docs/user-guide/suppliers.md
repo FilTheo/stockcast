@@ -90,7 +90,7 @@ import warnings
 from stockcast.core import InventoryStateDataFrame, SimulationEngine
 
 inventory_8 = InventoryStateDataFrame.from_observed(   # pipeline sized to the longest delivery
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), start_date=opening_date,
+    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), opening_date=opening_date,
     allow_backorders=False,   # the manual loop below serves demand itself
 )
 

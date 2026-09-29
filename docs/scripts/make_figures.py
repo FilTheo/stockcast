@@ -100,7 +100,7 @@ def tea_inventory():
     ).initialize_from_observed(
         pd.DataFrame({"unique_id": [SKU], "on_hand": [30.0]}),
         on_hand_column="on_hand",
-        start_date=OPENING,
+        opening_date=OPENING,
     )
 
 
@@ -117,11 +117,11 @@ def tea_policy(probability):
         freq="D",
         service_level=probability,
         allow_backorders=False,
+        date_column="target_end_date",
     ).fit(
         target,
         target_column="target",
         forecast_origin=OPENING,
-        date_column="target_end_date",
     )
 
 
@@ -302,9 +302,10 @@ def fig_reorder_point():
         lead_time=LEAD_TIME, review_period=1, freq="D", policy_type="sQ",
         service_level=0.95, order_quantity=30.0,
         allow_backorders=False,
+        date_column="s_end_date",
     ).fit(
         targets, forecast_origin=OPENING,
-        reorder_point_column="s", date_column="s_end_date",
+        reorder_point_column="s",
     )
     events = tea_run(policy, demand).to_event_frame()
     dates = events["date"]

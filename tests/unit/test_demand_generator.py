@@ -251,9 +251,10 @@ def test_engine_runs_on_a_poisson_sampler():
     )
     inventory = InventoryStateDataFrame(
         skus, max_lead_time=1, allow_backorders=False,
-    ).initialize_zero(start_date=opening_date)
+    ).initialize_zero(opening_date=opening_date)
     policy = OrderUpToPolicy(
         lead_time=1, review_period=1, freq="D", service_level=0.9, allow_backorders=False,
+        date_column="target_end_date",
     ).fit(
         pd.DataFrame({
             "unique_id": skus,
@@ -264,7 +265,6 @@ def test_engine_runs_on_a_poisson_sampler():
         target_probability=0.9,
         protection_horizon=2,
         forecast_origin=opening_date,
-        date_column="target_end_date",
     )
 
     result = SimulationEngine().run(

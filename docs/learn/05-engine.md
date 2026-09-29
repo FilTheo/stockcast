@@ -51,23 +51,19 @@ demand = DemandGenerator(
 demand["y"] = demand["y"].round()
 
 inventory = InventoryStateDataFrame.from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}), start_date=opening_date,
+    pd.DataFrame({"unique_id": [sku], "date": [opening_date], "on_hand": [30.0]}),
 )
 
 paths = np.random.default_rng(42).poisson(6.0, size=(10_000, horizon))
 target = pd.DataFrame({
     "unique_id": [sku],
     "target": [np.quantile(paths.sum(axis=1), 0.95)],
-    "target_end_date": [opening_date + pd.Timedelta(days=horizon)],
+    "date": [opening_date + pd.Timedelta(days=horizon)],   # the last day it covers
 })
 policy = OrderUpToPolicy(
     lead_time=lead_time, review_period=review_period, freq="D",
     service_level=0.95, allow_backorders=False,
-).fit(
-    target, target_column="target",
-    forecast_origin=opening_date,
-    date_column="target_end_date",
-)
+).fit(target, target_column="target")
 
 engine = SimulationEngine()
 result = engine.run(

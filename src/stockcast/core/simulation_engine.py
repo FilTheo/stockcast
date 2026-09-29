@@ -61,6 +61,7 @@ from stockcast.core.data_structures import (
     _rename_input_columns,
     _require_forward_frequency,
     _require_identifiers,
+    _require_period_date,
 )
 from stockcast.core._open_orders import (
     DELIVERY_OUTCOME_COLUMNS,
@@ -377,7 +378,9 @@ def _order_arrival_flags(event_frame: pd.DataFrame, order_frame: pd.DataFrame) -
         keys.sort_values('due', kind='stable')
         .drop_duplicates(['known', 'sku', 'order'])
     )
-    arrivals = pd.MultiIndex.from_arrays([first['sku'], first['due']])
+    arrivals = pd.MultiIndex.from_arrays([
+        first['sku'].to_numpy(dtype=object), first['due'].to_numpy(dtype=np.int64),
+    ])
     ledger = pd.MultiIndex.from_arrays([
         event_frame['unique_id'].to_numpy(dtype=object),
         event_frame['period'].to_numpy(dtype=np.int64),
@@ -1149,9 +1152,16 @@ def _demand_run_steps(dates: pd.Series, opening_date, offset) -> np.ndarray:
     steps = grid.get_indexer(pd.DatetimeIndex(dates))
     if (steps < 0).any():
         off_grid = sorted(str(value) for value in dates[steps < 0].unique())[:5]
+        hint = ""
+        if opening_date != opening_date.normalize():
+            hint = (
+                f"; the inventory's opening date {opening_date} has a time of day, "
+                "so its periods do too: give the opening date without one (for "
+                "example pd.Timestamp(...).normalize())"
+            )
         raise ValueError(
             f"demand_source.date values {off_grid} are not on the period grid "
-            f"starting {first} ({offset.freqstr})"
+            f"starting {first} ({offset.freqstr}){hint}"
         )
     if steps.min() > 0:
         raise ValueError(
@@ -1424,6 +1434,7 @@ class SimulationEngine:
         if freq is None:
             freq = self._infer_period_frequency([policy])
         period_offset = _require_forward_frequency(freq, "freq")
+        self._require_opening_on_calendar(inventory, period_offset)
         schedule_manifest = policy.schedule.to_manifest()
         if not isinstance(schedule_manifest, dict):
             raise TypeError("decision schedule manifest must be a dictionary")
@@ -1523,6 +1534,7 @@ class SimulationEngine:
             exact=False,
             expected_frequency=period_offset,
         )
+        self._require_window_in_run(policy, opening_date)
         policy_schedule = self._validate_policy_schedule(
             policy,
             policy_schedule,
@@ -2399,7 +2411,9 @@ class SimulationEngine:
         self._supply_timing_warned = True
         warnings.warn(
             "supplier deliveries arrive at times other than the policy's lead_time "
-            f"({self._supply_policy_lead_time} periods). The policy's targets were set "
+            f"({self._supply_policy_lead_time} "
+            f"period{'' if self._supply_policy_lead_time == 1 else 's'}). "
+            "The policy's targets were set "
             "for that fixed lead time and are not adjusted, so its protection window "
             "does not describe this supply. Results are valid for this assumption; "
             "see 'Lead-time assumption' in the suppliers-and-open-orders guide.",
@@ -2853,6 +2867,31 @@ class SimulationEngine:
                 f"policy forecast_origin {origin}{source} must {relation} decision "
                 f"information date {allowed}"
             )
+
+    @staticmethod
+    def _require_window_in_run(policy: BasePolicy, opening_date: pd.Timestamp) -> None:
+        """Reject a dated target whose window ends on or before the opening date.
+
+        Such a window covers none of the run's demand: usually a date column
+        holding the day the forecast was made instead of the last period it
+        covers. A fitted level reused at later reviews is fine as long as its
+        window reaches into the run.
+        """
+        get_metadata = getattr(policy, "get_target_metadata", None)
+        metadata = get_metadata() if callable(get_metadata) else {}
+        if not isinstance(metadata, dict):
+            return
+        end = metadata.get("target_end_date", metadata.get("reorder_end_date"))
+        if end is None or pd.Timestamp(end) > opening_date:
+            return
+        column = getattr(policy, "_forecast_origin_column", None)
+        source = f" (the '{column}' column)" if column else ""
+        raise ValueError(
+            f"the policy's target window ends {pd.Timestamp(end)}{source}, on or "
+            f"before the inventory's opening date {opening_date}, so it covers none "
+            "of the run's demand. A target's date is the last period it covers, "
+            "not the day the forecast was made"
+        )
 
     @staticmethod
     def _policy_for_decision(
@@ -3328,6 +3367,7 @@ class SimulationEngine:
                     "the run"
                 ) from None
             return demand_source, 0
+        cls._require_opening_on_calendar(inventory, offset)
         if freq is not None and {'period', 'date'} <= set(demand_source.columns):
             try:
                 recorded = _require_forward_frequency(
@@ -3430,6 +3470,19 @@ class SimulationEngine:
         frame = frame.copy()
         frame['period'] = periods - shift
         return frame, shift
+
+    @staticmethod
+    def _require_opening_on_calendar(inventory, offset) -> None:
+        """Reject an opening date that is not a period date of ``offset``.
+
+        Period ``p`` is dated opening date + ``(p + 1)`` periods and a decision
+        at ``p`` knows demand up to opening date + ``p`` periods. Off the
+        calendar (a Sunday count with ``"W-MON"`` periods), pandas would roll
+        the opening date forward onto period 0's own date.
+        """
+        dates = pd.to_datetime(inventory.get_dataframe()['date'], errors='coerce')
+        if dates.notna().all() and dates.nunique() == 1:
+            _require_period_date(dates.iloc[0], offset, "the inventory's opening date")
 
     @staticmethod
     def _infer_period_frequency(policies: Sequence[BasePolicy]) -> str:

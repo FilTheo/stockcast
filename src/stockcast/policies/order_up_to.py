@@ -21,6 +21,7 @@ from stockcast.core.base_policy import BasePolicy
 from stockcast.core.decision_schedule import DecisionSchedule
 from stockcast.policies._target_validation import (
     _QUANTILE_COLUMN,
+    _require_column_name,
     prepare_direct_targets,
     prepare_independent_normal_forecasts,
     prepare_inventory_positions,
@@ -63,7 +64,9 @@ class OrderUpToPolicy(BasePolicy):
                  freq: Optional[str] = None,
                  service_level: Optional[float] = None,
                  allow_backorders: bool,
-                 schedule: Optional[DecisionSchedule] = None):
+                 schedule: Optional[DecisionSchedule] = None,
+                 sku_column: str = 'unique_id',
+                 date_column: str = 'date'):
         """
         Initialize Order-Up-To policy with configuration parameters.
 
@@ -77,10 +80,18 @@ class OrderUpToPolicy(BasePolicy):
             service_level: Target probability, or None for external planner targets
             allow_backorders: Explicitly choose backorders or lost sales
             schedule: Optional DecisionSchedule; replaces periodic shorthand.
+            sku_column: SKU column of the tables given to ``fit`` and ``predict``
+                (default ``"unique_id"``).
+            date_column: Date column of the table given to ``fit``: the date of
+                the last demand period each row covers (default ``"date"``).
+                The default column is read only if it exists; a column named
+                explicitly must exist.
         """
         super().__init__(lead_time, review_period, service_level, allow_backorders, schedule=schedule)
         self.freq = freq
         self._freq_offset = None if freq is None else _require_forward_frequency(freq, "freq")
+        self.sku_column = _require_column_name(sku_column, "sku_column")
+        self.date_column = _require_column_name(date_column, "date_column")
         self.policy_name = "Order-Up-To (R,S)"
         self.safety_factor = NormalDist().inv_cdf(self.service_level) if self.service_level is not None else None
 
@@ -94,10 +105,8 @@ class OrderUpToPolicy(BasePolicy):
         *,
         forecast_origin: Optional[pd.Timestamp] = None,
         target_column: Optional[str] = None,
-        date_column: str = "date",
         target_probability: Optional[float] = None,
         protection_horizon: Optional[int] = None,
-        sku_column: str = 'unique_id',
         mean_column: Optional[str] = None,
         std_column: Optional[str] = None,
     ) -> "OrderUpToPolicy":
@@ -120,7 +129,8 @@ class OrderUpToPolicy(BasePolicy):
         ``protection_horizon`` periods, so its end date is
         ``forecast_origin + protection_horizon`` periods. Give the origin, a
         date column, or both (they must then agree): the origin follows from
-        each row's date exactly.
+        each row's date exactly. The table's column names are the policy's
+        ``sku_column`` and ``date_column``.
 
         The period length is the policy's ``freq``. Without it, mean/std mode
         reads it from the forecast dates when every SKU has at least three
@@ -137,12 +147,6 @@ class OrderUpToPolicy(BasePolicy):
                 dates the rows.
             target_column: Direct protection-period target column. The frame
                 must contain exactly one row per SKU in this mode.
-            date_column: Column with the date of the last demand period each
-                row covers: for a direct target, the window's last period
-                (origin + ``protection_horizon`` periods); for a mean/std row,
-                its own period (origin + ``fh`` periods). The origin follows
-                from it, and is checked against it when also given. Read only
-                if the column exists.
             target_probability: Probability represented by the target. Defaults
                 to the policy's ``service_level``; if given, it must equal it.
             protection_horizon: Number of periods represented by the target.
@@ -150,7 +154,6 @@ class OrderUpToPolicy(BasePolicy):
                 schedules (and must equal it if given). Nonperiodic schedules
                 require an explicit horizon, checked at each decision against
                 its next opportunity or terminal window.
-            sku_column: SKU identifier column.
             mean_column: Marginal forecast mean column for mean/std mode.
             std_column: Marginal forecast standard deviation column for
                 mean/std mode. It is required; Stockcast never invents it.
@@ -165,6 +168,7 @@ class OrderUpToPolicy(BasePolicy):
             self.schedule, self.lead_time, protection_horizon, "protection_horizon",
         )
         forecast_offset = self._freq_offset
+        sku_column, date_column = self.sku_column, self.date_column
 
         direct_mode = target_column is not None
         normal_mode = mean_column is not None or std_column is not None
@@ -329,7 +333,7 @@ class OrderUpToPolicy(BasePolicy):
         Args:
             inventory_state_df: InventoryStateDataFrame object or DataFrame with inventory data
                             Must have 'inventory_position' or ['on_hand', 'on_order', 'backorders']
-            sku_column: Column name for SKU identifier (uses fit() column if None)
+            sku_column: SKU column of the state; defaults to the policy's ``sku_column``.
             current_period: Explicit decision period used for order and delivery timing.
 
         Returns:
@@ -437,6 +441,7 @@ class OrderUpToPolicy(BasePolicy):
         fitted_status = "fitted" if self.fitted_ else "not fitted"
         return (f"OrderUpToPolicy(lead_time={self.lead_time}, "
                 f"review_period={self.review_period}, "
+                f"freq={self.freq!r}, "
                 f"service_level={self.service_level}, "
                 f"allow_backorders={self.allow_backorders}, "
                 f"status={fitted_status})")

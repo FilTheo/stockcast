@@ -98,10 +98,9 @@ targets
 from stockcast.policies import OrderUpToPolicy
 
 policy = OrderUpToPolicy(lead_time=2, review_period=4, freq="D", service_level=0.95,
-                         allow_backorders=False).fit(
+                         allow_backorders=False, date_column="target_end_date").fit(
     targets, target_column="target",
     forecast_origin=origin,
-    date_column="target_end_date",
 )
 policy.get_target_levels()
 ```

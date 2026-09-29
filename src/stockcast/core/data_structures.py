@@ -115,9 +115,9 @@ def _rename_input_columns(
 
 
 def _observed_opening_date(
-    stock_df: pd.DataFrame, start_date, date_column: str, frame_name: str,
+    stock_df: pd.DataFrame, opening_date, date_column: str, frame_name: str,
 ) -> pd.Timestamp:
-    """Opening date of a stock count: ``start_date``, the table's date column, or both.
+    """Opening date of a stock count: ``opening_date``, the table's date column, or both.
 
     The default ``"date"`` column is read only if it exists; a column named
     explicitly must exist. Every row must hold the same valid date. When both
@@ -126,19 +126,19 @@ def _observed_opening_date(
     if not isinstance(date_column, str) or not date_column:
         raise ValueError("date_column must be a non-empty column name")
     given = None
-    if start_date is not None:
+    if opening_date is not None:
         try:
-            given = pd.Timestamp(start_date)
+            given = pd.Timestamp(opening_date)
         except (TypeError, ValueError) as exc:
-            raise ValueError("start_date must be a valid timestamp") from exc
+            raise ValueError("opening_date must be a valid timestamp") from exc
         if pd.isna(given):
-            raise ValueError("start_date must be a valid timestamp")
+            raise ValueError("opening_date must be a valid timestamp")
     if date_column not in stock_df.columns:
         if date_column != "date":
             raise ValueError(f"date column '{date_column}' not found in {frame_name}")
         if given is None:
             raise ValueError(
-                f"give start_date=..., or a date column in {frame_name} "
+                f"give opening_date=..., or a date column in {frame_name} "
                 "(date_column=..., default 'date'): the opening date is the day "
                 "the stock was counted"
             )
@@ -152,16 +152,35 @@ def _observed_opening_date(
             f"{frame_name}.{date_column} must hold one opening date for every SKU; "
             f"got {actual}"
         )
-    # The row's own value, as start_date would give it (pd.to_datetime may
+    # The row's own value, as opening_date would give it (pd.to_datetime may
     # change the resolution).
     counted = pd.Timestamp(stock_df[date_column].iloc[0])
     if given is not None:
         if given != counted:
             raise ValueError(
-                f"start_date {given} does not match {frame_name}.{date_column} {counted}"
+                f"opening_date {given} does not match {frame_name}.{date_column} {counted}"
             )
         return given
     return counted
+
+
+def _require_period_date(stamp, offset, name: str) -> None:
+    """Raise unless ``stamp`` is a period date of ``offset``.
+
+    Stockcast dates period ``k`` as ``date + k`` periods. For an anchored
+    frequency (``"W-MON"``, ``"MS"``, ``"B"``, ...) pandas rolls a date that
+    is not on the anchor forward to the next one, even for ``k = 0``, which
+    would silently move the calendar; such a date is rejected instead.
+    """
+    stamp = pd.Timestamp(stamp)
+    if offset.is_on_offset(stamp):
+        return
+    before, after = offset.rollback(stamp), offset.rollforward(stamp)
+    day = (lambda value: str(value.date()) if value == value.normalize() else str(value))
+    raise ValueError(
+        f"{name} {day(stamp)} is not on the {offset.freqstr!r} calendar: every "
+        f"date must be a period date of freq, such as {day(before)} or {day(after)}"
+    )
 
 
 def _require_forward_frequency(value: str, name: str):
@@ -441,7 +460,7 @@ class InventoryStateDataFrame:
         ```python
         state = InventoryStateDataFrame.from_observed(
             pd.DataFrame({"unique_id": ["tea_250g", "coffee_1kg"], "on_hand": [30.0, 12.0]}),
-            start_date=pd.Timestamp("2026-01-05"),
+            opening_date=pd.Timestamp("2026-01-05"),
         )
         state.inventory_position()
         ```
@@ -451,7 +470,7 @@ class InventoryStateDataFrame:
                  data: Union[pd.DataFrame, List, np.ndarray],
                  max_lead_time: Optional[int] = None,
                  sku_column: str = 'unique_id',
-                 start_date: Optional[pd.Timestamp] = None,
+                 opening_date: Optional[pd.Timestamp] = None,
                  allow_backorders: Optional[bool] = None):
         """Create a state for a fixed set of SKUs.
 
@@ -467,7 +486,8 @@ class InventoryStateDataFrame:
                 slots at the far end. Give a number to fix it, for example to
                 leave room for delayed supplier deliveries.
             sku_column: Name of the SKU column (default ``"unique_id"``).
-            start_date: Opening date, if not given later to an initializer.
+            opening_date: Opening date (the day the stock was counted), if not
+                given later to an initializer.
             allow_backorders: ``True`` (backorders) or ``False`` (lost sales). May
                 stay unset until the engine applies the policy's setting; an
                 explicit value must match the policy's.
@@ -515,13 +535,13 @@ class InventoryStateDataFrame:
         # state frame. Missing or conflicting dates remain invalid until an
         # initializer supplies an explicit date.
         inferred_date = pd.NaT
-        if start_date is not None:
+        if opening_date is not None:
             try:
-                inferred_date = pd.Timestamp(start_date)
+                inferred_date = pd.Timestamp(opening_date)
             except (TypeError, ValueError) as exc:
-                raise ValueError("start_date must be a valid timestamp") from exc
+                raise ValueError("opening_date must be a valid timestamp") from exc
             if pd.isna(inferred_date):
-                raise ValueError("start_date must be a valid timestamp")
+                raise ValueError("opening_date must be a valid timestamp")
         elif 'date' in df_input.columns:
             one_date = _one_valid_date(df_input['date'])
             if one_date is not None:
@@ -856,14 +876,14 @@ class InventoryStateDataFrame:
                 f"has_stockout={self.has_stockout}, "
                 f"has_backorder={self.has_backorder})")
 
-    def initialize_zero(self, start_date: Optional[pd.Timestamp] = None) -> 'InventoryStateDataFrame':
+    def initialize_zero(self, opening_date: Optional[pd.Timestamp] = None) -> 'InventoryStateDataFrame':
         """Initialize all inventory levels to zero.
 
         Sets all numeric inventory columns (on_hand, backorders, target_level, latest_order) to 0
         and period to 0. Useful for starting fresh simulations with empty inventory.
 
         Args:
-            start_date: Explicit opening date, or omit only when the constructor
+            opening_date: Explicit opening date, or omit only when the constructor
                 retained one complete state date
 
         Returns:
@@ -875,7 +895,7 @@ class InventoryStateDataFrame:
                 pd.DataFrame({'unique_id': ['SKU_A', 'SKU_B']}),
                 max_lead_time=7,
             )
-            inventory.initialize_zero(start_date=pd.Timestamp('2025-01-01'))
+            inventory.initialize_zero(opening_date=pd.Timestamp('2025-01-01'))
             # → on_hand=0, target_level=0, latest_order=0, backorders=0 for all SKUs
             ```
         """
@@ -893,7 +913,7 @@ class InventoryStateDataFrame:
         self.data['latest_shortage'] = 0.0
         self.data['backorders'] = 0.0
         self.data['period'] = 0.0
-        self.data['date'] = start_date if start_date is not None else self._inferred_start_date
+        self.data['date'] = opening_date if opening_date is not None else self._inferred_start_date
         self.data['is_review_period'] = False
 
         # Re-initialize in_transit arrays for each SKU
@@ -911,7 +931,7 @@ class InventoryStateDataFrame:
         cls,
         stock_df: pd.DataFrame,
         *,
-        start_date: Optional[pd.Timestamp] = None,
+        opening_date: Optional[pd.Timestamp] = None,
         on_hand_column: str = "on_hand",
         sku_column: str = "unique_id",
         date_column: str = "date",
@@ -926,7 +946,7 @@ class InventoryStateDataFrame:
         Args:
             stock_df: One row per SKU with the SKU column and the counted stock,
                 and optionally a date column with the opening date.
-            start_date: The opening date (the day the stock was counted).
+            opening_date: The opening date (the day the stock was counted).
                 Optional when ``stock_df`` has the date column; checked
                 against it when both are given.
             on_hand_column: Column holding the counted stock.
@@ -948,7 +968,7 @@ class InventoryStateDataFrame:
             ```python
             state = InventoryStateDataFrame.from_observed(
                 pd.DataFrame({"unique_id": ["tea", "coffee"], "on_hand": [30.0, 12.0]}),
-                start_date=pd.Timestamp("2026-01-05"),
+                opening_date=pd.Timestamp("2026-01-05"),
             )
 
             # Or date the table itself:
@@ -967,32 +987,32 @@ class InventoryStateDataFrame:
         state = cls(stock_df[[sku_column]], max_lead_time, sku_column=sku_column,
                     allow_backorders=allow_backorders)
         return state.initialize_from_observed(
-            stock_df, on_hand_column=on_hand_column, start_date=start_date,
+            stock_df, on_hand_column=on_hand_column, opening_date=opening_date,
             date_column=date_column,
         )
 
     def initialize_from_observed(
         self,
-        opening_stock_df: pd.DataFrame,
+        stock_df: pd.DataFrame,
         *,
         on_hand_column: str = "on_hand",
-        start_date: Optional[pd.Timestamp] = None,
+        opening_date: Optional[pd.Timestamp] = None,
         sku_column: Optional[str] = None,
         date_column: str = "date",
     ) -> 'InventoryStateDataFrame':
         """Set counted on-hand stock; no pipeline and no backorders.
 
-        The opening date is ``start_date``, the date column of
-        ``opening_stock_df``, or both (they must then agree). Every row must
+        The opening date is ``opening_date``, the date column of
+        ``stock_df``, or both (they must then agree). Every row must
         hold the same date.
 
         Args:
-            opening_stock_df: One row per SKU with the SKU column and the stock,
+            stock_df: One row per SKU with the SKU column and the stock,
                 and optionally a date column with the opening date.
             on_hand_column: Column holding the counted stock (default ``"on_hand"``).
-            start_date: The opening date (the day the stock was counted).
-                Optional when ``opening_stock_df`` has the date column.
-            sku_column: SKU column of ``opening_stock_df``; defaults to the state's.
+            opening_date: The opening date (the day the stock was counted).
+                Optional when ``stock_df`` has the date column.
+            sku_column: SKU column of ``stock_df``; defaults to the state's.
             date_column: Column with the opening date (default ``"date"``).
                 The default column is read only if it exists; a column named
                 explicitly must exist.
@@ -1003,25 +1023,25 @@ class InventoryStateDataFrame:
         Raises:
             ValueError: If SKUs are missing or extra, stock is negative or not
                 finite, or the opening date is missing, invalid, not the same
-                for every row, or differs from ``start_date``.
+                for every row, or differs from ``opening_date``.
         """
         sku_column = sku_column or self.sku_column
-        if not isinstance(opening_stock_df, pd.DataFrame) or opening_stock_df.empty:
-            raise ValueError("opening_stock_df must be a non-empty pandas DataFrame")
+        if not isinstance(stock_df, pd.DataFrame) or stock_df.empty:
+            raise ValueError("stock_df must be a non-empty pandas DataFrame")
         missing_columns = [
             column
             for column in [sku_column, on_hand_column]
-            if column not in opening_stock_df.columns
+            if column not in stock_df.columns
         ]
         if missing_columns:
-            raise ValueError(f"opening_stock_df is missing columns: {missing_columns}")
+            raise ValueError(f"stock_df is missing columns: {missing_columns}")
         supplied_skus = _require_identifiers(
-            opening_stock_df,
+            stock_df,
             sku_column,
-            'opening_stock_df',
+            'stock_df',
             unique=True,
         )
-        _require_finite_nonnegative(opening_stock_df, [on_hand_column], 'opening_stock_df')
+        _require_finite_nonnegative(stock_df, [on_hand_column], 'stock_df')
         expected_skus = _require_identifiers(
             self.data,
             self.sku_column,
@@ -1030,16 +1050,16 @@ class InventoryStateDataFrame:
         )
         if supplied_skus != expected_skus:
             raise ValueError(
-                "opening_stock_df must contain exactly the inventory SKUs; "
+                "stock_df must contain exactly the inventory SKUs; "
                 f"missing={_identifier_sample(expected_skus - supplied_skus)}, "
                 f"extra={_identifier_sample(supplied_skus - expected_skus)}"
             )
         opening_date = _observed_opening_date(
-            opening_stock_df, start_date, date_column, 'opening_stock_df',
+            stock_df, opening_date, date_column, 'stock_df',
         )
 
-        stock_by_sku = opening_stock_df.set_index(sku_column)[on_hand_column]
-        self.initialize_zero(start_date=opening_date)
+        stock_by_sku = stock_df.set_index(sku_column)[on_hand_column]
+        self.initialize_zero(opening_date=opening_date)
         self.data['on_hand'] = self.data[self.sku_column].map(stock_by_sku).astype(float)
         return self
 
@@ -1157,7 +1177,7 @@ class InventoryStateDataFrame:
             if any(_is_missing(value) for value in labels):
                 raise ValueError("open_orders.order_id must not contain missing values")
             try:
-                codes, uniques = pd.factorize(pd.Series(labels, dtype=object), sort=False)
+                codes, _ = pd.factorize(pd.Series(labels, dtype=object).to_numpy(), sort=False)
             except TypeError as exc:
                 raise ValueError("open_orders.order_id values must be hashable") from exc
             line = codes.astype(np.int64)
@@ -1262,6 +1282,7 @@ class InventoryStateDataFrame:
         """
         self._validate_ready_state()
         offset = _require_forward_frequency(freq, "freq")
+        _require_period_date(self.data["date"].iloc[0], offset, "the state's date")
         if not isinstance(is_review_period, bool):
             raise ValueError("is_review_period must be boolean")
         data = self.data.copy()
@@ -1344,7 +1365,7 @@ class InventoryStateDataFrame:
         result._history.append(result.data.copy())
         return result
 
-    def process_demand(self, demand_df: pd.DataFrame, freq: str,
+    def process_demand(self, demand_df: pd.DataFrame, *, freq: str,
                        demand_column: str = "y", date_column: Optional[str] = "date",
                        sku_column: Optional[str] = None) -> 'InventoryStateDataFrame':
         """Advance, receive and serve demand in one step, without an order.

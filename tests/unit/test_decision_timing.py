@@ -29,7 +29,7 @@ def run(
         ["A"],
         max_lead_time=max(2, policy.lead_time),
         allow_backorders=policy.allow_backorders,
-    ).initialize_zero(start_date=ORIGIN)
+    ).initialize_zero(opening_date=ORIGIN)
     state.data["on_hand"] = stock
     state.data["backorders"] = backlog
     if pipeline is not None:
@@ -71,7 +71,7 @@ def target_policy(
 ):
     schedule = schedule or PeriodicSchedule(review)
     horizon = horizon or lead + review
-    return OrderUpToPolicy(lead, freq="D", schedule=schedule, allow_backorders=backorders).fit(
+    return OrderUpToPolicy(lead, freq="D", schedule=schedule, allow_backorders=backorders, date_column="end").fit(
         pd.DataFrame(
             {
                 "unique_id": ["A"],
@@ -81,7 +81,6 @@ def target_policy(
         ),
         forecast_origin=origin,
         target_column="S",
-        date_column="end",
         protection_horizon=horizon,
     )
 
@@ -171,7 +170,7 @@ def test_one_time_target_and_newsvendor_economics():
     )
     assert alpha == 0.75
     policy = SingleOrderPolicy(
-        0, freq="D", selling_horizon=3, service_level=alpha, allow_backorders=False
+        0, freq="D", selling_horizon=3, service_level=alpha, allow_backorders=False, date_column="end"
     ).fit(
         pd.DataFrame(
             {"unique_id": ["A"], "q75": [12.0], "end": [ORIGIN + pd.Timedelta(days=3)]}
@@ -179,7 +178,6 @@ def test_one_time_target_and_newsvendor_economics():
         forecast_origin=ORIGIN,
         target_column="q75",
         target_probability=alpha,
-        date_column="end",
     )
     events = run(policy, [4.0, 5.0, 6.0, 0.0, 0.0], stock=0.0).to_event_frame()
     assert events.order_quantity.tolist() == [12.0, 0.0, 0.0, 0.0, 0.0]
@@ -193,13 +191,12 @@ def test_one_time_target_and_newsvendor_economics():
 
 
 def test_positive_lead_season_delivers_before_season_and_observes_end():
-    policy = SingleOrderPolicy(1, freq="D", selling_horizon=2, allow_backorders=False).fit(
+    policy = SingleOrderPolicy(1, freq="D", selling_horizon=2, allow_backorders=False, date_column="end").fit(
         pd.DataFrame(
             {"unique_id": ["A"], "S": [12.0], "end": [ORIGIN + pd.Timedelta(days=3)]}
         ),
         forecast_origin=ORIGIN,
         target_column="S",
-        date_column="end",
     )
     events = run(policy, [0.0, 4.0, 5.0, 0.0, 0.0], stock=0.0).to_event_frame()
     assert events.received_units.tolist() == [0.0, 12.0, 0.0, 0.0, 0.0]
@@ -209,7 +206,7 @@ def test_positive_lead_season_delivers_before_season_and_observes_end():
 def test_irregular_windows_require_matching_refitted_targets():
     schedule = ExplicitSchedule([0, 2, 5])
     policy = target_policy(schedule=schedule, horizon=2)
-    with pytest.raises(ValueError, match="horizon 3"):
+    with pytest.raises(ValueError, match=r"decision at period 2: .* window is 3 \+ lead_time 0 = 3"):
         run(policy, [1.0] * 8)
     snapshots = {
         2: target_policy(
@@ -337,12 +334,12 @@ def test_zero_lead_reorder_point_protects_the_current_demand_epoch():
         service_level=0.95,
         allow_backorders=False,
         order_quantity=10,
+        date_column="end",
     )
     table = pd.DataFrame({"unique_id": ["A"], "s": [4.0], "end": [ORIGIN + pd.Timedelta(days=1)]})
     args = dict(
         forecast_origin=ORIGIN,
         reorder_point_column="s",
-        date_column="end",
         target_probability=0.95,
         reorder_horizon=1,
     )
@@ -367,6 +364,7 @@ def test_reorder_point_window_follows_the_next_opportunity(periods, lead):
     origin = ORIGIN + pd.Timedelta(days=first)
     policy = ReorderPointPolicy(
         lead, freq="D", schedule=schedule, policy_type="sS", allow_backorders=True,
+        date_column="end",
     )
     table = pd.DataFrame({
         "unique_id": ["A"], "s": [5.0], "S": [12.0],
@@ -374,13 +372,14 @@ def test_reorder_point_window_follows_the_next_opportunity(periods, lead):
     })
     args = dict(
         forecast_origin=origin, reorder_point_column="s",
-        order_up_to_column="S", date_column="end",
+        order_up_to_column="S",
     )
     policy.fit(table, reorder_horizon=horizon, **args)
     policy.validate_decision_window(first, origin, pd.offsets.Day())
     with pytest.raises(ValueError, match="reorder_horizon"):
         wrong = ReorderPointPolicy(
             lead, freq="D", schedule=schedule, policy_type="sS", allow_backorders=True,
+            date_column="end",
         )
         wrong.fit(
             table.assign(end=origin + pd.Timedelta(days=horizon + 1)),
@@ -432,13 +431,15 @@ def test_demand_window_validation_cannot_change_scenario_or_leak_future_into_pre
             assert not hasattr(self, "future_demand")
             return super().predict(inventory, **kwargs)
 
-    policy = MutatingValidator(0, review_period=1, freq="D", allow_backorders=False).fit(
+    policy = MutatingValidator(
+        0, review_period=1, freq="D", allow_backorders=False,
+        date_column="end",
+    ).fit(
         pd.DataFrame(
             {"unique_id": ["A"], "S": [10.0], "end": [ORIGIN + pd.Timedelta(days=1)]}
         ),
         forecast_origin=ORIGIN,
         target_column="S",
-        date_column="end",
         protection_horizon=1,
     )
     events = run(policy, [2.0, 3.0, 0.0, 0.0]).to_event_frame()

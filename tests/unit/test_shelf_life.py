@@ -102,7 +102,7 @@ def test_ledger_receive_requires_finite_nonnegative_quantity():
 
 def test_opening_lots_do_not_coerce_identifier_types():
     inventory = InventoryStateDataFrame(["1"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = 1.0
     lots = pd.DataFrame({
@@ -117,7 +117,7 @@ def test_opening_lots_do_not_coerce_identifier_types():
 
 def test_engine_expires_opening_stock_before_demand():
     inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = 10.0
     policy = NoOrderPolicy(
@@ -161,7 +161,7 @@ def test_engine_expires_opening_stock_before_demand():
 
 def test_engine_tracks_arriving_lot_dates():
     inventory = InventoryStateDataFrame(["A"], max_lead_time=2).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     policy = OrderOncePolicy(
         order_period=1,
@@ -202,7 +202,7 @@ def test_engine_tracks_arriving_lot_dates():
 def test_engine_shelf_life_changes_outcomes():
     def run(shelf_life_days):
         inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-            start_date=pd.Timestamp("2025-01-01")
+            opening_date=pd.Timestamp("2025-01-01")
         )
         inventory.data["on_hand"] = 10.0
         policy = NoOrderPolicy(
@@ -248,7 +248,7 @@ def test_reused_shelf_life_process_resets_fifo_ledger_between_runs():
 
     def run_once():
         inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-            start_date=pd.Timestamp("2025-01-01")
+            opening_date=pd.Timestamp("2025-01-01")
         )
         inventory.data["on_hand"] = 5.0
         return SimulationEngine().run(
@@ -271,7 +271,7 @@ def test_reused_shelf_life_process_resets_fifo_ledger_between_runs():
 
 def test_engine_fifo_accounts_for_backorder_clearance():
     inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     policy = OrderOncePolicy(
         order_period=1,
@@ -304,7 +304,7 @@ def test_engine_fifo_accounts_for_backorder_clearance():
 
 def test_opening_lots_must_balance_opening_inventory():
     inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = 5.0
     with pytest.raises(ValueError, match="exactly equal opening on_hand"):
@@ -332,7 +332,7 @@ def test_opening_lots_must_balance_opening_inventory():
 
 def test_expired_opening_lots_reject_by_default_or_write_off_explicitly():
     inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = 5.0
     stale_lots = pd.DataFrame({
@@ -378,7 +378,7 @@ def test_expired_opening_lots_reject_by_default_or_write_off_explicitly():
     assert inventory.get_dataframe().iloc[0]["on_hand"] == 5.0
 
     clean_inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     clean_inventory.data["on_hand"] = 5.0
     clean_lots = stale_lots.copy()
@@ -397,7 +397,7 @@ def test_expired_opening_lots_reject_by_default_or_write_off_explicitly():
 
 def _comparison_inputs(scale=1.0):
     inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = 10.0 * scale
     policies = [
@@ -435,7 +435,7 @@ def test_ledger_balances_tolerate_rounding_at_gram_scale():
 
     opening = 24589931.22
     inventory = InventoryStateDataFrame(["A"], max_lead_time=1).initialize_zero(
-        start_date=pd.Timestamp("2025-01-01")
+        opening_date=pd.Timestamp("2025-01-01")
     )
     inventory.data["on_hand"] = opening
     lots = pd.DataFrame({

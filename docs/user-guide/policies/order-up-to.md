@@ -76,11 +76,11 @@ policy = OrderUpToPolicy(
     freq="D",
     service_level=0.95,
     allow_backorders=False,
+    date_column="S_end",
 ).fit(
     target,
     target_column="S",
     forecast_origin=opening_date,
-    date_column="S_end",
 )
 policy.get_target_metadata()
 ```
@@ -99,6 +99,7 @@ policy.get_target_metadata()
 | `service_level` | $\alpha$, or `None` for [planner targets](../forecast-targets.md#three-ways-to-fit-a-target) |
 | `allow_backorders` | `True` or `False` |
 | `schedule` | any [`DecisionSchedule`](../decision-schedules.md) |
+| `sku_column`, `date_column` | column names of the tables given to `fit` and `predict` (defaults `"unique_id"`, `"date"`) |
 
 ### Fitting
 
@@ -108,8 +109,8 @@ policy.get_target_metadata()
 - **direct**: `target_column`;
 - **independent normal**: `mean_column` and `std_column`, one row per step.
 
-Both date their rows with `date_column` (default `"date"`): the last period
-each row covers. The origin follows from it, so `forecast_origin` is
+Both date their rows with the policy's `date_column` (default `"date"`, set
+in the constructor next to `sku_column`): the last period each row covers. The origin follows from it, so `forecast_origin` is
 optional (and checked when you give both). The window `protection_horizon`
 defaults to $L + R$ and the probability `target_probability` to the
 `service_level`; pass them only to have them checked.

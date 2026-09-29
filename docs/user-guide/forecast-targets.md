@@ -147,7 +147,8 @@ The `date` column of a forecast table is the last period each row covers:
 the window's last day for a one-row target, the step's own day for a
 per-step row. The forecast origin follows from it exactly, so you can leave
 out `forecast_origin` (give both and Stockcast checks they agree). A table
-with its dates in another column names it with `date_column=...`. Per-step
+with its dates in another column names it on the policy, next to the SKU
+column: `OrderUpToPolicy(..., sku_column="item", date_column="end")`. Per-step
 rows may also leave out `fh` when you give `forecast_origin`: each date
 tells its step.
 
@@ -162,14 +163,11 @@ tells its step.
     target = pd.DataFrame({
         "unique_id": ["tea_250g"],
         "S": [target_correlated],
-        "S_end": [opening_date + pd.Timedelta(days=6)],
+        "date": [opening_date + pd.Timedelta(days=6)],   # the last day it covers
     })
     policy = OrderUpToPolicy(lead_time=2, review_period=4, freq="D",
                              service_level=0.95, allow_backorders=False).fit(
-        target,
-        target_column="S",
-        forecast_origin=opening_date,
-        date_column="S_end",
+        target, target_column="S",
     )
     ```
 
@@ -211,8 +209,6 @@ tells its step.
     planned = OrderUpToPolicy(lead_time=2, review_period=4, freq="D",
                               service_level=None, allow_backorders=False).fit(
         target, target_column="S",
-        forecast_origin=opening_date,
-        date_column="S_end",
     )
     planned.get_target_metadata()["representation"]
     ```
@@ -226,10 +222,16 @@ tells its step.
 | Argument | Meaning | Default and checks |
 |---|---|---|
 | `target_column` | Column holding the target | One finite, non-negative value per SKU |
-| `forecast_origin` | Last date of demand the forecast used | Optional when the date column dates the rows; must not be after the first decision's information date |
-| `date_column` | Column with the date of the last period each row covers (default `"date"`) | A one-row target: the window's last period, origin $+ H \Delta$. A per-step row: its own period, origin $+ \mathrm{fh}\,\Delta$. The origin follows from it and must agree when also given |
+| `forecast_origin` | Last date of demand the forecast used | Optional when the date column dates the rows; must not be after the first decision's information date; the window must end after the opening date |
 | `target_probability` | Probability $\alpha$ the target represents | Defaults to the policy's `service_level`; must equal it if given |
 | `protection_horizon` | Number of periods $H$ the target covers | Defaults to $L + R$ for periodic schedules (must equal it if given); required for other schedules, checked as $(u - t) + L$ per decision |
+
+The table's columns are named on the policy: `sku_column` (default
+`"unique_id"`) and `date_column` (default `"date"`), the date of the last
+period each row covers. For a one-row target that is the window's last
+period, origin $+ H \Delta$; for a per-step row, its own period, origin
+$+ \mathrm{fh}\,\Delta$. The default date column is read only when present;
+a named one must exist.
 
 Column names that look like quantiles, such as `q95`, `p90`, `up_95`, or
 `q975` (97.5%), are read as probabilities and must agree with the target's

@@ -40,8 +40,11 @@ sku = "tea_250g"
 opening_date = pd.Timestamp("2026-01-05")
 
 inventory = InventoryStateDataFrame.from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),   # one row per SKU
-    start_date=opening_date,  # the day the shelf was counted
+    pd.DataFrame({
+        "unique_id": [sku],     # one row per SKU
+        "date": [opening_date], # the day the shelf was counted
+        "on_hand": [30.0],
+    }),
     max_lead_time=2,          # pipeline length (optional; shown here to see the slots)
     allow_backorders=False,   # unserved demand is lost, not owed
 )
@@ -71,8 +74,8 @@ after tomorrow. You can declare that opening order explicitly:
 
 ```python
 inventory_with_order = InventoryStateDataFrame.from_observed(
-    pd.DataFrame({"unique_id": [sku], "on_hand": [30.0]}),
-    start_date=opening_date, max_lead_time=2, allow_backorders=False,
+    pd.DataFrame({"unique_id": [sku], "date": [opening_date], "on_hand": [30.0]}),
+    max_lead_time=2, allow_backorders=False,
 ).with_open_orders(pd.DataFrame({
     "unique_id": [sku],
     "due_period": [2],        # periods are counted from the opening state (period 0)
