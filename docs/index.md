@@ -206,6 +206,8 @@ The [Quickstart](get-started/quickstart.md) walks through each of these lines.
 
     Receive, decide, then meet demand. The order of events is written down,
     drawn, and tested, so a lead time means the same thing in every experiment.
+    Other conventions map onto it exactly:
+    [work with any timing convention](how-to/timing-conventions.md).
 
 </div>
 

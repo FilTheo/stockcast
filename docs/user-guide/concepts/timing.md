@@ -171,14 +171,14 @@ also match on `date`, which is often the simplest choice.
 
 ## Other conventions you may meet
 
-Simulators differ in where they place the decision inside a period. Stockpyl,
-for example, observes demand before ordering, and SimOpt's $(s, S)$ model
-orders at the end of a period and receives at the beginning of period
-$n + l + 1$. Each convention is valid; the same number labelled "lead time"
-simply means slightly different things in each. When you compare results
-across tools, compare the event order first. Stockcast's order is the one on
-this page, everywhere, and the manifest of every run records it as
-`timing_convention`.
+Papers and simulators differ in where they place the decision inside a
+period, and in what their "lead time" counts. Each convention is valid, and
+each maps exactly onto the clock on this page: an order placed at the end of
+period $t$ is Stockcast's order at the start of $t + 1$.
+[Work with any timing convention](../../how-to/timing-conventions.md) walks
+through the common cases, with the papers that use them. Stockcast's order
+is the one on this page, everywhere, and the manifest of every run records
+it as `timing_convention`.
 
 ## How this is tested
 

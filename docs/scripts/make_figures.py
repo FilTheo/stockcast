@@ -225,6 +225,50 @@ def fig_timing_window():
     save(fig, "timing-window.svg")
 
 
+def fig_timing_conventions():
+    """One physical order, described in three conventions."""
+    rows = [
+        ("Decide before demand (Stockcast)", "decides at the start of t+1,  lead_time = 2", 1.5),
+        ("Order after demand, L counts the ordering period", "decides at the end of t,  L = 3", 0.95),
+        ("Order after demand, arrival at the start of t + l + 1", "decides at the end of t,  l = 2", 0.95),
+    ]
+    n, arrival = 5, 3
+    fig, axes = plt.subplots(len(rows), 1, figsize=(8.6, 4.9), sharex=True)
+    for ax, (title, note, decision_x) in zip(axes, rows):
+        ax.set_xlim(-0.2, n + 0.1)
+        ax.set_ylim(-0.45, 1.25)
+        ax.axis("off")
+        ax.grid(False)
+        for k in range(n):
+            ax.add_patch(Rectangle((k + 0.05, 0), 0.9, 0.5, facecolor="#f0efec", edgecolor="none"))
+            for j, color in enumerate((AQUA, ORANGE, BLUE)):
+                ax.add_patch(Rectangle((k + 0.1 + j * 0.28, 0.06), 0.24, 0.1,
+                                       facecolor=color, edgecolor="none"))
+            ax.text(k + 0.5, -0.22, "t" if k == 0 else f"t+{k}", ha="center",
+                    va="center", color=INK2, fontsize=8.5)
+        ax.text(-0.15, 1.12, title, ha="left", va="center", color=INK, fontsize=9.5,
+                fontweight="semibold")
+        ax.text(-0.15, 0.86, note, ha="left", va="center", color=INK2, fontsize=8.5)
+        ax.plot([decision_x], [0.33], marker="D", markersize=8, color=ORANGE,
+                markeredgecolor=SURFACE, markeredgewidth=1.5)
+        ax.add_patch(FancyArrowPatch((decision_x + 0.08, 0.36), (arrival + 0.22, 0.36),
+                                     arrowstyle="-|>", mutation_scale=11, color=INK2,
+                                     linewidth=1.4, connectionstyle="arc3,rad=-0.12"))
+        ax.plot([arrival + 0.22], [0.33], marker="o", markersize=8, color=AQUA,
+                markeredgecolor=SURFACE, markeredgewidth=1.5)
+    axes[-1].text(arrival + 0.22, -0.5, "goods on the shelf before demand at t+3",
+                  ha="center", va="center", color=INK2, fontsize=8.5)
+    handles = [Rectangle((0, 0), 1, 1, color=c) for c in (AQUA, ORANGE, BLUE)] + [
+        plt.Line2D([], [], linestyle="none", marker="D", markersize=7, color=ORANGE),
+        plt.Line2D([], [], linestyle="none", marker="o", markersize=7, color=AQUA),
+    ]
+    fig.legend(handles, ["receive due stock", "decide and order", "meet demand",
+                         "the decision", "the order arrives"],
+               loc="lower center", bbox_to_anchor=(0.5, -0.02), ncol=5)
+    fig.subplots_adjust(hspace=0.05, bottom=0.1)
+    save(fig, "timing-conventions.svg")
+
+
 def fig_tea_run():
     demand = tea_demand()
     policy = tea_policy(0.95)
@@ -380,6 +424,7 @@ if __name__ == "__main__":
     fig_tea_demand()
     fig_cumulative_vs_summed()
     fig_timing_window()
+    fig_timing_conventions()
     fig_tea_run()
     fig_tea_compare()
     fig_reorder_point()

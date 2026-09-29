@@ -24,6 +24,7 @@ notebook that uses it.
 | buy once for a season | `SingleOrderPolicy`, `newsvendor_critical_fractile` | [Single order](policies/single-order.md) | [04b](../notebooks/04b_daily_newsvendor.ipynb) |
 | use my own ordering rule | subclass `BasePolicy` | [Write your own policy](policies/custom-policies.md) | [05](../notebooks/05_custom_policies.ipynb) |
 | order on specific days only | `PeriodicSchedule`, `ExplicitSchedule`, `DecisionSchedule` | [Decision schedules](decision-schedules.md) | [02b](../notebooks/02b_decision_schedules.ipynb), [04f](../notebooks/04f_scheduled_forecast_simulation.ipynb) |
+| use a lead time from a paper or another tool | `lead_time`, `PeriodicSchedule(start=...)` | [Work with any timing convention](../how-to/timing-conventions.md) | – |
 | refresh targets as new forecasts arrive | `policy_schedule` | [Refresh targets as forecasts roll](../how-to/rolling-targets.md) | [04d](../notebooks/04d_rolling_cumulative_targets.ipynb), [09](../notebooks/09_full_operational_experiment.ipynb) |
 | respect minimums, case sizes, or capacity | `OrderingConstraints` and friends | [Ordering constraints](constraints.md) | [05c](../notebooks/05c_extension_points.ipynb), [09](../notebooks/09_full_operational_experiment.ipynb) |
 | add holidays, promotions, or stock corrections | `SimulationCallback`, scheduled callbacks | [Callbacks](callbacks.md) | [08](../notebooks/08_callbacks_and_audit.ipynb), [05c](../notebooks/05c_extension_points.ipynb) |

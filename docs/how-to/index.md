@@ -9,6 +9,7 @@ Each one assumes you know the basics from
 | [Connect any forecasting model](connect-a-forecaster.md) | turn the output of your forecasting library into Stockcast targets |
 | [Build a target from sample paths](targets-from-sample-paths.md) | compute cumulative targets from simulated or bootstrapped futures |
 | [Refresh targets as forecasts roll](rolling-targets.md) | refit targets at each review, using only past data |
+| [Work with any timing convention](timing-conventions.md) | set `lead_time`, the schedule and the window for a convention you read in a paper or another tool |
 | [Compare forecasts and policies](compare-policies.md) | run a fair, multi-SKU comparison and pick a winner on cost |
 | [Put costs on a run](costs.md) | set cost rates, per-SKU prices, and the right accounting window |
 | [Run your own simulation loop](manual-loop.md) | step the state yourself, period by period |

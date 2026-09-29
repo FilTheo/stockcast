@@ -37,7 +37,9 @@ the thinking.
 
 An order placed in period $t$ is received at the start of period $t + L$,
 before that period's demand. `lead_time=0` means it arrives in time for
-today's customers. See [Timing](../user-guide/concepts/timing.md).
+today's customers. See [Timing](../user-guide/concepts/timing.md). Coming
+from a paper or another tool that counts it differently? See
+[Work with any timing convention](../how-to/timing-conventions.md).
 
 **Why is my order-up-to target for $L + R$ periods?**
 

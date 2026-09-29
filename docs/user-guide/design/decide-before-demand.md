@@ -47,5 +47,7 @@ example Zhu, 2022, Section 3). Zero lead time is a well-studied case too
 Ordering after demand, or at the end of a period, are also valid models;
 Stockpyl and SimOpt use such conventions. Stockcast chose one clear sequence
 and applies it everywhere, which is what makes experiments comparable.
+[Work with any timing convention](../../how-to/timing-conventions.md) shows
+how to set Stockcast for the other conventions.
 
 **References:** see [Timing](../concepts/timing.md#references).

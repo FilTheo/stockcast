@@ -116,6 +116,8 @@ reproduces Stockcast's orders in every period (its end-of-period order is our
 order at the start of the next period), and Stockcast's simulated costs for
 Stockpyl's exact optimal $(s, S)$ and $(r, Q)$ policies match Stockpyl's own
 cost formulas within simulation error.
+[Work with any timing convention](../how-to/timing-conventions.md) shows how
+to set Stockcast for the conventions you will meet in papers and other tools.
 
 We fixed one sequence and use it everywhere: **receive, decide, then meet
 demand**. It is the classic periodic-review order: receive outstanding orders,
