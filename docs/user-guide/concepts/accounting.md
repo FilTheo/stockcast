@@ -1,9 +1,8 @@
 # Stock accounting
 
-Stockcast treats a simulation like a set of books. Every unit that enters or
-leaves the shelf, the pipeline, or the backorder list is written down, and
-the books must balance on every row. This page lists the identities, explains
-what each one means, and shows how to check them yourself.
+Every unit that enters or leaves the shelf, the pipeline, or the backorder
+list is recorded in the ledger, and each row must balance. This page lists
+the identities and shows how to check them.
 
 ## The four stocks
 
@@ -99,7 +98,7 @@ For example, with an unreliable supplier the pipeline identity becomes
 $P^{\text{end}} = P^{\text{start}} + q - r - \text{shortfall}$: units that will
 never arrive leave the pipeline without entering the shelf.
 
-## Checked as the engine runs
+## Runtime checks
 
 The engine checks the identities for every row as it is written. The tolerance
 is $10^{-9}$ plus $10^{-12}$ times the size of the row's flows, so ledgers in
@@ -142,7 +141,7 @@ event_frame violates physical inventory balance for SKU tea_250g at period 4
 `InventoryEvaluator.fit` validates its input the same way, so metrics are
 always computed from balanced books.
 
-## Why this matters
+## Uses
 
 - **Trust.** A policy, a callback, or a custom process cannot create or
   destroy stock by accident. Any bug shows up as a failed identity with the
@@ -152,5 +151,5 @@ always computed from balanced books.
 - **Explanations.** When a metric surprises you, the ledger tells you which
   flow caused it.
 
-**Go deeper:** [The ledger is the record](../design/ledger.md) ·
+**See also:** [The ledger is the record](../design/ledger.md) ·
 [Output tables](../../reference/schemas.md)

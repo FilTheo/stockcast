@@ -13,8 +13,8 @@ hide:
 <p class="sc-tagline">Turn forecasts into inventory decisions you can simulate, inspect, and evaluate.</p>
 
 [Get started](get-started/quickstart.md){ .md-button .md-button--primary }
-[Learn the basics](learn/index.md){ .md-button }
-[Our philosophy](get-started/philosophy.md){ .md-button }
+[Guide](user-guide/index.md){ .md-button }
+[Examples](tutorials/index.md){ .md-button }
 
 </div>
 
@@ -22,75 +22,22 @@ Stockcast is a Python library for the step that comes **after** forecasting.
 You bring a forecast from any model you like. Stockcast maps it into orders,
 simulates their execution against historical or simulated demand, and
 evaluates the resulting impact against business metrics such as cost, service,
-and waste. And when you are happy with a policy, the same objects
-compute your real orders every day.
+and waste. Happy with a policy?
+[Put it into production](how-to/production.md) with the same objects.
 
-It is built like PyTorch and assembled like Lego: a handful of bricks that
-snap onto one engine. Swap the policy, the demand, the supplier, or the shelf-life rule, and
-everything else stays exactly the same. The reasoning behind every design
-choice, and the literature it rests on, is in our
-[philosophy](get-started/philosophy.md).
+Inspired by PyTorch-style libraries, it is built like Lego: small parts that
+snap onto one engine. Each part is a class you can subclass and adjust. Swap
+the policy, the demand, the supplier, or the shelf-life rule, and everything
+else stays the same.
 
-## Find your way
-
-The docs have four parts. Pick the one that matches what you want right now:
-
-<div class="grid cards sc-grid-2" markdown>
-
--   :material-rocket-launch-outline:{ .lg .middle } **Get started**
-
-    ---
-
-    *"I'm new."* Install, run the ten-minute
-    [Quickstart](get-started/quickstart.md), then follow
-    [Learn the basics](learn/index.md): nine short steps from the first
-    simulation to a production daily job.
-
-    [:octicons-arrow-right-24: Start here](get-started/quickstart.md)
-
--   :material-book-open-variant:{ .lg .middle } **Guide**
-
-    ---
-
-    *"How does X work?"* or *"How do I do Y?"* The theory and options of every
-    building block (timing, targets, policies, suppliers, shelf life,
-    metrics), plus short **recipes** for everyday jobs.
-
-    [:octicons-arrow-right-24: Open the guide](user-guide/index.md)
-
--   :material-notebook-outline:{ .lg .middle } **Examples**
-
-    ---
-
-    *"Show me a complete project."* Twenty-three runnable notebooks with real
-    forecasts, multiple suppliers, perishable stock, and a production
-    workflow.
-
-    [:octicons-arrow-right-24: Browse examples](tutorials/index.md)
-
--   :material-api:{ .lg .middle } **API reference**
-
-    ---
-
-    *"What are the arguments of this function?"* Every public class and
-    function, with parameters, return values, and examples.
-
-    [:octicons-arrow-right-24: Look it up](reference/index.md)
-
-</div>
-
-**Suggested paths**
-
-- **Researchers:** [Quickstart](get-started/quickstart.md) → [Learn steps 1–8](learn/index.md) →
-  [Compare forecasts and policies](how-to/compare-policies.md) →
-  [experiment examples](tutorials/index.md#experiments-and-operations)
-- **Engineers:** [Quickstart](get-started/quickstart.md) → [Learn steps 1–9](learn/index.md) →
-  [Use Stockcast in a daily job](how-to/production.md) →
-  [Example 10: production daily close](notebooks/10_production_daily_close.ipynb)
+:octicons-arrow-right-24: **[Read our philosophy](get-started/philosophy.md)**:
+why Stockcast is built this way, and the research behind it.
 
 ## Two pipelines
 
-**Research: backtest and compare.**
+**Research: backtest and compare.** For researchers and analysts who measure
+forecasts by the decisions they lead to. Compare policies, forecasting models,
+lead times, suppliers, and shelf-life rules on identical demand.
 
 ```mermaid
 flowchart LR
@@ -103,7 +50,11 @@ flowchart LR
     L --> M["Inventory evaluation"]
 ```
 
-**Production: run the chosen policy every day.**
+[:octicons-arrow-right-24: Compare scenarios](learn/08-compare.md)
+
+**Production: run the chosen policy every day.** For engineers who put the
+chosen policy behind a daily job: load stock, refresh the forecast, compute
+orders with the supplier's rules, and save the state.
 
 ```mermaid
 flowchart LR
@@ -115,34 +66,9 @@ flowchart LR
     O -->|next day| N
 ```
 
-## For researchers and for engineers
+[:octicons-arrow-right-24: From backtest to production](learn/09-production.md)
 
-<div class="grid cards" markdown>
-
--   :material-flask-outline:{ .lg .middle } **Researchers and analysts**
-
-    ---
-
-    Measure forecasts by the decisions they lead to. Compare policies,
-    forecasting models, lead times, suppliers, and shelf-life rules on
-    identical demand, with every unit accounted for and every run
-    reproducible.
-
-    [:octicons-arrow-right-24: Compare scenarios](learn/08-compare.md)
-
--   :material-cog-outline:{ .lg .middle } **Engineers in production**
-
-    ---
-
-    Put the chosen policy behind a daily job: load stock, refresh the
-    forecast, compute orders with the supplier's rules, and save the state.
-    The daily job gives exactly the results of its backtest.
-
-    [:octicons-arrow-right-24: From backtest to production](learn/09-production.md)
-
-</div>
-
-## Stockcast in one screen
+## Example
 
 ```python
 import pandas as pd
@@ -203,42 +129,47 @@ quantile         0.99         5.69
 
 The [Quickstart](get-started/quickstart.md) walks through each of these lines.
 
-## What makes Stockcast different
+## Key features
 
-<div class="grid" markdown>
+- **Any forecasting model.** Stockcast does not fit models; it takes quantiles,
+  a mean and standard deviation, or sample paths from statsforecast,
+  skforecast, [smooth](https://openforecast.org/smooth-py/), Prophet, deep
+  learning, or your own code.
+  [Connect any forecasting model](how-to/connect-a-forecaster.md).
+- **Forecasts become decisions.** Judge a forecast by the stock, missed sales,
+  and cost it leads to, not only by its accuracy.
+- **Small parts you combine.** Policies, schedules, constraints, suppliers,
+  callbacks, and shelf-life processes each do one job. Use the built-in ones
+  or subclass a base class.
+- **Every unit is accounted for.** Each simulated period is a ledger row, and
+  the engine checks that stock, backorders, and pipeline balance on every row.
+- **Timing you can read.** Receive, decide, then meet demand, in that order.
+  Other conventions map onto it:
+  [work with any timing convention](how-to/timing-conventions.md).
 
-!!! abstract "Forecasts become decisions"
+## Citation
 
-    Forecast accuracy is one number. What a business feels is the stock on the
-    shelf, the sales it missed, and the money tied up in inventory. Stockcast
-    measures forecasts by the decisions they lead to.
+If you use Stockcast in your work, please cite the version you used. The
+repository's
+[`CITATION.cff`](https://github.com/FilTheo/stockcast/blob/main/CITATION.cff)
+has the details, and GitHub's *Cite this repository* button formats them:
 
-!!! abstract "Composable, like PyTorch"
+```text
+Theodosiou, F. Stockcast: forecast-driven inventory decisions, simulation, and
+evaluation in Python. Version 0.1.0. https://github.com/FilTheo/stockcast
+```
 
-    Policies, schedules, constraints, suppliers, callbacks, and physical
-    processes are separate objects with one job each. Combine the built-in ones
-    or subclass a base class to add your own.
+## Contributing
 
-!!! abstract "Every unit is accounted for"
+Contributions are welcome, from typo fixes to new building blocks. See the
+[contributing guide](contributing.md) and the [release notes](release-notes.md).
 
-    Each simulated day produces a row in an event ledger. The engine checks
-    that stock, backorders, and pipeline balance on every row, so your
-    results rest on consistent accounting.
+## Getting help
 
-!!! abstract "Timing you can read"
+Open an [issue on GitHub](https://github.com/FilTheo/stockcast/issues) for
+questions, ideas, and bugs. For a bug, include a small example and the run
+manifest (`result.run_manifest`), which records the versions and settings
+behind a result.
 
-    Receive, decide, then meet demand. The order of events is written down,
-    drawn, and tested, so a lead time means the same thing in every experiment.
-    Other conventions map onto it exactly:
-    [work with any timing convention](how-to/timing-conventions.md).
-
-</div>
-
-## Works with your forecasting stack
-
-Stockcast does not fit forecasting models. It accepts what any forecasting
-library produces: quantiles of cumulative demand, mean and standard deviation,
-or sample paths. The examples use [smooth](https://openforecast.org/smooth-py/),
-from the same open-source ecosystem, and the same steps apply to statsforecast,
-skforecast, Prophet, scikit-learn, deep learning models, or your own code. See
-[Connect any forecasting model](how-to/connect-a-forecaster.md).
+Stockcast is released under the
+[Apache License 2.0](https://github.com/FilTheo/stockcast/blob/main/LICENSE).

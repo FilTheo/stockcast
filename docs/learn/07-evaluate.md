@@ -2,8 +2,7 @@
 
 # Evaluate a run
 
-A run is only useful once you can say how well it went. `InventoryEvaluator`
-reads the event ledger and computes metrics over the window and grouping you
+`InventoryEvaluator` reads the event ledger and computes metrics over the window and grouping you
 choose.
 
 ??? example "Setup: the tea shop from steps 1 to 5"
@@ -12,7 +11,7 @@ choose.
     --8<-- "learn-setup.py"
     ```
 
-## Fit, then evaluate
+## Fit and evaluate
 
 The evaluator follows the same fit / apply rhythm as policies. `fit` selects
 the ledger rows; `evaluate` computes the metrics:
@@ -40,7 +39,7 @@ Two choices shape the answer:
   into one row; `groupby=["unique_id"]` gives one row per SKU, and any ledger
   column works.
 
-## What the service metrics measure
+## Service metrics
 
 "Service level" means different things to different people, so Stockcast gives
 each meaning its own metric.
@@ -78,10 +77,9 @@ evaluator.evaluate(
 
 A target probability of 0.95 is a statement about the forecast. These metrics
 measure what the whole system delivered. They are related, and they are not
-the same number. Comparing them is one of the most useful things a simulation
-can tell you.
+the same number. Comparing the two is one of the main uses of a simulation.
 
-## Put a price on it
+## Costs
 
 Cost metrics multiply ledger quantities by rates you supply in `context`:
 
@@ -115,12 +113,11 @@ evaluator.evaluate(
 0         20.84            0.0       90.84
 ```
 
-Every rate is yours to set, including zeros. A cost that you did not specify
-is never filled in for you, so a total always means exactly the components
-you listed.
+You set every rate, including zeros. Unspecified costs are not filled in, so
+a total contains only the components you list.
 
 When you only need the total, give the rates to `TotalCost`. Each rate you
-pass adds its component, and nothing else is added:
+pass adds its component:
 
 ```python
 from stockcast.evaluation import TotalCost
@@ -134,7 +131,7 @@ evaluator.evaluate([TotalCost(holding=0.02, shortage=2.00,
 0       90.84
 ```
 
-## Your own metric
+## Custom metrics
 
 A metric is any function that takes the ledger slice and the context:
 
@@ -150,15 +147,15 @@ evaluator.evaluate(metrics=[fill_rate, units_left_at_the_end], groupby=["unique_
 0  tea_250g        1.0                   25.0
 ```
 
-!!! summary "Recap"
+## Summary
 
-    - `InventoryEvaluator().fit(result).evaluate(metrics)`, with optional
-      `window`, `groupby`, and `context`.
-    - Fill rate, demand-period service level, and cycle service level answer
-      three different questions.
-    - Costs use rates you supply; custom metrics are plain functions.
+- `InventoryEvaluator().fit(result).evaluate(metrics)`, with optional
+  `window`, `groupby`, and `context`.
+- Fill rate, demand-period service level, and cycle service level answer
+  three different questions.
+- Costs use rates you supply; custom metrics are plain functions.
 
-**Go deeper:** [Evaluation and metrics](../user-guide/metrics.md) ·
+**See also:** [Evaluation and metrics](../user-guide/metrics.md) ·
 [Put costs on a run](../how-to/costs.md) ·
 [Notebook 06](../notebooks/06_fair_forecast_and_policy_comparisons.ipynb)
 

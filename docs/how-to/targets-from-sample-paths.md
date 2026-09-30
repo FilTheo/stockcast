@@ -5,7 +5,7 @@ for any demand distribution, any horizon, and any dependence between periods.
 This recipe builds paths by bootstrapping a simple model's residuals, then
 turns them into a target.
 
-## The recipe
+## Method
 
 $$
 T^{(m)} = \sum_{h=1}^{H} d^{(m)}_{h},
@@ -72,7 +72,7 @@ round(point.sum(), 1), round(target_value, 1)
 The point forecast expects 37 packs over the six days; covering 95% of the
 bootstrapped futures takes 46.
 
-## Hand it to a policy
+## Fit a policy
 
 ```python
 from stockcast.policies import OrderUpToPolicy
@@ -88,7 +88,7 @@ policy = OrderUpToPolicy(lead_time=2, review_period=4, freq="D", service_level=0
 )
 ```
 
-## Good practice
+## Recommended practice
 
 - **Blocks, not single residuals**, whenever errors are correlated in time.
   Independent resampling assumes each day's error is unrelated to the next.
@@ -97,7 +97,7 @@ policy = OrderUpToPolicy(lead_time=2, review_period=4, freq="D", service_level=0
 - **Errors from the right horizon.** Ideally use errors of forecasts made $h$
   steps ahead, for each $h$. The simple one-week errors above are a
   reasonable start for a seasonal naive model.
-- **Paths from a model are even better.** State-space and probabilistic models
+- **Model-generated paths.** State-space and probabilistic models
   can simulate paths directly; smooth, for example, can simulate its
   cumulative forecast (`interval="simulated"`). The summing step is the same.
 

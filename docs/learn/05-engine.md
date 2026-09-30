@@ -6,7 +6,7 @@
 opening state, and a fitted policy, and simulates them period by period.
 It is the only object that changes stock.
 
-## One period, three moves
+## Order of events
 
 Every period follows the same order: **receive, decide, then meet demand.**
 
@@ -29,7 +29,7 @@ $t$) arrives at $t + 2$. The next review is at $t + 4$, and its order arrives
 at $t + 6$. So today's order must cover demand on days $t$ to $t + 5$: the
 $H = L + R$ window from step 3.
 
-## Run it
+## Run a simulation
 
 ```python
 import numpy as np
@@ -80,12 +80,12 @@ SimulationResult(policy=Order-Up-To (R,S), n_periods=56, history_rows=56)
 ```
 
 The policy orders on periods 0, 4, 8, …: every $R = 4$ periods, starting
-with the very first one. That rhythm is the policy's **decision schedule**.
+with the first. That rhythm is the policy's **decision schedule**.
 `review_period=4` is shorthand for `PeriodicSchedule(every=4)`; one-off and
 irregular calendars are covered in
 [Decision schedules](../user-guide/decision-schedules.md).
 
-## What the engine reads for you
+## Inferred settings
 
 `run` needs only the policy, the demand, and the opening state. It reads the
 rest from them and records it in the run manifest:
@@ -97,7 +97,7 @@ rest from them and records it in the run manifest:
 | run windows | score every period | you want a warm-up or settlement window |
 | `demand_source_name`, `random_seed` | not recorded | you want the manifest to name the demand or its seed |
 
-## Warm-up, scoring, settlement
+## Run windows
 
 A run can be split into three consecutive windows that add up to `n_periods`.
 Pass `warmup_periods` and `settlement_periods`; scoring gets the rest:
@@ -113,11 +113,10 @@ Pass `warmup_periods` and `settlement_periods`; scoring gets the rest:
 
 All three windows move stock. Only the scoring window counts by default.
 
-## The engine works on copies
+## Inputs are not modified
 
 The engine copies the state and the policy before it starts. Your `inventory`
-and `policy` objects are exactly as you left them, so you can reuse them for
-the next run:
+and `policy` objects are unchanged after a run and can be reused:
 
 ```python
 inventory.inventory_position()[["on_hand", "inventory_position"]]
@@ -128,11 +127,11 @@ inventory.inventory_position()[["on_hand", "inventory_position"]]
 0     30.0                30.0
 ```
 
-## A receipt for every run
+## Run manifest
 
 Each result carries a **run manifest**: the demand fingerprint, the policy and
 its target metadata, the opening state, every run setting, and the package
-versions. Share a result and its manifest travels with it.
+versions. The manifest is stored with the result.
 
 ```python
 result.run_manifest["run_settings"]["decision_schedule"]
@@ -142,15 +141,15 @@ result.run_manifest["run_settings"]["decision_schedule"]
 {'type': 'periodic', 'every': 4, 'start': 0}
 ```
 
-!!! summary "Recap"
+## Summary
 
-    - Each period: **receive → decide → meet demand**, then record.
-    - An order placed at $t$ arrives at the start of $t + L$.
-    - `run` needs only the policy, the demand, and the opening state; it reads
-      the run length and period length from them and never changes your input
-      objects.
+- Each period: **receive → decide → meet demand**, then record.
+- An order placed at $t$ arrives at the start of $t + L$.
+- `run` needs only the policy, the demand, and the opening state; it reads
+  the run length and period length from them and never changes your input
+  objects.
 
-**Go deeper:** [The simulation engine](../user-guide/engine.md) ·
+**See also:** [The simulation engine](../user-guide/engine.md) ·
 [Timing: receive, decide, demand](../user-guide/concepts/timing.md) ·
 [Notebook 02](../notebooks/02_first_engine_simulation.ipynb)
 

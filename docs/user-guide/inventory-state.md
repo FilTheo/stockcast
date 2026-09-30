@@ -25,7 +25,7 @@ $$
 \mathit{IP} = \text{on\_hand} + \sum_k \text{in\_transit}[k] - \text{backorders}.
 $$
 
-## Three ways to set the opening state
+## Opening state
 
 === "Observed on-hand stock"
 
@@ -92,7 +92,7 @@ $$
     1  coffee_1kg      0.0  [10.0, 0.0]         4.0                 6.0
     ```
 
-The opening state is always a fact you supply. The state rejects missing or
+You always supply the opening state. The state rejects missing or
 contradictory values (a SKU with both stock and backorders, backorders in a
 lost-sales state, negative stock, a pipeline of the wrong length) as soon as
 it is used.
@@ -153,7 +153,7 @@ explain the existing quantities rather than adding new ones.
 [Suppliers and open orders](suppliers.md) shows how open orders flow through a
 simulation.
 
-## Stepping the state by hand
+## Manual stepping
 
 The engine moves the state forward for you. For a caller-owned loop, the same
 steps are public:
@@ -177,6 +177,6 @@ See [Run your own simulation loop](../how-to/manual-loop.md).
 | `scheduled_receipts()` | One row per open delivery |
 | `get_history()` | Snapshots of past periods recorded on this object |
 
-**Go deeper:** [Learn step 1](../learn/01-inventory-state.md) ·
+**See also:** [Learn step 1](../learn/01-inventory-state.md) ·
 [API: state and orders](../reference/state.md) ·
 [Notebook 01](../notebooks/01_introduction_to_inventory_flow.ipynb)

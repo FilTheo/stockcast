@@ -7,7 +7,7 @@ Stockcast that is the job of `InventoryStateDataFrame`: one row per SKU,
 holding the stock on the shelf, the stock on its way, and the demand still
 owed.
 
-## Three quantities, one position
+## Inventory position
 
 | Quantity | Column | Meaning |
 |---|---|---|
@@ -29,7 +29,7 @@ arrived and everyone you owe has been served. It is the quantity replenishment
 policies control: on-hand stock tells you what you can sell today, inventory
 position tells you whether you need to order.
 
-## Create the tea shop's state
+## Create a state
 
 ```python
 import pandas as pd
@@ -60,7 +60,7 @@ inventory.inventory_position()[["unique_id", "on_hand", "in_transit",
 
 Nothing is on order yet, so the position equals the 30 packs on the shelf.
 
-## The pipeline, slot by slot
+## The pipeline
 
 `in_transit` is a small array per SKU. **Slot $i$ holds the units that arrive
 $i + 1$ periods from now**, before that period's demand. With
@@ -106,22 +106,20 @@ automatically replaces it. Policies declare the same choice, and the state
 and the policy must agree. Leave the state's `allow_backorders` unset and it
 takes the policy's setting.
 
-## Every value is explicit
+## Explicit inputs
 
-Notice that we declared the opening stock, the opening date, and the shortage
-rule. Stockcast never guesses them. A simulation that starts from assumed
-stock would produce confident-looking but made-up numbers, so the state asks
-you for the facts up front. See [Every input is explicit](../user-guide/design/explicit-inputs.md).
+The opening stock, the opening date, and the shortage rule are all declared
+above; Stockcast does not assume any of them. See [Every input is explicit](../user-guide/design/explicit-inputs.md).
 
-!!! summary "Recap"
+## Summary
 
-    - `InventoryStateDataFrame` holds on hand, the pipeline, and backorders for
-      every SKU.
-    - Policies decide with the **inventory position**
-      $\mathit{IP} = \text{on hand} + \text{on order} - \text{backorders}$.
-    - Pipeline slot $i$ arrives $i + 1$ periods from now.
+- `InventoryStateDataFrame` holds on hand, the pipeline, and backorders for
+  every SKU.
+- Policies decide with the **inventory position**
+  $\mathit{IP} = \text{on hand} + \text{on order} - \text{backorders}$.
+- Pipeline slot $i$ arrives $i + 1$ periods from now.
 
-**Go deeper:** [Inventory state](../user-guide/inventory-state.md) ·
+**See also:** [Inventory state](../user-guide/inventory-state.md) ·
 [Stock accounting](../user-guide/concepts/accounting.md) ·
 [Notebook 01](../notebooks/01_introduction_to_inventory_flow.ipynb)
 

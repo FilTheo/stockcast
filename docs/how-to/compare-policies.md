@@ -5,7 +5,7 @@ demand, the opening stock, the lead time, the costs, the scoring window.
 `run_comparison` does the bookkeeping. This recipe compares two ordering rules
 across three SKUs and picks the cheaper one.
 
-## 1. One shared scenario
+## 1. Scenario
 
 Three teas with different demand rates, twelve weeks of daily Poisson demand,
 and opening stock worth five days of sales:
@@ -75,7 +75,7 @@ reorder_point = ReorderPointPolicy(lead_time=L, review_period=1, freq="D",
 )
 ```
 
-## 3. Run them side by side
+## 3. Run
 
 Two weeks of warm-up let both policies settle before scoring starts:
 
@@ -86,7 +86,7 @@ comparison = SimulationEngine().run_comparison(
 )
 ```
 
-## 4. Score with the same costs
+## 4. Score
 
 ```python
 from stockcast.evaluation import (
@@ -134,7 +134,7 @@ score(["unique_id"])[["unique_id", "fill_rate", "total_cost"]].round(3)
 (s, S) daily check   matcha_50g        1.0       62.90
 ```
 
-## Reading the result
+## Results
 
 Both rules served every sale. The difference is in how they spend money:
 
@@ -161,8 +161,8 @@ find out. (The numbers come from `sku_order_line_count`, `ordering_cost`, and
 - **Lost sales against backorders.** Fit one policy with
   `allow_backorders=False` and one with `True`, and create the inventory
   without `allow_backorders`; each branch then runs in its policy's mode.
-- **Many demand paths.** Loop over several seeds and average the metrics. One
-  path is one possible future; several give you a distribution.
+- **Many demand paths.** Loop over several seeds and average the metrics. Several
+  paths give a distribution of outcomes.
 - **Plots.** `plot_summary_comparison(comparison)` and
   `plot_comparison_dashboard(comparison)` draw the comparison
   ([Plots](../user-guide/visualization.md)).

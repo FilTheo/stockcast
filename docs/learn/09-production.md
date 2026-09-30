@@ -9,7 +9,7 @@ one.
 
 The next step is to **run that policy for real**, every day, on live stock
 and fresh forecasts. That is the **production pipeline**. Stockcast uses the
-same objects for both, so what you backtested is exactly what you run.
+same objects for both, so the daily job runs the policy you backtested.
 
 ```mermaid
 flowchart TD
@@ -40,7 +40,7 @@ demand. The forecast only ever uses data up to yesterday.
     --8<-- "learn-setup.py"
     ```
 
-## 1. A forecast that updates every day
+## 1. A daily forecast
 
 In production the forecast is refitted on the latest sales. Here a small
 stand-in model uses the mean of the last 28 days and a normal approximation
@@ -81,7 +81,7 @@ supplier_rules = OrderingConstraints([OrderMultiple(6, mode="adjust")])   # case
 
 ## 2. Plan and close
 
-Two small functions are the whole production job:
+The production job is two functions:
 
 ```python
 def plan(state, observed, is_review):
@@ -107,7 +107,7 @@ def close(planned_state, sales):
 `accepted.order` is what you send to the supplier, and `accepted.audit`
 records what the rules changed.
 
-## 3. Run four weeks, one day at a time
+## 3. Run four weeks
 
 Here the "live" sales come from the demand table, one day at a time. In
 production they arrive from your point-of-sale system:
@@ -139,9 +139,9 @@ pd.DataFrame(order_log).head(5)
 4 2026-01-22      12.0  12.0
 ```
 
-## 4. What you backtest is what you run
+## 4. Compare with the backtest
 
-Now backtest exactly this setup with the engine: the same refitted forecast at
+Now backtest the same setup with the engine: the same refitted forecast at
 every review (through `policy_schedule`), the same supplier rules, the same
 four weeks.
 
@@ -170,12 +170,10 @@ daily_stock == backtest_stock
 True
 ```
 
-The daily job and the backtest agree on every day's stock. The policy you
-chose in research, with its forecast and supplier rules, behaves in
-production exactly as it did in the simulation, and the backtest's ledger,
-metrics, and manifest describe the job you are running.
+The daily job and the backtest agree on every day's stock, so the backtest's
+ledger, metrics, and manifest describe the job you run.
 
-## In a real deployment
+## Deployment
 
 Stockcast is the decision layer. Your application keeps the parts that belong
 to your systems:
@@ -189,19 +187,19 @@ to your systems:
 | Saves the state between runs, safely and once | `close`: the next state to save |
 | Monitors service and cost | the same metrics, on live ledgers or regular backtests |
 
-A good routine: keep the plan and the close as separate, saved steps, each
+Recommended practice: keep the plan and the close as separate, saved steps, each
 with an idempotency key, so a retry never orders or sells twice; and before
 changing any parameter, backtest the change with the engine on recent history.
 
-!!! summary "Recap"
+## Summary
 
-    - **Research pipeline:** backtest and compare policies with
-      `SimulationEngine` and the evaluator.
-    - **Production pipeline:** every day, *plan* (receive, refit, predict,
-      constrain, send) and *close* (serve sales, save the state).
-    - Both use the same objects, so the backtest describes exactly what runs
-      in production.
+- **Research pipeline:** backtest and compare policies with
+  `SimulationEngine` and the evaluator.
+- **Production pipeline:** every day, *plan* (receive, refit, predict,
+  constrain, send) and *close* (serve sales, save the state).
+- Both use the same objects, so the backtest describes what runs in
+  production.
 
-**Go deeper:** [Use Stockcast in a daily job](../how-to/production.md) ·
+**See also:** [Use Stockcast in a daily job](../how-to/production.md) ·
 [Refresh targets as forecasts roll](../how-to/rolling-targets.md) ·
 [Notebook 10: production daily close](../notebooks/10_production_daily_close.ipynb)

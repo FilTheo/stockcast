@@ -1,7 +1,7 @@
 # Order-up-to $(R, S)$
 
-The order-up-to policy is the workhorse of periodic replenishment. Every $R$
-periods it looks at the inventory position and orders exactly enough to bring
+The order-up-to policy is the standard rule for periodic replenishment. Every $R$
+periods it looks at the inventory position and orders enough to bring
 it back up to a target level $S$.
 
 ## The rule
@@ -43,10 +43,10 @@ $\sigma$ this is the textbook $z_\alpha \sigma \sqrt{L + R}$ (Silver, Pyke
 and Thomas, 2017). [Forecast targets](../forecast-targets.md) covers every
 way of computing $S$.
 
-### A useful property
+### Orders replace demand
 
 With backorders and an inventory position at or below $S$ before each review,
-the order simply replaces what was sold since the last review:
+the order replaces what was sold since the last review:
 
 $$
 q_t = S - \mathit{IP}_t = S - (S - D_{t-R} - \dots - D_{t-1}) = \sum_{k=1}^{R} D_{t-k}.
@@ -124,7 +124,7 @@ defaults to $L + R$ and the probability `target_probability` to the
 | `schedule=ExplicitSchedule(...)` | Irregular reviews; each decision needs a target for its own window (see [Decision schedules](../decision-schedules.md#irregular-schedules-and-their-targets)). |
 | `policy_schedule={...}` in `run` | Fresh targets at later decisions, e.g. rolling forecasts. |
 
-## Good to know
+## Notes
 
 - $(R, S)$ is simple, robust, and widely used. With lost sales it is a strong
   heuristic rather than the exact optimum; the optimal lost-sales policy is

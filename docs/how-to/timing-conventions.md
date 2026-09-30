@@ -4,9 +4,21 @@ Papers and simulation libraries describe the same order in different words.
 One says "order at the end of the day, lead time 3". Another says "decide at
 the start of the day, lead time 2". Very often these are the same order,
 arriving on the same morning. This page shows how to read any description and
-set Stockcast so the order means exactly what the source means.
+set Stockcast so the order means what the source means. The quick reference
+below summarises the result; the rest of the page explains it.
 
-## One convention, written down
+## Quick reference
+
+| You read… | Set in Stockcast |
+|---|---|
+| "order at the start of the period", "review, then demand" | `lead_time = L`, same decision periods |
+| "order at the end of the period", "received at the start of t + L" | `lead_time = L - 1`, decisions one period later |
+| "L includes one period of ordering delay" | `lead_time = L - 1`, decisions one period later |
+| "arrives at the start of period t + l + 1" | `lead_time = l`, decisions one period later |
+| "lead time demand over t+1 … t+L", "review time included in L" | window $H = L$; `lead_time + review_period = L` |
+| "the order arrives immediately after it is placed" | `lead_time = 0` |
+
+## Stockcast's convention
 
 Stockcast runs every period in the same order: **receive, decide, then meet
 demand**. An order placed in period $t$ with lead time $L$ is on the shelf
@@ -316,17 +328,6 @@ Every run's manifest records Stockcast's own convention under
 `run_settings["timing_convention"]`, so a saved result always says which
 clock produced it.
 
-## Quick reference
-
-| You read… | Set in Stockcast |
-|---|---|
-| "order at the start of the period", "review, then demand" | `lead_time = L`, same decision periods |
-| "order at the end of the period", "received at the start of t + L" | `lead_time = L - 1`, decisions one period later |
-| "L includes one period of ordering delay" | `lead_time = L - 1`, decisions one period later |
-| "arrives at the start of period t + l + 1" | `lead_time = l`, decisions one period later |
-| "lead time demand over t+1 … t+L", "review time included in L" | window $H = L$; `lead_time + review_period = L` |
-| "the order arrives immediately after it is placed" | `lead_time = 0` |
-
 ## References
 
 - Chin, J. E., Cheng, S.-F., and Gunawan, A. (2026). Accuracy is not service:
@@ -389,6 +390,6 @@ Simulation software whose documented conventions appear on this page:
 - [OR-Gym: inventory management environments](https://github.com/hubbs5/or-gym)
 - [gym-invmgmt (Barati and Hu, 2026)](https://arxiv.org/abs/2605.11355)
 
-**Go deeper:** [Timing: receive, decide, demand](../user-guide/concepts/timing.md) ·
+**See also:** [Timing: receive, decide, demand](../user-guide/concepts/timing.md) ·
 [Decisions happen before demand](../user-guide/design/decide-before-demand.md) ·
 [Decision schedules](../user-guide/decision-schedules.md)

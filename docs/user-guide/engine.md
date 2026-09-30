@@ -47,10 +47,10 @@ SimulationEngine().run(policy=policy, demand_source=demand_fn, inventory=invento
                        n_periods=56)                     # a demand function
 ```
 
-## Before the first period
+## Input checks
 
-`run` checks the whole experiment up front, so a run either starts on solid
-ground or explains what is missing:
+`run` checks the whole experiment before the first period and stops with an
+explanation when something is missing:
 
 - the policy is fitted, and the state's pipeline covers the policy's lead
   time and the supply model's longest delivery (a state created without
@@ -68,10 +68,10 @@ ground or explains what is missing:
   so is every snapshot);
 - window lengths add up to `n_periods`.
 
-The engine then copies the state and the policy. Your objects are never
-changed, so you can reuse them for the next run.
+The engine then copies the state and the policy. Your objects are not
+modified and can be reused.
 
-## During each period
+## Each period
 
 Each period follows [receive, decide, then meet demand](concepts/timing.md).
 After each period, the engine writes one ledger row per SKU and checks its
@@ -91,7 +91,7 @@ arrays, so thousands of SKUs over long horizons simulate quickly.
 Every window moves stock; only the scoring window counts by default. Each
 ledger row carries its window in `run_window`.
 
-## The result
+## Results
 
 ??? example "Setup: the tea shop from Learn the basics"
 
@@ -190,7 +190,7 @@ See [Shelf life and inventory processes](processes.md).
 `SimulationEngine(verbose=1)` prints start, end, and milestones;
 `verbose=2` prints a line for every period.
 
-**Go deeper:** [Learn step 5](../learn/05-engine.md) ·
+**See also:** [Learn step 5](../learn/05-engine.md) ·
 [API: engine](../reference/engine.md) ·
 [Notebook 02](../notebooks/02_first_engine_simulation.ipynb) ·
 [Notebook 03: your own loop](../notebooks/03_component_loop.ipynb)

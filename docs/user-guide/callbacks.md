@@ -6,7 +6,7 @@ Callbacks let you add such events to a simulation without changing the policy
 or the engine. Like callbacks in Keras, they are called at fixed moments of
 each period, and every change they make is written to an audit table.
 
-## Two moments
+## Hooks
 
 | Hook | When | What it may change | Returns |
 |---|---|---|---|
@@ -82,7 +82,7 @@ before and after, and why. On 22 January the policy asked for 17 packs and the
 promotion turned that into 25.5; on 25 January the count removed 3 packs from
 the shelf.
 
-## Write your own callback
+## Custom callbacks
 
 Subclass `SimulationCallback` and implement the hook you need. Return `None`
 when there is nothing to change. This callback expedites orders when the shelf

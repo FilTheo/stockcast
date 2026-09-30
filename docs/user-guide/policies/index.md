@@ -29,7 +29,7 @@ flowchart TD
     D -- "no, check every period" --> SS["ReorderPointPolicy (s, S)<br/>review_period=1"]
 ```
 
-These are starting points, not rules. Because every policy runs through the
+These are starting points. Because every policy runs through the
 same engine and ledger, the fastest way to choose is often to simulate the
 candidates side by side with
 [`run_comparison`](../../learn/08-compare.md).
@@ -66,14 +66,13 @@ Fitted policies also let you inspect what they learned:
 | `get_parameters()` | $s$ with $Q$ or $S$ per SKU (reorder-point and periodic review) |
 | `get_target_metadata()` | probability, horizon, origin, end date, source |
 
-## What policies do not do
+## Policies and stock
 
 Policies decide; they never change stock. They receive a copy of the state and
 return a request. Constraints, callbacks, suppliers, receipts, and demand are
-all applied by the engine, after the policy. This keeps every policy honest
-and interchangeable: whatever rule you write, it is judged by the same
-accounting.
+all applied by the engine, after the policy. As a result,
+every policy is judged by the same accounting.
 
-**Go deeper:** [Learn step 4](../../learn/04-policies.md) ·
+**See also:** [Learn step 4](../../learn/04-policies.md) ·
 [Notebook 05b](../../notebooks/05b_reorder_points_and_review_frequency.ipynb) ·
 [Notebook 06](../../notebooks/06_fair_forecast_and_policy_comparisons.ipynb)

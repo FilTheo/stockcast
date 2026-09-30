@@ -1,8 +1,8 @@
 # Learn the basics
 
-Nine short steps, one idea each. Every step uses the same small example, so
-by the end you will know every object in a Stockcast run, how they fit
-together, and how the policy you backtested runs in production.
+Nine short pages, one idea each, all built on the same small example. They
+cover every object in a Stockcast run and end with running the backtested
+policy in production.
 
 **The running example.** A tea shop sells 250 g packs, about six a day. The
 supplier delivers 2 days after an order and the shop orders every 4 days. It
@@ -24,8 +24,8 @@ Steps 1 to 8 build the **research pipeline**: simulate, evaluate, and compare.
 Step 9 takes the chosen policy into the **production pipeline**: a daily job
 on live stock and fresh forecasts.
 
-Each page takes about five minutes. The code on every page runs as it is:
-copy the blocks into a notebook in order and you get the same numbers.
+Each page takes about five minutes. The code blocks run as they are, in
+order, and reproduce the numbers shown.
 
 !!! tip "Prefer notebooks?"
 

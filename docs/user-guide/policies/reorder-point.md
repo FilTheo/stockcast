@@ -43,7 +43,7 @@ $$
 s = Q_\alpha\!\left(\sum_{h=0}^{H-1} D_{t+h}\right).
 $$
 
-Notice the $L + 1$ for a policy reviewed every period, one more than the
+Note the $L + 1$ for a policy reviewed every period, one more than the
 lead-time demand of continuous-review textbook formulas. Stockcast reviews
 once per period, before demand, so an order that is not placed today can only
 be placed tomorrow. [Timing](../concepts/timing.md#reorder-points) explains
@@ -281,7 +281,7 @@ values, provider levels need `service_level=None` and take optional dates.
 The window arguments (`reorder_horizon`, `target_probability`,
 `order_up_to_column`) and a named `date_column` belong to column targets.
 
-## Good to know
+## Notes
 
 - **Undershoot.** Demand does not arrive one unit at a time. By the time the
   position is checked it may be well below $s$. With $(s, Q)$ a single $Q$
@@ -289,7 +289,7 @@ The window arguments (`reorder_horizon`, `target_probability`,
   opportunity. $(s, S)$ adapts the order size to the drop.
 - **Reorder points and service.** A quantile of window demand is the standard
   basis for $s$. Realised service also depends on undershoot, $Q$, and the
-  shortage rule, which is exactly what a simulation measures.
+  shortage rule, which a simulation measures.
 
 **Notebooks:** [05b: reorder points and review frequency](../../notebooks/05b_reorder_points_and_review_frequency.ipynb) ·
 [05g: reorder points from any source](../../notebooks/05g_reorder_point_sources.ipynb) ·

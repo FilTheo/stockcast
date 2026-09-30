@@ -108,22 +108,21 @@ my_demand.head(4)
 3 2026-01-09  tea_250g   6
 ```
 
-## A complete grid
+## Calendar checks
 
 Before a run starts, the engine checks the whole calendar: every SKU appears
 in every period exactly once, the dates advance by exactly one frequency step,
 and every value is finite and non-negative. Days without sales are rows with
-`y = 0`. Because the check happens up front, a finished run always rests on a
-complete demand history.
+`y = 0`.
 
-!!! summary "Recap"
+## Summary
 
-    - Demand is a long table: `unique_id`, `date` (or a `period` number), `y`.
-    - Period 0 is one frequency step after the opening state.
-    - Lead times and review periods count periods, at the frequency you
-      declare.
+- Demand is a long table: `unique_id`, `date` (or a `period` number), `y`.
+- Period 0 is one frequency step after the opening state.
+- Lead times and review periods count periods, at the frequency you
+  declare.
 
-**Go deeper:** [Demand and calendars](../user-guide/demand.md) ·
+**See also:** [Demand and calendars](../user-guide/demand.md) ·
 [Timing: receive, decide, demand](../user-guide/concepts/timing.md)
 
 [Next: Forecast targets :octicons-arrow-right-24:](03-forecast-targets.md){ .md-button }

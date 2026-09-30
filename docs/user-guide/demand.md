@@ -2,7 +2,7 @@
 
 Demand is what the simulation plays forward. It can be your real sales
 history (a backtest), synthetic demand (a stress test), or scenarios drawn
-from a forecast model. Stockcast reads all of them in the same simple format.
+from a forecast model. Stockcast reads all of them in the same format.
 
 ## The demand table
 
@@ -34,8 +34,8 @@ engine = SimulationEngine(sku_column="item", date_column="ds", demand_column="sa
 the names they need in their constructor in the same way;
 `InventoryStateDataFrame.from_observed` takes them in the call. For the demand table, a callback schedule
 or `ShelfLife`'s opening lots, a name you set must be a column of the table,
-and the table must not also hold the default name, so nothing is ever read by
-accident. Results and event ledgers always use the default names.
+and the table must not also hold the default name, so no column is read by
+mistake. Results and event ledgers always use the default names.
 
 ### The calendar
 
@@ -72,8 +72,7 @@ Before the first period is simulated, the whole table is validated:
   every SKU;
 - every `y` is finite and non-negative.
 
-A run therefore never starts on a table with gaps. Days without demand are
-rows with `y = 0`.
+Days without demand are rows with `y = 0`.
 
 ## Demand from your data
 
@@ -284,7 +283,7 @@ length of its own. The engine calls it once per period
 Every run, and every branch of a comparison, therefore uses one fixed demand
 path.
 
-## Recording where demand came from
+## Provenance
 
 The run manifest stores a fingerprint of the demand table and the
 generator's negative-demand handling (with the number of clipped values), so
@@ -294,5 +293,5 @@ The generator's own seed, model, and parameters are not recorded; pass its
 seed as `random_seed` and keep the call that built the demand with your
 experiment.
 
-**Go deeper:** [Learn step 2](../learn/02-demand-and-time.md) ·
+**See also:** [Learn step 2](../learn/02-demand-and-time.md) ·
 [API: utilities](../reference/utils.md)

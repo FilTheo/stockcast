@@ -6,7 +6,7 @@ that day only, and use the resulting target for that decision. Stockcast's
 `policy_schedule` holds one fitted policy per decision and checks that each
 one only uses information available at its decision.
 
-## The rule for origins
+## Forecast origins
 
 A decision at demand period $t$ is made before period $t$'s demand. The last
 demand it can know is period $t - 1$. So its forecast origin is
@@ -127,7 +127,7 @@ rolling 28-day mean        1.0                           18.642857
 static target              1.0                           18.607143
 ```
 
-On this stable demand the two agree closely, as they should. Rolling targets
+On this stable demand the two agree closely. Rolling targets
 pay off when demand shifts, which you can test by changing the demand path.
 [Notebook 04d](../notebooks/04d_rolling_cumulative_targets.ipynb) does this
 with smooth forecasts refitted at every review.

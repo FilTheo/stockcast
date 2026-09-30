@@ -27,7 +27,7 @@ pandas, and Matplotlib.
     pip install -e .
     ```
 
-## Check that it works
+## Verify the installation
 
 ```python
 import stockcast
@@ -40,7 +40,7 @@ print(stockcast.__version__, SimulationEngine, OrderUpToPolicy)
 If this prints the version and two class names, you are ready for the
 [Quickstart](quickstart.md).
 
-## Optional: a forecasting library
+## Forecasting libraries
 
 Stockcast does not fit forecasts, so it does not install a forecasting
 library. Use the one you already know. Several notebooks use
@@ -48,7 +48,7 @@ library. Use the one you already know. Several notebooks use
 implementation of state-space forecasting models from the same open-source
 ecosystem. See [Connect any forecasting model](../how-to/connect-a-forecaster.md).
 
-## Running the notebooks
+## Notebooks
 
 The [example notebooks](../tutorials/index.md) live in
 [`examples/notebooks`](https://github.com/FilTheo/stockcast/tree/main/examples/notebooks).
@@ -59,10 +59,9 @@ pip install jupyterlab "smooth>=1.0.7"
 jupyter lab examples/notebooks
 ```
 
-## Import style
+## Imports
 
-Each public name has a home module. The examples in these docs always import
-from it, so you can see where every object comes from:
+Each public name has a home module, and the docs import from it:
 
 | Module | What lives there |
 |---|---|

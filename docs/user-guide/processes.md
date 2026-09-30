@@ -5,7 +5,7 @@ units, customers return goods. Stockcast models these physical flows as
 **inventory processes**: small objects that add or remove on-hand stock at
 defined moments of each period, with every unit recorded in the ledger.
 
-Most perishable studies need only shelf life, so we start there.
+Shelf life, the most common case, comes first.
 
 ## Shelf life with FIFO
 
@@ -54,9 +54,8 @@ fresh.to_event_frame()["expired_units"].sum()
 np.float64(18.0)
 ```
 
-The 95% target that served every sale for a long-life product now throws
-away 18 packs over eight weeks: the price of holding a buffer of perishable
-stock.
+The 95% target that served every sale for a long-life product now discards
+18 packs over eight weeks.
 
 Opening lots must add up to each SKU's opening on-hand stock.
 `opening_expiry_handling` says what to do with opening lots already expired
@@ -68,7 +67,7 @@ manifest records the shelf-life settings under `run_settings["processes"]`.
 Shelf life combines with any other physical flow: list the processes in the
 order they should act.
 
-## Write a process
+## Custom processes
 
 A process subclasses `InventoryProcess`, declares a unique `name` and the
 `flows` it may report, and overrides the hooks it needs. This one models a

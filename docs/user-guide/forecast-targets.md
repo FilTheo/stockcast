@@ -1,12 +1,12 @@
 # Forecast targets
 
-A forecast target is where forecasting meets inventory. Your forecasting model
+A forecast target connects a forecast to a policy. Your forecasting model
 describes future demand; the target turns that description into the one
 number a policy needs, such as an order-up-to level $S$ or a reorder point
 $s$. This page covers the theory, the three ways to supply a target, and how
 Stockcast keeps each target tied to the decision it was made for.
 
-## From a forecast to a number
+## Definition
 
 A replenishment decision at period $t$ must cover demand over its protection
 window of $H$ periods ($H = L + R$ for periodic review; see
@@ -25,8 +25,8 @@ S_t = Q_\alpha\!\left(D_t^{(H)} \,\middle|\, \mathcal{I}_{t-1}\right),
 $$
 
 where $\mathcal{I}_{t-1}$ is the demand history up to the previous period.
-Everything on this page is about computing $S_t$ well and handing it to
-Stockcast with its context.
+The rest of this page covers how to compute $S_t$ and pass it to Stockcast
+with its context.
 
 ## Quantiles of sums
 
@@ -45,7 +45,7 @@ the total is 46 while six daily 95% quantiles add up to 60
 ([Learn step 3](../learn/03-forecast-targets.md) shows the histogram).
 Stockcast therefore always works with the target of the **whole window**.
 
-## Getting the quantile of the total
+## Computing the quantile of the total
 
 Any forecasting model can give you $S_t$. Choose the route that matches its
 output.
@@ -241,7 +241,7 @@ accident.
 ## Targets over time
 
 A target fitted at the opening date can be reused at every review: a
-**static-target** experiment, perfect for isolating the effect of a policy
+**static-target** experiment, useful for isolating the effect of a policy
 setting. To refresh targets as new forecasts arrive, fit one policy per
 forecast origin and pass them as `policy_schedule={decision_period: policy}`.
 Each snapshot's origin must be the decision's information date,
@@ -255,11 +255,10 @@ The target probability describes the forecast: "with probability 0.95, demand
 over the window stays below $S$". Realised service in a simulation also
 depends on things the forecast does not know about: how accurate it actually
 is, the opening stock, lost sales, expiry, order minimums, and supplier
-reliability. That is precisely why you simulate: the evaluator measures what
-the whole system delivers ([Evaluation and metrics](metrics.md)), and comparing
-it with the target probability tells you how well the forecast and the policy
-work together.
+reliability. The evaluator measures what the whole system delivers
+([Evaluation and metrics](metrics.md)); comparing it with the target
+probability shows how well the forecast and the policy work together.
 
-**Go deeper:** [Targets cover a whole window](design/cumulative-targets.md) ·
+**See also:** [Targets cover a whole window](design/cumulative-targets.md) ·
 [Connect any forecasting model](../how-to/connect-a-forecaster.md) ·
 [Notebook 04e: three target methods](../notebooks/04e_cumulative_target_methods.ipynb)

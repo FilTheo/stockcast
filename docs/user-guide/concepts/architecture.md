@@ -7,7 +7,7 @@ owns, and how the engine puts them together.
 
 ## The objects
 
-| Object | Its one job | Built-ins | Extend by subclassing |
+| Object | Responsibility | Built-ins | Extend by subclassing |
 |---|---|---|---|
 | **Inventory state** | Hold on-hand stock, the pipeline, and backorders | `InventoryStateDataFrame` | – |
 | **Demand** | Say how much is requested in each period | DataFrame, `DemandGenerator` | any callable |
@@ -21,9 +21,9 @@ owns, and how the engine puts them together.
 | **Engine** | Run the clock and apply every change to stock | `SimulationEngine` | – |
 | **Metric** | Summarise the ledger | 37 metric functions, `CoverageMetric`, `TotalCost` | any function, `BaseInventoryMetric` |
 
-## Who owns what
+## Ownership
 
-The most important design rule: **only the engine changes stock.** Every
+The central design rule: **only the engine changes stock.** Every
 other object *proposes*, and the engine applies proposals in a fixed order and
 records the result.
 
@@ -52,7 +52,7 @@ flowchart TB
     LG --> EV[Evaluator · plots · your analysis]
 ```
 
-What this buys you:
+Consequences:
 
 - **Policies are interchangeable.** A policy only returns an `OrderDecision`.
   It cannot bypass accounting, so every policy is judged by the same rules.
@@ -62,7 +62,7 @@ What this buys you:
   callback-adjusted quantity, the constrained quantity, and the accepted
   order separately, so you can see what each component did.
 
-## Everything at once
+## Full example
 
 Here is one run that uses a policy, a decision schedule, two ordering
 constraints, a callback, a supplier with a random lead time, and shelf life.
@@ -148,15 +148,15 @@ set the order to zero. The order frame (`result.to_order_frame()`) shows which
 deliveries took three days, and the callback audit
 (`result.to_callback_audit_frame()`) records the holiday with its reason.
 
-!!! note "A friendly warning about lead times"
+!!! note "Lead-time warning"
 
     This run prints a `UserWarning`: the policy's target was sized for a
-    2-day lead time, and some deliveries take 3. Stockcast simulates exactly
-    what you declared and lets you know the two differ. That is often the
-    very question you want to study. See
+    2-day lead time, and some deliveries take 3. Stockcast simulates what
+    you declared and warns that the two differ; that mismatch is often what
+    you want to study. See
     [Suppliers: the lead-time assumption](../suppliers.md#lead-time-assumption).
 
-## Two pipelines, one set of objects
+## Research and production
 
 The same objects serve two jobs:
 
@@ -171,7 +171,7 @@ Because both follow the same receive → decide → demand sequence with the sam
 policy, constraints, and targets, a daily job reproduces its backtest exactly.
 [Learn step 9](../../learn/09-production.md) shows it on the tea shop.
 
-## Fit, predict, run, evaluate
+## Method names
 
 The objects share a small vocabulary, borrowed from scikit-learn and PyTorch:
 
@@ -199,5 +199,5 @@ Each extension point is a base class with a few methods to fill in:
 | `InventoryProcess` | `before_demand` and/or `after_demand` | [Processes](../processes.md) |
 | `BaseInventoryMetric` | `compute` | [Metrics](../metrics.md) |
 
-**Go deeper:** [Small parts you combine](../design/composition.md) ·
+**See also:** [Small parts you combine](../design/composition.md) ·
 [Notebook 05c: extension points](../../notebooks/05c_extension_points.ipynb)

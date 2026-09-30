@@ -3,8 +3,8 @@
 !!! tip "New to production with Stockcast?"
 
     [Learn step 9: From backtest to production](../learn/09-production.md)
-    walks through the whole daily cycle and shows that the daily job matches
-    its backtest exactly. This page is the compact reference version.
+    walks through the whole daily cycle and compares the daily job with its
+    backtest. This page is the short reference.
 
 The same objects you simulate with can compute today's real orders. A daily
 job has two phases: **plan** in the morning, before sales, and **close** in
@@ -121,7 +121,7 @@ closed_state.get_dataframe()[["unique_id", "on_hand", "in_transit",
 `closed_state.get_dataframe()` is what you store; tomorrow's job starts from
 it.
 
-## Good practice
+## Recommended practice
 
 - **Plan before sales.** Fit forecasts on data up to the previous closed day,
   as the engine does in simulation. Keep the plan and the close as separate,
@@ -132,10 +132,10 @@ it.
   `SimulationEngine.run` (or compared with `run_comparison`) before it goes
   live.
 - **Keep the evidence.** Store the targets with their metadata, the proposal,
-  the constraint audit, and the accepted order. Together they explain every
-  order the job ever placed.
+  the constraint audit, and the accepted order. Together they explain each
+  order the job places.
 - **The engine for replays, primitives for live days.** The engine adds
-  validation, callbacks, the ledger, and the manifest, which are ideal for
+  validation, callbacks, the ledger, and the manifest, which suit
   backtests. A live daily job uses the primitives shown here.
 
 [Notebook 10](../notebooks/10_production_daily_close.ipynb) replays four days

@@ -1,13 +1,16 @@
 # Guide
 
-The guide explains each part of Stockcast in depth: what it does, the
-theory behind it, how to configure it, and how it connects to the rest. Pages
-follow the same pattern: the idea, the math, the code, and pointers to
-notebooks where you can see it at work.
+The guide covers each part of Stockcast in depth: what it does, the theory
+behind it, and how to configure it. New users may prefer
+[Learn the basics](../learn/index.md) first.
 
-If you are new, the [Learn the basics](../learn/index.md) series is a gentler
-first pass through the same ideas, from the first simulation to a production
-daily job.
+- **Core ideas**: [architecture](concepts/architecture.md),
+  [notation](concepts/notation.md), [timing](concepts/timing.md), and
+  [stock accounting](concepts/accounting.md).
+- **Building blocks**: one page per component, from
+  [inventory state](inventory-state.md) to [plots](visualization.md).
+- **Recipes**: [short, task-focused pages](../how-to/index.md) with
+  runnable code.
 
 ## I want to…
 
@@ -36,67 +39,5 @@ notebook that uses it.
 | measure service, stock, and cost | `InventoryEvaluator`, metrics | [Evaluation and metrics](metrics.md), [Put costs on a run](../how-to/costs.md) | [07](../notebooks/07_m5_fifo_perishable_scenario.ipynb), [09](../notebooks/09_full_operational_experiment.ipynb) |
 | compute real orders every day | `advance_period` → `predict` → constraints → `fulfill_demand` | [Use Stockcast in a daily job](../how-to/production.md), [Learn step 9](../learn/09-production.md) | [10](../notebooks/10_production_daily_close.ipynb) |
 
-## Core ideas
-
-Read these first. Everything else builds on them.
-
-<div class="grid cards" markdown>
-
--   **[How Stockcast fits together](concepts/architecture.md)**
-
-    The objects, who owns what, and how they combine into one run.
-
--   **[Notation and glossary](concepts/notation.md)**
-
-    Every symbol and term used across the docs, in one place.
-
--   **[Timing: receive, decide, demand](concepts/timing.md)**
-
-    The order of events in a period, and where $H = L + R$ comes from.
-
--   **[Stock accounting](concepts/accounting.md)**
-
-    The balance equations every ledger row satisfies.
-
-</div>
-
-## Building blocks
-
-| Page | Covers | Main objects |
-|---|---|---|
-| [Inventory state](inventory-state.md) | Opening stock, the pipeline, open orders | `InventoryStateDataFrame` |
-| [Demand and calendars](demand.md) | Demand tables, frequencies, generators | `DemandGenerator` |
-| [Decision schedules](decision-schedules.md) | When a policy may order | `PeriodicSchedule`, `OneTimeSchedule`, `ExplicitSchedule` |
-| [Forecast targets](forecast-targets.md) | From forecast to stock target | target tables, `policy_schedule` |
-| [Policies](policies/index.md) | Ordering rules and how to choose one | `OrderUpToPolicy`, `ReorderPointPolicy`, `SingleOrderPolicy`, `BasePolicy` |
-| [The simulation engine](engine.md) | Running and comparing simulations | `SimulationEngine`, `SimulationResult` |
-| [Ordering constraints](constraints.md) | Minimums, case packs, maximums, shelf space | `OrderingConstraints` and friends |
-| [Callbacks](callbacks.md) | Planned interventions with an audit trail | `SimulationCallback`, scheduled callbacks |
-| [Suppliers and open orders](suppliers.md) | Several suppliers, random lead times, split deliveries | `SupplyModel`, `Supplier`, `OrderLines` |
-| [Unreliable deliveries](unreliable-deliveries.md) | Late, short, or missing deliveries | `DeliveryOutcome` |
-| [Shelf life and inventory processes](processes.md) | Expiry, inspections, returns | `ShelfLife`, `InventoryProcess` |
-| [Evaluation and metrics](metrics.md) | Service, stock, and cost metrics | `InventoryEvaluator`, metric functions |
-| [Plots](visualization.md) | Ready-made charts of a run | `plot_inventory`, dashboards |
-
-## Recipes
-
-Short answers to specific jobs, with runnable code:
-[connect any forecasting model](../how-to/connect-a-forecaster.md),
-[targets from sample paths](../how-to/targets-from-sample-paths.md),
-[rolling targets](../how-to/rolling-targets.md),
-[compare forecasts and policies](../how-to/compare-policies.md),
-[costs](../how-to/costs.md),
-[your own simulation loop](../how-to/manual-loop.md), and
-[a daily production job](../how-to/production.md).
-See [all recipes](../how-to/index.md).
-
-## Design decisions
-
-The reasoning behind the design lives in the
-[Philosophy](../get-started/philosophy.md), with six short deep dives:
-[decisions before demand](design/decide-before-demand.md),
-[targets for a whole window](design/cumulative-targets.md),
-[explicit inputs](design/explicit-inputs.md),
-[engine-owned stock](design/engine-owns-state.md),
-[the ledger as the record](design/ledger.md), and
-[small parts you combine](design/composition.md).
+The reasoning behind the design is in the
+[Philosophy](../get-started/philosophy.md).

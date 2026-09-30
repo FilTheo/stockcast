@@ -150,7 +150,7 @@ Stockcast checks that the target covers exactly the season, that demand
 outside the season is zero, that the run observes the whole season, and that
 any opening pipeline arrives by the season's start.
 
-## Good to know
+## Notes
 
 - The critical fractile assumes linear costs, lost sales, and no second
   purchase. With extra costs (disposal fees, goodwill), capacity limits, or

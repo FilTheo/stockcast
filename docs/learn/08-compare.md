@@ -2,10 +2,10 @@
 
 # Compare scenarios
 
-The real power of simulation is comparison. Is a 95% target worth the extra
-stock over an 80% one? Is a better forecast worth more than a smarter ordering
-rule? To answer fairly, every alternative must face **exactly the same
-demand** from **exactly the same starting point**.
+Simulation is most useful for comparisons. Is a 95% target worth the extra
+stock over an 80% one? Is a better forecast worth more than a better ordering
+rule? A fair comparison runs every alternative on **the same demand** from
+**the same starting point**.
 
 ??? example "Setup: the tea shop from steps 1 to 5"
 
@@ -13,7 +13,7 @@ demand** from **exactly the same starting point**.
     --8<-- "learn-setup.py"
     ```
 
-## Run three targets side by side
+## Compare three targets
 
 `run_comparison` takes a list of fitted policies and runs each one on the same
 demand, each from its own fresh copy of the opening state:
@@ -45,7 +45,7 @@ six-day demand: 36, 41, and 46 packs. Higher targets buy service with stock:
 
 ![Stockouts and stock for three targets](../assets/figures/tea-compare.svg)
 
-## Why the comparison is fair
+## Fair comparison
 
 - **One demand path.** The demand is read once and shared by every branch.
 - **Separate stock.** Each branch starts from its own copy of the opening
@@ -54,9 +54,9 @@ six-day demand: 36, 41, and 46 packs. Higher targets buy service with stock:
   apply identically to every branch. Random supplier lead times are drawn
   once and shared, so branches differ only by the policy.
 
-Any difference in the results is therefore caused by the policies alone.
+Differences in the results therefore come from the policies alone.
 
-## Decide with costs
+## Costs
 
 Service and stock pull in opposite directions. Costs put them on one scale.
 Each branch is a normal `SimulationResult`, so the evaluator works as in step 7:
@@ -91,10 +91,9 @@ target 0.95      1.000       90.84
 With lost margin at €2 per pack and shelf space at €0.02 a day, the 80% target
 is the cheapest of the three: its two small stockouts cost less than the extra
 stock the 95% target carries. The 50% target loses too many sales. Raise the
-lost margin and the 95% target wins. Weighing these trade-offs on your own
-numbers is exactly what Stockcast is built for.
+lost margin and the 95% target wins.
 
-## Beyond targets
+## Other comparisons
 
 The same pattern compares anything that is a policy:
 
@@ -107,9 +106,9 @@ For longer studies with rolling forecasts, see
 [Compare forecasts and policies](../how-to/compare-policies.md) and
 [Notebook 06](../notebooks/06_fair_forecast_and_policy_comparisons.ipynb).
 
-## The research pipeline, complete
+## Summary
 
-You now know every piece of a Stockcast run:
+The complete research pipeline:
 
 ```mermaid
 flowchart LR
@@ -122,23 +121,17 @@ flowchart LR
     L --> C[run_comparison]
 ```
 
-One step remains: taking the policy you chose into production, where it runs
-every day on live stock and fresh forecasts.
+- `run_comparison` runs several policies on identical demand from
+  identical, separate starting states.
+- Differences in results come from the policies alone.
+- Metrics and costs turn the comparison into a decision.
 
-From here:
+## Next steps
 
 - [Step 9: From backtest to production](09-production.md) runs the chosen
-  policy as a daily job;
-- the [Guide](../user-guide/index.md) explains each building block in
-  depth, with the theory behind it;
-- the [Recipes](../how-to/index.md) answer specific questions;
-- the [Examples](../tutorials/index.md) show larger, realistic workflows.
-
-!!! summary "Recap"
-
-    - `run_comparison` runs several policies on identical demand from
-      identical, separate starting states.
-    - Differences in results come from the policies alone.
-    - Metrics and costs turn the comparison into a decision.
+  policy as a daily job.
+- The [Guide](../user-guide/index.md) covers each building block in depth.
+- The [Recipes](../how-to/index.md) answer specific questions.
+- The [Examples](../tutorials/index.md) show larger workflows.
 
 [Next: From backtest to production :octicons-arrow-right-24:](09-production.md){ .md-button }

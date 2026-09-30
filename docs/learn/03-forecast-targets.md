@@ -5,7 +5,7 @@
 A forecast says what demand might be. A policy needs something more specific:
 **how much stock to aim for**. This page shows how one becomes the other.
 
-## How far ahead an order has to reach
+## The protection horizon
 
 The tea shop orders every $R = 4$ days, and deliveries take $L = 2$ days.
 Today's order is the last one that can arrive before the order placed at the
@@ -19,7 +19,7 @@ $$
 This window $H$ is the **protection horizon**. The
 [timing page](../user-guide/concepts/timing.md) derives it day by day.
 
-## The target is a quantile of total demand
+## A quantile of total demand
 
 Let $D_{t}, D_{t+1}, \dots, D_{t+H-1}$ be demand over the window. The
 order-up-to level $S$ is a high quantile of their **sum**:
@@ -31,7 +31,7 @@ $$
 where $\alpha$ is the target probability, for example $0.95$. If the forecast
 is right, the six-day total stays at or below $S$ with probability $\alpha$.
 
-## Sum first, then take the quantile
+## Quantile of the sum
 
 Your forecasting model can often give you a daily 95% quantile. Adding six of
 those does **not** give the 95% quantile of the six-day total. A day with
@@ -64,7 +64,7 @@ Stockcast asks for the target of the whole window.
 [Targets cover a whole window](../user-guide/design/cumulative-targets.md) has
 the full argument.
 
-## Three ways to get the target
+## Computing the target
 
 Every forecasting library can produce one of these. Pick the one that matches
 your model's output.
@@ -110,7 +110,7 @@ your model's output.
     where $z_{\alpha}$ is the standard normal quantile ($z_{0.95} \approx
     1.645$). See the example below.
 
-## Give the target its context
+## Target tables
 
 A target is only meaningful together with the window it covers. A target
 table carries one row per SKU with the value and the last date it covers:
@@ -137,9 +137,9 @@ date: the period length (`freq`), the probability (`service_level`), and the
 horizon $H = L + R$. The forecast was made $H$ periods before the `date`, on
 the opening date here; you can also pass it as `forecast_origin`, and
 Stockcast checks that the two agree. A target built for a different window
-is caught at `fit` or before the run, never during it.
+is rejected at `fit` or before the run starts.
 
-## Letting Stockcast combine means and standard deviations
+## From means and standard deviations
 
 Route 3 uses a forecast table with one row per future period, numbered by
 `fh` (forecast horizon $1 \dots H$):
@@ -170,15 +170,15 @@ policy.get_target_levels()
 With a mean and variance of 6 per day, the normal approximation gives
 $36 + 1.645 \times \sqrt{36} = 45.9$: very close to the 46 from the sample paths.
 
-!!! summary "Recap"
+## Summary
 
-    - A policy's target covers the whole protection window $H = L + R$.
-    - The target is a quantile of **total** demand over that window: sum
-      first, then take the quantile.
-    - Any forecasting model works: use sample paths, a cumulative forecast,
-      or means and standard deviations.
+- A policy's target covers the whole protection window $H = L + R$.
+- The target is a quantile of **total** demand over that window: sum
+  first, then take the quantile.
+- Any forecasting model works: use sample paths, a cumulative forecast,
+  or means and standard deviations.
 
-**Go deeper:** [Forecast targets](../user-guide/forecast-targets.md) ·
+**See also:** [Forecast targets](../user-guide/forecast-targets.md) ·
 [Connect any forecasting model](../how-to/connect-a-forecaster.md) ·
 [Notebook 04c](../notebooks/04c_cumulative_protection_target.ipynb) ·
 [Notebook 04e](../notebooks/04e_cumulative_target_methods.ipynb)

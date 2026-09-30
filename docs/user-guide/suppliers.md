@@ -1,11 +1,11 @@
 # Suppliers and open orders
 
-By default every accepted order is one delivery, arriving exactly $L$ periods
-later. Real supply is richer: several suppliers, lead times that vary, orders
-delivered in parts. The **supply model** describes all of this, and the
+By default every accepted order is one delivery, arriving $L$ periods later.
+In practice, supply often involves several suppliers, variable lead times, and
+orders delivered in parts. The **supply model** describes all of this, and the
 **order frame** tells you which order is where.
 
-Everything here is optional. Runs without a supply model behave exactly as
+Everything here is optional. Runs without a supply model behave as
 described in the rest of the guide.
 
 ## Two views of the pipeline
@@ -183,7 +183,7 @@ round(float(by_supplier["units"].sum()), 2), round(float(events["received_units"
 (327.3, 327.3)
 ```
 
-## Same results, more detail
+## Equivalence with the default
 
 A single supplier with the policy's lead time gives exactly the same ledger as
 a run without a supply model:
@@ -210,13 +210,12 @@ order frame then also names the supplier.
 A policy sizes its target for its own `lead_time`: an order-up-to policy
 covers $H = L + R$ periods. Suppliers may deliver at other times: a different
 or random lead time, partial deliveries, or delays. Stockcast simulates
-exactly the target you supplied against exactly the supply you declared.
-That is often the very experiment you want: *how does my plan hold up if the
+the target you supplied against the supply you declared, which is often the
+experiment you want: *how does my plan hold up if the
 importer is slower than I assumed?*
 
 The first time in a run that a delivery arrives at a time other than the
-policy's lead time, Stockcast issues a friendly `UserWarning` so the
-difference never goes unnoticed. Results are not changed. If you want targets
+policy's lead time, Stockcast issues a `UserWarning`. Results are not changed. If you want targets
 that account for random lead times, compute them outside Stockcast over the
 random protection window (for example, the distribution of demand over
 $L + R$ with $L$ random), and pass them in as usual. Once you have made that

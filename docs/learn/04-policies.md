@@ -88,10 +88,10 @@ saw, and when the order should arrive ($0 + L = 2$).
 
     `predict` returns a request. It does not touch the inventory. Placing the
     order, receiving it, and serving demand are the engine's job (next step).
-    That separation is what lets you swap policies freely: every policy is
+    Because of this separation, policies can be swapped freely and are all
     judged by the same bookkeeping.
 
-## The built-in policies
+## Built-in policies
 
 | Policy | Rule | Typical use |
 |---|---|---|
@@ -104,7 +104,7 @@ saw, and when the order should arrive ($0 + L = 2$).
 Each has its own page in the [policy guide](../user-guide/policies/index.md),
 with the formulas and when to use it.
 
-## Your own policy
+## Custom policies
 
 Any rule can become a policy. Subclass `BasePolicy`, implement `fit` and
 `predict`, and return an `OrderDecision`. Here is a "days of cover" rule that
@@ -148,16 +148,16 @@ cover.predict(inventory, current_period=0).get_dataframe()[["unique_id", "order_
 0  tea_250g            18.0
 ```
 
-It plugs into the engine exactly like the built-in policies.
+It runs in the engine like any built-in policy.
 
-!!! summary "Recap"
+## Summary
 
-    - Configure a policy with the operation, `fit` it on a target, `predict`
-      orders from a state.
-    - `OrderUpToPolicy` orders $\max(0, S - \mathit{IP})$ at each review.
-    - Policies request orders; the engine carries them out.
+- Configure a policy with the operation, `fit` it on a target, `predict`
+  orders from a state.
+- `OrderUpToPolicy` orders $\max(0, S - \mathit{IP})$ at each review.
+- Policies request orders; the engine carries them out.
 
-**Go deeper:** [Policies](../user-guide/policies/index.md) ·
+**See also:** [Policies](../user-guide/policies/index.md) ·
 [Write your own policy](../user-guide/policies/custom-policies.md) ·
 [Notebook 05](../notebooks/05_custom_policies.ipynb)
 

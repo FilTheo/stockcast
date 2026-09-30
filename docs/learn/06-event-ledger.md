@@ -39,7 +39,7 @@ events.shape
 
 The full list, with meanings, is in [Output tables](../reference/schemas.md).
 
-## Read one day
+## Reading one day
 
 Here is Saturday 10 January, a review day:
 
@@ -65,7 +65,7 @@ inventory_position_end         42.0
 Name: 4, dtype: object
 ```
 
-Following the three moves:
+In the order of events:
 
 1. **Receive.** Nothing was due. The shelf holds 19 packs.
 2. **Decide.** The policy saw an inventory position of 19 and ordered
@@ -76,7 +76,7 @@ Following the three moves:
 `decision_inventory_position` is the position the policy saw *before* demand.
 It is empty on days without a decision.
 
-## The books always balance
+## Balance identities
 
 Each row satisfies a small set of accounting identities. For every SKU and
 period:
@@ -117,9 +117,9 @@ With lost sales, unmet demand appears as `shortage_units` and
 `lost_sales_units`. With backorders, it appears as `backorder_increment` and
 carries forward in `backorders_end` until a delivery serves it.
 `stockout_flag` marks every SKU-period with a shortage. Step 8 shows a
-scenario where these columns come alive.
+scenario with shortages.
 
-## More views of the same run
+## Other views of a run
 
 | Method | One row per | Use it for |
 |---|---|---|
@@ -129,14 +129,14 @@ scenario where these columns come alive.
 | `to_process_flow_frame()` | Process flow | Expiry, inspections, returns |
 | `summary()` | – | A quick dictionary of headline numbers |
 
-!!! summary "Recap"
+## Summary
 
-    - The ledger has one row per SKU and period, with every flow of units.
-    - Its rows satisfy stock, pipeline, and backorder balance identities,
-      checked as the engine runs.
-    - Everything downstream (metrics, plots, your analysis) reads the ledger.
+- The ledger has one row per SKU and period, with every flow of units.
+- Its rows satisfy stock, pipeline, and backorder balance identities,
+  checked as the engine runs.
+- Everything downstream (metrics, plots, your analysis) reads the ledger.
 
-**Go deeper:** [Stock accounting](../user-guide/concepts/accounting.md) ·
+**See also:** [Stock accounting](../user-guide/concepts/accounting.md) ·
 [Output tables](../reference/schemas.md) ·
 [The ledger is the record](../user-guide/design/ledger.md)
 

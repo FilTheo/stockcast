@@ -1,9 +1,8 @@
 # Evaluation and metrics
 
-Metrics turn a run's ledger into answers: how much demand was served, how
-much stock was held, what it cost. Every metric in Stockcast is a small,
-documented function of the event ledger, so you always know exactly what a
-number means.
+Metrics summarise a run's ledger: how much demand was served, how much stock
+was held, and what it cost. Each metric is a documented function of the event
+ledger.
 
 ## The evaluator
 
@@ -86,7 +85,7 @@ backorders served later are recorded separately in `backorders_fulfilled`.
 | `CoverageMetric("forward")` | mean of $\mathit{OH} / \text{expected demand rate}$, from an `expected_demand_rate` column or `context["forward_demand_rate"]` |
 | `CoverageMetric("trailing")` | mean of $\mathit{OH} / \text{average realised demand}$ per SKU |
 
-Two grains appear here on purpose. `avg_on_hand` is a mean over SKU-period
+The stock metrics use two grains. `avg_on_hand` is a mean over SKU-period
 rows ("a typical SKU holds…"); `peak_ending_on_hand` and
 `ending_on_hand_variance` look at the **portfolio total** per period ("the
 warehouse holds…"). For more than one SKU, `CoverageMetric` is a mean over
@@ -112,7 +111,7 @@ Cost metrics multiply ledger quantities by rates. A rate can be a number in
 | `cost_per_demand_unit`, `cost_per_fulfilled_unit` | `total_cost` $/ \sum D$ or $/ \sum F$ | as for `total_cost` |
 
 `TotalCost` is the short route: `TotalCost(holding=0.2, shortage=1.0)` adds
-exactly those two components. Its arguments are `holding`, `shortage`,
+those two components. Its arguments are `holding`, `shortage`,
 `backlog`, `order_per_line` with `order_per_unit`, `purchase`, `waste`,
 `terminal_backlog`, `terminal_pipeline`, and `salvage_on_hand` with
 `salvage_pipeline`. For per-row rates, or to use the component metrics
@@ -121,12 +120,12 @@ alongside, use `total_cost` with `context`.
 `cost_components` names the parts of `total_cost`: any of `"holding"`,
 `"shortage"`, `"backlog"`, `"ordering"`, `"purchase"`, `"waste"`,
 `"terminal_backlog"`, `"terminal_pipeline"`, `"salvage"`. Each listed
-component needs all of its rates, zeros included, so a total always means
-exactly what you listed. Purchases are charged when ordered. Choose the window
+component needs all of its rates, zeros included, so a total contains only
+the components you list. Purchases are charged when ordered. Choose the window
 and the terminal components that match your question; see
 [Put costs on a run](../how-to/costs.md).
 
-## Your own metrics
+## Custom metrics
 
 Any function `metric(events, context) -> float` is a metric; its name becomes
 the column name. For a named, configurable metric, subclass
@@ -156,6 +155,6 @@ evaluator.evaluate([fill_rate, ShareOfDaysBelow(10)], groupby=[])
 0        1.0          0.125
 ```
 
-**Go deeper:** [Learn step 7](../learn/07-evaluate.md) ·
+**See also:** [Learn step 7](../learn/07-evaluate.md) ·
 [API: metrics](../reference/metrics.md) ·
 [Notebook 06](../notebooks/06_fair_forecast_and_policy_comparisons.ipynb)

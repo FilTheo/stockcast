@@ -1,7 +1,6 @@
 # Notation and glossary
 
-Every symbol used in these docs, in one place. Formulas elsewhere use exactly
-these meanings.
+The symbols and terms used throughout the docs.
 
 ## Indices and time
 

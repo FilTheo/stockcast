@@ -34,11 +34,10 @@ service, and waste. It is built for **researchers**
 who judge forecasts by the decisions they drive, and for **engineers** who run
 those decisions every day, with the same objects.
 
-It is inspired by PyTorch and assembled like Lego: policies, schedules,
-constraints, callbacks, suppliers, physical processes, and metrics are bricks
-that snap onto one engine with explicit timing and checked accounting. Use the
-built-in bricks, reshape any of them by subclassing, and build any inventory
-system you need.
+Inspired by PyTorch-style libraries, it is built like Lego: policies,
+schedules, constraints, callbacks, suppliers, physical processes, and metrics
+are small parts that snap onto one engine with explicit timing and checked
+accounting. Each part is a class you can subclass and adjust.
 
 ## Install
 

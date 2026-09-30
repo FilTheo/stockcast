@@ -111,14 +111,14 @@ policy.get_target_levels()
 1  coffee_1kg          41.0
 ```
 
-## Tips for any library
+## Notes
 
 - **Long format fits.** Most forecasting libraries (Nixtla's, sktime's,
   skforecast's multi-series tools) use the same long `unique_id` / date /
   value layout as Stockcast, so reshaping is usually a `groupby`.
 - **Forecast the window you need.** Ask your model for exactly $H$ steps from
   the decision's origin. For irregular schedules, $H$ differs per decision.
-- **Keep the origin honest.** Fit on data up to the origin only. For a
+- **Use the correct origin.** Fit on data up to the origin only. For a
   decision at demand period $t$, the origin is the date of period $t - 1$ (the
   opening date for $t = 0$). Stockcast checks the dates you declare.
 - **Quantile forecasts per step are not enough on their own.** They are

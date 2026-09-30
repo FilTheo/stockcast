@@ -26,7 +26,7 @@ $$
 $$
 
 The retailer learns about a problem only on the due date: until then the
-order is on order at its full quantity, as in real life. A delayed part is
+order is on order at its full quantity. A delayed part is
 resolved again when it next falls due, so it can slip more than once.
 
 With this one shape you can model:
@@ -36,7 +36,7 @@ With this one shape you can model:
 - **back-ordered supply**: receive part now and delay the remainder;
 - **disruptions**: decide from the date, the state, or the SKU.
 
-## Write an outcome
+## Custom outcomes
 
 Subclass `DeliveryOutcome` and implement `resolve(due, context)`. `due` has one
 row per due delivery (`order_id`, the SKU column, `supplier_id`, `source`,
@@ -155,7 +155,7 @@ Name: count, dtype: int64
 
 ## Supplier metrics
 
-Supplier-level measures are one custom metric away:
+Supplier-level measures are custom metrics:
 
 ```python
 from stockcast.evaluation import InventoryEvaluator, fill_rate
@@ -175,7 +175,7 @@ InventoryEvaluator().fit(result, window="scoring").evaluate(
 0   0.987776                 0.9
 ```
 
-## Good to know
+## Notes
 
 - `DeliveryOutcome()` itself lets everything arrive, so
   `Supplier(id, lead_time, delivery=DeliveryOutcome())` gives the same ledger
@@ -186,7 +186,7 @@ InventoryEvaluator().fit(result, window="scoring").evaluate(
   `max_lead_time` periods of the current state.
 - The engine checks every returned row: finite, non-negative quantities, and
   `received + delayed` no larger than the due quantity. Any other problem
-  stops the run with a clear message.
+  stops the run with an error.
 - Only deliveries of suppliers with an outcome are passed to `resolve`,
   including their declared opening orders. Opening stock given only as
   `in_transit` has no supplier and arrives as scheduled.

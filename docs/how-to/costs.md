@@ -38,8 +38,8 @@ InventoryEvaluator().fit(result, window="scoring").evaluate(
 0         20.84           70.0          499.5      590.34
 ```
 
-Every component you list needs all of its rates, zeros included. A rate you
-did not give is never assumed, so the total means exactly what you wrote.
+Every component you list needs all of its rates, zeros included. Missing rates
+are not assumed, so the total contains only the components you list.
 
 ## Rates per SKU or per period
 
@@ -124,8 +124,8 @@ The 25 packs left on the shelf are credited at €0.50 each.
 ## Costs per unit
 
 `cost_per_demand_unit` and `cost_per_fulfilled_unit` divide `total_cost` by
-total demand or by units served: handy for comparing SKUs of very different
+total demand or by units served: useful for comparing SKUs of very different
 volumes.
 
-**Go deeper:** [Evaluation and metrics](../user-guide/metrics.md#costs) ·
+**See also:** [Evaluation and metrics](../user-guide/metrics.md#costs) ·
 [Compare forecasts and policies](compare-policies.md)

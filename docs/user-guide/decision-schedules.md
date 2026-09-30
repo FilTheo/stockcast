@@ -34,7 +34,7 @@ schedules = {
 {'every 4, from 0': [0, 4, 8], 'every 4, from 2': [2, 6, 10], 'once, at 5': [5], 'explicit': [0, 3, 10]}
 ```
 
-### `review_period` is shorthand
+### `review_period`
 
 Most policies take `review_period=R`. That is the same as
 `schedule=PeriodicSchedule(every=R)`: decisions at $0, R, 2R, \dots$ Use the
@@ -52,7 +52,7 @@ weekly_from_day_3 = OrderUpToPolicy(
 
 `review_period=1` means the policy may order every period.
 
-## An opportunity, not an obligation
+## What a schedule controls
 
 A schedule grants an **opportunity** to order. Whether an order is placed, and
 how large it is, is up to the policy: an order-up-to policy orders nothing if
@@ -143,7 +143,7 @@ decision has no next opportunity, so its horizon is whatever window you
 declare. [Notebook 04f](../notebooks/04f_scheduled_forecast_simulation.ipynb)
 builds this workflow with real smooth forecasts.
 
-## `policy_schedule`: refitting over time
+## Refitting over time
 
 `policy_schedule` is also how you refresh a periodic policy with new
 forecasts: `{decision_period: fitted_policy}`. Each snapshot must be the same
@@ -193,6 +193,6 @@ mon_thu = Weekdays(weekdays=(0, 3), first_weekday=1)
 - `to_manifest()` returns a JSON-serialisable description, stored in the run
   manifest.
 
-**Go deeper:** [Timing](concepts/timing.md) ·
+**See also:** [Timing](concepts/timing.md) ·
 [Notebook 02b: decision schedules](../notebooks/02b_decision_schedules.ipynb) ·
 [Notebook 05c: extension points](../notebooks/05c_extension_points.ipynb)

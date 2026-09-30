@@ -2,7 +2,7 @@
 
 Short, task-focused recipes, part of the [Guide](../user-guide/index.md).
 Each one assumes you know the basics from
-[Learn the basics](../learn/index.md) and gets straight to the point.
+[Learn the basics](../learn/index.md).
 
 | Recipe | You want to… |
 |---|---|

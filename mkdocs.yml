@@ -70,6 +70,8 @@ exclude_docs: |
 
 not_in_nav: |
   notebooks/*.ipynb
+  contributing.md
+  release-notes.md
 
 validation:
   omitted_files: warn
@@ -250,8 +252,3 @@ nav:
       - Utilities: reference/utils.md
       - Plots: reference/visualization.md
       - Output tables: reference/schemas.md
-  - About:
-      - FAQ: about/faq.md
-      - Release notes: release-notes.md
-      - Contributing: contributing.md
-      - Citation and support: support.md

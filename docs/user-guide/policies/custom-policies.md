@@ -3,7 +3,7 @@
 Any ordering rule can become a Stockcast policy: a heuristic from your
 business, a rule from a paper, a machine-learning model that predicts order
 quantities. Subclass `BasePolicy`, implement two methods, and your rule runs in
-the engine, in comparisons, and in the ledger exactly like the built-in ones.
+the engine and in comparisons like the built-in ones.
 
 ## The contract
 
@@ -96,9 +96,8 @@ policy
 ```
 
 On this demand path, seven days of cover ($42$ packs) served every sale with
-about four fewer packs on the shelf than the 95% quantile target ($46$). One
-demand path is one story; the next step would be more paths, or costs, before
-deciding. The comparison itself is fair: same demand, same opening stock,
+about four fewer packs on the shelf than the 95% quantile target ($46$). A decision
+would need more demand paths, or costs. The comparison itself is fair: same demand, same opening stock,
 same engine.
 
 ## Example: extend a built-in policy

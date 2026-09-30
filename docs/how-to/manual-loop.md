@@ -16,7 +16,7 @@ public.
 
 Each call returns a **new** state, so earlier states stay available.
 
-## A loop that matches the engine
+## Example loop
 
 ??? example "Setup: the tea shop from Learn the basics"
 
@@ -64,7 +64,7 @@ Your loop is responsible for everything the engine otherwise does for you:
 | applies callbacks, constraints, suppliers, and processes | apply them yourself, or leave them out |
 | builds the run manifest | record your settings |
 
-So: use the engine for experiments and comparisons, and the primitives when
+Use the engine for experiments and comparisons, and the primitives when
 you need control of each step.
 
 ## Order lines

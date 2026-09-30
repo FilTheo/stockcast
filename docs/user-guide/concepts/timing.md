@@ -2,8 +2,8 @@
 
 Inventory results depend on *when* things happen inside a period. Does a
 delivery arrive before or after today's customers? Does the policy see
-today's sales before it orders? Stockcast answers these questions once, writes
-the answer down, and uses it everywhere. This page is that answer.
+today's sales before it orders? This page defines the order of events that every
+part of Stockcast uses.
 
 ## The sequence of events
 
@@ -50,7 +50,7 @@ and never enters the pipeline.
 
 ## The protection horizon
 
-Now the central result. Take a periodic policy that reviews every $R$ periods
+Take a periodic policy that reviews every $R$ periods
 with lead time $L$, and a decision at period $t$.
 
 ![Timing of one decision](../../assets/figures/timing-window.svg)
@@ -215,5 +215,5 @@ agree with Stockpyl's cost formulas within simulation error.
 - [Stockpyl simulation: sequence of events](https://stockpyl.readthedocs.io/en/latest/tutorial/tutorial_sim.html#sequence-of-events)
 - [SimOpt: (s, S) inventory model](https://simopt.readthedocs.io/en/development/models/sscont.html)
 
-**Go deeper:** [Decisions happen before demand](../design/decide-before-demand.md) ·
+**See also:** [Decisions happen before demand](../design/decide-before-demand.md) ·
 [Notebook 02b: decision schedules](../../notebooks/02b_decision_schedules.ipynb)

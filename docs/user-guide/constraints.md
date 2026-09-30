@@ -49,17 +49,17 @@ Pass the list to the engine with `order_constraints=constraints`. Outside the
 engine, for example in a production loop, wrap it as
 `OrderingConstraints(constraints)` and call its `apply` method.
 
-## The final order satisfies every rule
+## Final check
 
 After the sequence runs, Stockcast checks the final quantity against **every**
 constraint. If an adjustment by one rule breaks another, the run stops with a
 message naming the SKU and the rule. For example, `OrderMultiple` rounds up to
 a full case while `ShelfSpaceLimit` cuts down to the free space. When space is
-tight, no order satisfies both, and Stockcast tells you rather than accepting
-an impossible quantity. When you need a rule such as "whole cases that still
+tight, no order satisfies both, and the run stops instead of accepting an
+impossible quantity. When you need a rule such as "whole cases that still
 fit", write it as one constraint (below).
 
-## The audit trail
+## Audit trail
 
 Every ledger row records the order at each stage:
 
@@ -77,7 +77,7 @@ Every ledger row records the order at each stage:
 The metrics `capacity_violation_count` and `capacity_violation_rate` summarise
 the last column.
 
-## Write your own constraint
+## Custom constraints
 
 Subclass `OrderingConstraint`, give it a unique `name`, and implement `apply`.
 It receives the current `OrderDecision` and a `ConstraintContext` (the state

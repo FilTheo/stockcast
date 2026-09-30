@@ -167,7 +167,7 @@ events[["date", "demand", "received_units", "fulfilled_units",
 6 2026-02-08     4.0            9.00              4.0            9.00            6.21
 ```
 
-Read the rows like a diary:
+Reading the rows:
 
 - **Feb 2 to 5.** The shelf holds more than $S = 10.21$, so the shop orders
   nothing and sells from stock.
@@ -207,7 +207,7 @@ below shows both runs.
 
 ![Eight weeks of the tea shop with both forecasts](../assets/figures/quickstart-run.svg)
 
-## What you just built
+## Summary
 
 ```mermaid
 flowchart LR
@@ -220,24 +220,20 @@ flowchart LR
     L --> V[InventoryEvaluator]
 ```
 
-Every box is a separate object. Change one and keep the rest: a forecast from
-a real model, a `ReorderPointPolicy`, a supplier with random lead times, a
-shelf life. That is the Stockcast way of working.
+Each box is a separate object, so you can replace one and keep the rest: a
+forecast from a real model, a `ReorderPointPolicy`, a supplier with random
+lead times, or a shelf life.
 
-## Next: add a lead time
+## Next steps
 
-Here an order arrives the same morning, so it only has to last one day. When
-the supplier takes $L$ days and the shop orders every $R$ days, each order
-must last until the next one arrives: $H = L + R$ days. The forecast then
-covers total demand over those $H$ days.
+Here an order arrives the same morning, so it only has to last one day. With
+a lead time of $L$ days and a review every $R$ days, each order must last
+$H = L + R$ days, and the forecast covers total demand over that window.
 [Learn step 3](../learn/03-forecast-targets.md) shows how, with the same tea
 shop.
 
-## Where next
-
-- **[Learn the basics](../learn/index.md)**: one idea per page, from
-  inventory state to [running it in production](../learn/09-production.md).
-- **[Guide](../user-guide/index.md)**: the theory and all options for
-  each building block.
-- **[Examples](../tutorials/index.md)**: complete notebooks, including real
+- [Learn the basics](../learn/index.md): one idea per page, from inventory
+  state to [production](../learn/09-production.md).
+- [Guide](../user-guide/index.md): theory and options for each building block.
+- [Examples](../tutorials/index.md): complete notebooks, including real
   forecasts with smooth.
