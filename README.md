@@ -12,6 +12,7 @@
   <a href="https://github.com/FilTheo/stockcast/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache 2.0"></a>
   <a href="https://github.com/FilTheo/stockcast/actions/workflows/docs.yml"><img src="https://github.com/FilTheo/stockcast/actions/workflows/docs.yml/badge.svg" alt="Documentation build"></a>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/Maintained%20by-PADS%20%C2%B7%20VIVES-red" alt="Maintained by PADS, VIVES">
 </p>
 
 <p align="center">
@@ -38,6 +39,10 @@ Inspired by PyTorch-style libraries, it is built like Lego: policies,
 schedules, constraints, callbacks, suppliers, physical processes, and metrics
 are small parts that snap onto one engine with explicit timing and checked
 accounting. Each part is a class you can subclass and adjust.
+
+Stockcast is developed and maintained by
+[Filotas Theodosiou](https://filtheo.github.io/) at the Predictive AI and
+Digital Shift (PADS) research group, VIVES University of Applied Sciences.
 
 ## Install
 
@@ -200,6 +205,12 @@ Questions, bugs, and ideas are welcome on
 [GitHub Issues](https://github.com/FilTheo/stockcast/issues). See the
 [contributing guide](https://filtheo.github.io/stockcast/contributing/) for
 the development setup.
+
+## About
+
+Stockcast is built and maintained by
+[Filotas Theodosiou](https://filtheo.github.io/) at the Predictive AI and
+Digital Shift (PADS) research group, VIVES University of Applied Sciences
 
 ## License
 

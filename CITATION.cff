@@ -5,6 +5,8 @@ type: software
 authors:
   - family-names: Theodosiou
     given-names: Filotas
+    affiliation: "Predictive AI and Digital Shift (PADS) research group, VIVES University of Applied Sciences"
+    website: "https://filtheo.github.io/"
 version: 0.1.0
 license: Apache-2.0
 repository-code: "https://github.com/FilTheo/stockcast"

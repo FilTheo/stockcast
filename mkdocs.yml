@@ -5,7 +5,7 @@ site_author: Filotas Theodosiou
 repo_url: https://github.com/FilTheo/stockcast
 repo_name: FilTheo/stockcast
 edit_uri: edit/main/docs/
-copyright: Copyright &copy; 2026 Stockcast contributors. Apache-2.0 license.
+copyright: Copyright &copy; 2026 Filotas Theodosiou, PADS research group, VIVES University of Applied Sciences. Apache-2.0 license.
 
 theme:
   name: material
@@ -50,6 +50,10 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/FilTheo/stockcast
+      name: Stockcast on GitHub
+    - icon: fontawesome/solid/globe
+      link: https://filtheo.github.io/
+      name: Filotas Theodosiou
 
 extra_css:
   - stylesheets/extra.css

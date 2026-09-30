@@ -147,6 +147,14 @@ The [Quickstart](get-started/quickstart.md) walks through each of these lines.
   Other conventions map onto it:
   [work with any timing convention](how-to/timing-conventions.md).
 
+## About
+
+Stockcast is built and maintained by
+[Filotas Theodosiou](https://filtheo.github.io/) at the Predictive AI and
+Digital Shift (PADS) research group, VIVES University of Applied Sciences,
+where it supports our research on turning forecasts into inventory
+decisions.
+
 ## Citation
 
 If you use Stockcast in your work, please cite the version you used. The

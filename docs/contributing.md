@@ -2,6 +2,8 @@
 
 Contributions are welcome, from typo fixes to new building blocks. Open an
 issue or pull request on the [GitHub repository](https://github.com/FilTheo/stockcast).
+Stockcast is maintained by [Filotas Theodosiou](https://filtheo.github.io/)
+at the PADS research group, VIVES University of Applied Sciences.
 
 ## Development setup
 
