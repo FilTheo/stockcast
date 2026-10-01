@@ -30,7 +30,7 @@ flowchart TD
 ```
 
 These are starting points. Because every policy runs through the
-same engine and ledger, the fastest way to choose is often to simulate the
+same engine and event table, the fastest way to choose is often to simulate the
 candidates side by side with
 [`run_comparison`](../../learn/08-compare.md).
 

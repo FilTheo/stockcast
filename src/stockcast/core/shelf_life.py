@@ -6,7 +6,7 @@ This module provides:
       with age-based expiry.
     - ShelfLife: the FIFO shelf-life ``InventoryProcess``. Expired stock
       leaves on_hand before receipts, ordering and demand, and is recorded in
-      the event ledger's ``expired_units`` column.
+      the event table's ``expired_units`` column.
 
 Expiry semantics: a lot received on day D with shelf life S serves demand on
 days D through D+S-1 and expires at the start of day D+S, before that day's

@@ -38,11 +38,11 @@ _NONNEGATIVE_FLOW_COLUMNS = (
     "callback_adjusted_order_quantity",
 )
 
-# Optional pair: present only in ledgers from runs whose processes declare
+# Optional pair: present only in event tables from runs whose processes declare
 # general (non-expiry) flows. When present they enter the physical balance.
 PROCESS_EVENT_COLUMNS = ("process_inflow_units", "process_outflow_units")
 
-# Optional column: present only in ledgers from runs with a supplier
+# Optional column: present only in event tables from runs with a supplier
 # DeliveryOutcome. Units due that never arrive leave stock on order.
 SUPPLY_EVENT_COLUMNS = ("supplier_shortfall_units",)
 
@@ -58,7 +58,7 @@ _BOOLEAN_COLUMNS = (
 
 def _require_close(frame: pd.DataFrame, expected, actual, name: str) -> None:
     # Absolute floor plus a rounding allowance scaled by the row's flows, so
-    # valid ledgers in grams or millilitres (1e7+) are not rejected.
+    # valid event tables in grams or millilitres (1e7+) are not rejected.
     magnitude = frame["_flow_magnitude"].to_numpy(dtype=float)
     difference = np.abs(np.asarray(expected, dtype=float) - np.asarray(actual, dtype=float))
     valid = difference <= 1e-9 + 1e-12 * magnitude
@@ -79,10 +79,10 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     consecutive periods of one SKU and policy must chain: each row starts with
     the previous row's ending on-hand, backorders and pipeline.
 
-    Ledgers from runs with general process flows also carry
+    Event tables from runs with general process flows also carry
     ``process_inflow_units`` and ``process_outflow_units``; when present
     (both are required together) they are validated as nonnegative flows and
-    enter the physical inventory balance. Ledgers from runs with supplier
+    enter the physical inventory balance. Event tables from runs with supplier
     delivery outcomes carry ``supplier_shortfall_units``; when present it is
     validated as a nonnegative flow and leaves the pipeline balance. When
     ``order_arrival_flag`` is present it must be boolean and set only on

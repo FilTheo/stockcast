@@ -1,7 +1,7 @@
 # Stock accounting
 
 Every unit that enters or leaves the shelf, the pipeline, or the backorder
-list is recorded in the ledger, and each row must balance. This page lists
+list is recorded in the event table, and each row must balance. This page lists
 the identities and shows how to check them.
 
 ## The four stocks
@@ -25,7 +25,7 @@ and the inventory position combines them: $\mathit{IP} = \mathit{OH} + P - B$.
 
 ## The identities
 
-For every SKU and period, the ledger satisfies:
+For every SKU and period, the event table satisfies:
 
 **Demand is either served or short.**
 
@@ -101,10 +101,10 @@ never arrive leave the pipeline without entering the shelf.
 ## Runtime checks
 
 The engine checks the identities for every row as it is written. The tolerance
-is $10^{-9}$ plus $10^{-12}$ times the size of the row's flows, so ledgers in
-grams or millilitres balance just as well as ledgers in units.
+is $10^{-9}$ plus $10^{-12}$ times the size of the row's flows, so event tables in
+grams or millilitres balance just as well as event tables in units.
 
-`validate_event_frame` applies the same checks to any ledger, and more:
+`validate_event_frame` applies the same checks to any event table, and more:
 
 - **Rows chain.** For each SKU, a period starts with the on-hand, backorders,
   and pipeline the previous period ended with.
@@ -148,8 +148,8 @@ always computed from balanced books.
   SKU and period.
 - **Additivity.** Balanced rows can be summed over any grouping (weeks,
   stores, categories) and the totals still balance.
-- **Explanations.** When a metric surprises you, the ledger tells you which
+- **Explanations.** When a metric surprises you, the event table tells you which
   flow caused it.
 
-**See also:** [The ledger is the record](../design/ledger.md) ·
+**See also:** [The event table is the record](../design/event-table.md) ·
 [Output tables](../../reference/schemas.md)

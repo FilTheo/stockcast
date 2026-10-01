@@ -1,6 +1,6 @@
 # Plots
 
-`stockcast.visualization` draws common views of a run from its ledger. Every function returns Matplotlib axes, so you can restyle,
+`stockcast.visualization` draws common views of a run from its event table. Every function returns Matplotlib axes, so you can restyle,
 annotate, or combine them, and none of them calls `plt.show()` for you.
 
 ## One run
@@ -59,7 +59,7 @@ ax.set_title("On-hand stock: 80% versus 95% target")
 
 ## Custom charts
 
-The ledger is a tidy DataFrame, so any plotting library works directly on
+The event table is a tidy DataFrame, so any plotting library works directly on
 `result.to_event_frame()`. The figures throughout these docs are drawn that
 way; their source is in
 [`docs/scripts/make_figures.py`](https://github.com/FilTheo/stockcast/blob/main/docs/scripts/make_figures.py).

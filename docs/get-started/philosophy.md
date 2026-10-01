@@ -187,7 +187,7 @@ goods early, skip a lost sale, or forget a backorder. That is what makes
 policies interchangeable: whatever rule you write, it is judged by the same
 books.
 
-**Every period balances.** Each SKU-period row of the event ledger satisfies
+**Every period balances.** Each SKU-period row of the event table satisfies
 
 $$
 \begin{aligned}
@@ -201,8 +201,8 @@ $$
 adjustments $a$, orders $q$), plus the backorder, demand-split, and
 order-trail identities, and the extra flows of any process or unreliable
 supplier you add. The engine checks them on every row as it runs, and
-`validate_event_frame` checks any ledger you save or edit. Every metric and
-plot is computed from the ledger, so service, stock, and cost numbers are
+`validate_event_frame` checks any event table you save or edit. Every metric and
+plot is computed from the event table, so service, stock, and cost numbers are
 consistent with each other by construction.
 
 **Inputs are facts you state.** Opening stock, dates, frequency, lead time,
@@ -224,7 +224,7 @@ accounting, so you can see what it actually delivers.
 
 The deep dives: [Stock accounting](../user-guide/concepts/accounting.md) ·
 [The engine owns the stock](../user-guide/design/engine-owns-state.md) ·
-[The ledger is the record](../user-guide/design/ledger.md) ·
+[The event table is the record](../user-guide/design/event-table.md) ·
 [Every input is explicit](../user-guide/design/explicit-inputs.md).
 
 ## Principle 4: small parts, one base class each
@@ -241,7 +241,7 @@ onto it at well-defined places.
 
 **The core** is three objects: the `InventoryStateDataFrame` (what you have),
 the `SimulationEngine` (the clock and the only place stock changes), and the
-event ledger (what happened). Everything else plugs into the period between
+event table (what happened). Everything else plugs into the period between
 them:
 
 ```mermaid
@@ -251,7 +251,7 @@ flowchart TD
     C -- yes --> P["<b>Decide</b><br/>policy → callbacks → constraints → supply"]
     P --> H["<b>Meet demand</b>"]
     C -- no --> H
-    H --> I["<b>Close and record</b><br/>processes · stock callbacks · checked ledger row"]
+    H --> I["<b>Close and record</b><br/>processes · stock callbacks · checked event table row"]
     I --> M["Metrics · comparisons · plots"]
 ```
 
@@ -331,11 +331,11 @@ be fast. It also has to stay readable, because its inputs and outputs are
 where people inspect their work.
 
 So Stockcast has two faces. **At the boundaries** (the state a policy sees,
-the decision it returns, the ledger you analyse) everything is a pandas
+the decision it returns, the event table you analyse) everything is a pandas
 DataFrame in the long `unique_id` / date / value format the forecasting
 ecosystem already uses (McKinney, 2010). **Inside the period loop**, the engine
 keeps live state as NumPy arrays (Harris et al., 2020), builds DataFrames only
-when user code needs one, and assembles the history and the ledger once at
+when user code needs one, and assembles the history and the event table once at
 the end.
 
 We treated the original pandas implementation as the executable specification
@@ -353,7 +353,7 @@ than the previous pandas implementation. The largest gains come where most perio
 (weekly ordering over large portfolios), the smallest where every period calls
 a custom constraint or callback. In absolute terms, on the laptop these docs
 were written on (an Intel Core i7-8750H from 2018), a year of daily
-order-up-to decisions for 1,000 SKUs takes about 10 to 12 seconds, with every ledger
+order-up-to decisions for 1,000 SKUs takes about 10 to 12 seconds, with every event table
 row checked and the manifest written; 100 SKUs take about 5. About half of
 that time is the policy deciding: the built-in `predict` works on DataFrames,
 just like a policy you write yourself.
@@ -396,7 +396,7 @@ tool needs. Its inputs are typed objects that are validated before anything
 runs, and its errors name the field (and, where it matters, the SKU and
 period) at fault, so an agent can correct itself. Runs are deterministic given their inputs and seeds. Configuration and
 results are machine-readable: JSON manifests, `get_config` on every
-component, and a DataFrame ledger. And because the engine owns the stock, an
+component, and a DataFrame event table. And because the engine owns the stock, an
 agent that writes a policy, a callback, or an experiment configuration cannot
 bypass the accounting. Stockcast does not ship an agent integration; it is
 designed to be a well-behaved tool inside one.
@@ -420,7 +420,7 @@ Boundaries are design decisions too.
   it, and the interface keeps Stockcast agnostic.
 - **No black-box optimiser.** Stockcast executes and evaluates policies. You
   can put an optimiser *around* it (grid search over $S$, simulation-based
-  tuning, a reinforcement-learning trainer), and the ledger gives it an honest
+  tuning, a reinforcement-learning trainer), and the event table gives it an honest
   objective.
 - **One stocking point per run.** Many SKUs and many suppliers, but no
   multi-echelon network in 0.1. Supplier allocation and the order frame are the
@@ -442,7 +442,7 @@ Boundaries are design decisions too.
 | [Targets cover a whole window](../user-guide/design/cumulative-targets.md) | A target is a quantile of total demand over the protection window, never a sum of daily quantiles. |
 | [Every input is explicit](../user-guide/design/explicit-inputs.md) | Stock, dates, costs, and uncertainty come from you; Stockcast never fills them in. |
 | [The engine owns the stock](../user-guide/design/engine-owns-state.md) | Policies and extensions propose; only the engine changes stock. |
-| [The ledger is the record](../user-guide/design/ledger.md) | One balanced row per SKU and period is the source of every metric. |
+| [The event table is the record](../user-guide/design/event-table.md) | One balanced row per SKU and period is the source of every metric. |
 | [Small parts you combine](../user-guide/design/composition.md) | One job per object, one base class per extension point. |
 
 ## References

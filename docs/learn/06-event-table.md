@@ -1,13 +1,13 @@
 <span class="sc-step">Step 6 of 9</span>
 
-# The event ledger
+# The event table
 
-Every simulation writes an **event ledger**: one row per SKU and period that
+Every simulation writes an **event table**: one row per SKU and period that
 records what the shop started with, what arrived, what was ordered, what was
 sold, and what was left. It is the complete, checked record of the run.
 Metrics, plots, and your own analysis all read from it.
 
-## Get the ledger
+## Get the event table
 
 We continue with the `result` from [step 5](05-engine.md).
 
@@ -94,13 +94,13 @@ $$
 \end{aligned}
 $$
 
-The engine checks these on every row as it runs. You can check any ledger,
+The engine checks these on every row as it runs. You can check any event table,
 including one you saved or edited, with `validate_event_frame`:
 
 ```python
 from stockcast.evaluation import validate_event_frame
 
-checked = validate_event_frame(events)   # returns the ledger, or raises
+checked = validate_event_frame(events)   # returns the event table, or raises
 len(checked)
 ```
 
@@ -111,7 +111,7 @@ len(checked)
 Because every row balances, you can add rows up in any grouping (by week,
 by SKU, by store) and the totals stay consistent.
 
-## Shortages in the ledger
+## Shortages in the event table
 
 With lost sales, unmet demand appears as `shortage_units` and
 `lost_sales_units`. With backorders, it appears as `backorder_increment` and
@@ -131,13 +131,13 @@ scenario with shortages.
 
 ## Summary
 
-- The ledger has one row per SKU and period, with every flow of units.
+- The event table has one row per SKU and period, with every flow of units.
 - Its rows satisfy stock, pipeline, and backorder balance identities,
   checked as the engine runs.
-- Everything downstream (metrics, plots, your analysis) reads the ledger.
+- Everything downstream (metrics, plots, your analysis) reads the event table.
 
 **See also:** [Stock accounting](../user-guide/concepts/accounting.md) ·
 [Output tables](../reference/schemas.md) ·
-[The ledger is the record](../user-guide/design/ledger.md)
+[The event table is the record](../user-guide/design/event-table.md)
 
 [Next: Evaluate a run :octicons-arrow-right-24:](07-evaluate.md){ .md-button }

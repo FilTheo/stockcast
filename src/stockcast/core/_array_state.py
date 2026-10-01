@@ -3,7 +3,7 @@
 ``SimulationEngine`` keeps live inventory as arrays between its public
 boundaries. Policies, constraints and callbacks still receive
 ``InventoryStateDataFrame`` or DataFrame objects built from these arrays, and
-the history and canonical event ledger are assembled once, after the run.
+the history and canonical event table are assembled once, after the run.
 
 Exactness contract: every frame built here must equal, value for value and
 dtype for dtype, the frame the per-period pandas path produces. A state that
@@ -112,7 +112,7 @@ class StateSchema:
         return self.constants[self.sku_column]
 
     def sku_event(self) -> pd.Series:
-        """SKU column as the event ledger's ``unique_id`` column."""
+        """SKU column as the event table's ``unique_id`` column."""
         if self._sku_event is None:
             self._sku_event = self.sku.reset_index(drop=True).rename("unique_id")
         return self._sku_event
@@ -128,7 +128,7 @@ class StateSchema:
         return self._sku_index
 
     def numeric(self, name: str) -> pd.Series:
-        """Event-ledger view of a constant column (``pd.to_numeric``)."""
+        """Event-table view of a constant column (``pd.to_numeric``)."""
         if name not in self._numeric:
             self._numeric[name] = _numeric_constant(self.constants[name]).reset_index(drop=True)
         return self._numeric[name]

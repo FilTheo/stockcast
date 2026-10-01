@@ -35,7 +35,7 @@ release line and a migration note.
 - **Inventory processes.** Add physical stock flows such as damage or
   inspection loss at defined phases, with FIFO shelf life built in. See
   [shelf life and inventory processes](user-guide/processes.md).
-- **Evidence you can check.** Every run produces a validated event ledger, a
+- **Evidence you can check.** Every run produces a validated event table, a
   run manifest, callback audits, order and process-flow frames, and service
   and cost metrics.
 - **Documentation.** A Quickstart, a *Learn the basics* series, a Guide to

@@ -60,7 +60,7 @@ Your loop is responsible for everything the engine otherwise does for you:
 |---|---|
 | validates the demand calendar, targets, and settings before starting | check inputs yourself |
 | copies the opening state and policy | keep track of which objects you change |
-| writes and checks one ledger row per SKU and period | record what you need |
+| writes and checks one event table row per SKU and period | record what you need |
 | applies callbacks, constraints, suppliers, and processes | apply them yourself, or leave them out |
 | builds the run manifest | record your settings |
 

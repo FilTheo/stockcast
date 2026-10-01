@@ -128,7 +128,7 @@ class CappedOrderUpTo(OrderUpToPolicy):
     A limit that belongs to the *decision rule* fits in the policy. A limit
     that belongs to the *operation*, and should apply whatever the policy, is
     better as an [ordering constraint](../constraints.md): it works with every
-    policy and is recorded separately in the ledger.
+    policy and is recorded separately in the event table.
 
 ## Optional extras
 
@@ -137,7 +137,7 @@ class CappedOrderUpTo(OrderUpToPolicy):
 | `get_target_metadata()` | Return a dict with `forecast_origin` and `forecast_frequency` so the engine checks your forecast dates like it does for built-in policies. |
 | `validate_decision_window(period, information_date, offset)` | Check, before the run, that the policy's information covers each scheduled decision. Raise to stop the run. |
 | `validate_demand_window(demand, n_periods)` | Check the demand table before the run (for example, a season's boundaries). |
-| `policy_name` | A readable name used as the default label in comparisons and the ledger. |
+| `policy_name` | A readable name used as the default label in comparisons and the event table. |
 
 **Notebooks:** [05: custom policies](../../notebooks/05_custom_policies.ipynb) ·
 [05c: extension points](../../notebooks/05c_extension_points.ipynb)

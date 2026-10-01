@@ -89,7 +89,7 @@ day[["order_quantity", "demand", "fulfilled_units", "ending_on_hand"]].to_dict()
 ```
 
 The kiosk bought 44, sold 37, and had 7 left for salvage. The profit is
-computed from the ledger with your own prices: Stockcast records the physical
+computed from the event table with your own prices: Stockcast records the physical
 flows and leaves the economics of leftovers to you.
 
 ## Seasons with a lead time
@@ -155,7 +155,7 @@ any opening pipeline arrives by the season's start.
 - The critical fractile assumes linear costs, lost sales, and no second
   purchase. With extra costs (disposal fees, goodwill), capacity limits, or
   expiry during the season, compute your own target and pass it in; the
-  policy, engine, and ledger work the same way.
+  policy, engine, and event table work the same way.
 - A one-row weekly demand table is a one-period season; seven daily rows are a
   seven-period season, and the target is then a quantile of the seven-day
   total.

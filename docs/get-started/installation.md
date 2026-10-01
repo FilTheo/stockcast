@@ -67,6 +67,6 @@ Each public name has a home module, and the docs import from it:
 |---|---|
 | `stockcast.core` | inventory state, orders, the simulation engine, schedules, constraints, callbacks, suppliers, processes |
 | `stockcast.policies` | built-in replenishment policies and target providers |
-| `stockcast.evaluation` | the evaluator, metrics, and ledger validation |
+| `stockcast.evaluation` | the evaluator, metrics, and event table validation |
 | `stockcast.utils` | the demand generator and manual-loop helpers |
 | `stockcast.visualization` | ready-made plots |

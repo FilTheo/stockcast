@@ -451,7 +451,7 @@ def test_total_cost_object_rejects_ambiguous_rates():
             [TotalCost(holding=0.2)], context={"holding_cost_per_unit_period": 0.3},
         )
     ledger = evaluator.event_frame_.assign(holding_cost_per_unit_period=0.2)
-    with pytest.raises(ValueError, match="both a ledger column and a TotalCost"):
+    with pytest.raises(ValueError, match="both an event table column and a TotalCost"):
         InventoryEvaluator().fit(event_frame=ledger).evaluate([TotalCost(holding=0.2)])
 
 

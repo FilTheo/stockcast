@@ -46,7 +46,7 @@ flowchart LR
     S["Inventory state"] --> E
     D["Demand"] --> E
     P --> E["SimulationEngine"]
-    E --> L["Event ledger"]
+    E --> L["Event table"]
     L --> M["Inventory evaluation"]
 ```
 
@@ -141,7 +141,7 @@ The [Quickstart](get-started/quickstart.md) walks through each of these lines.
 - **Small parts you combine.** Policies, schedules, constraints, suppliers,
   callbacks, and shelf-life processes each do one job. Use the built-in ones
   or subclass a base class.
-- **Every unit is accounted for.** Each simulated period is a ledger row, and
+- **Every unit is accounted for.** Each simulated period is an event table row, and
   the engine checks that stock, backorders, and pipeline balance on every row.
 - **Timing you can read.** Receive, decide, then meet demand, in that order.
   Other conventions map onto it:

@@ -15,7 +15,7 @@ each period, and every change they make is written to an audit table.
 
 A callback proposes; the engine validates and applies. An order change passes
 through the ordering constraints afterwards. A stock change affects the next
-decisions and is recorded in the ledger as `inventory_adjustment_units`. It
+decisions and is recorded in the event table as `inventory_adjustment_units`. It
 cannot undo today's lost sales, because those customers have already left.
 
 Both hooks receive a `CallbackContext` with a **copy** of the state

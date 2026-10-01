@@ -114,9 +114,9 @@ was still on its way when the run ended. Because the policy sees every
 shortfall at its next review, it ordered more than the 333 packs of the
 reliable run, and still served 98.8% of demand.
 
-## What the ledger records
+## What the event table records
 
-Runs with a delivery outcome add one ledger column,
+Runs with a delivery outcome add one event table column,
 `supplier_shortfall_units`: units that were due in the period and will never
 arrive. It closes the pipeline balance:
 
@@ -178,7 +178,7 @@ InventoryEvaluator().fit(result, window="scoring").evaluate(
 ## Notes
 
 - `DeliveryOutcome()` itself lets everything arrive, so
-  `Supplier(id, lead_time, delivery=DeliveryOutcome())` gives the same ledger
+  `Supplier(id, lead_time, delivery=DeliveryOutcome())` gives the same event table
   as a supplier without an outcome (plus an all-zero
   `supplier_shortfall_units` column).
 - A supplier with an outcome needs a lead time of at least one period.

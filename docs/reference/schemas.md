@@ -17,7 +17,7 @@ With both, the dates decide: `period` may keep your own numbering (for example
 14, 15, ...) if it advances one per period for every SKU, and the engine
 renumbers it from 0 (`run_settings["demand_period_offset"]` records the shift).
 
-## Event ledger
+## Event table
 
 `SimulationResult.to_event_frame()`. One row per SKU and period. The required
 columns are listed in `stockcast.evaluation.CANONICAL_EVENT_COLUMNS`.
@@ -43,7 +43,7 @@ columns are listed in `stockcast.evaluation.CANONICAL_EVENT_COLUMNS`.
 | `decision_flag` | whether a decision was made |
 | `stockout_flag` | `shortage_units > 0` |
 | `backorder_flag` | `backorders_end > 0` |
-| `order_arrival_flag` | a replenishment order arrived: the first delivery of an order was received this period. An order split across suppliers, partial deliveries, or delays is flagged once, when its first units arrive; declared opening orders with the same order period count as one order. Written by every run and used by `cycle_service_level`; it is not in `CANONICAL_EVENT_COLUMNS`, so ledgers without it still validate |
+| `order_arrival_flag` | a replenishment order arrived: the first delivery of an order was received this period. An order split across suppliers, partial deliveries, or delays is flagged once, when its first units arrive; declared opening orders with the same order period count as one order. Written by every run and used by `cycle_service_level`; it is not in `CANONICAL_EVENT_COLUMNS`, so event tables without it still validate |
 
 ### Stock flows
 

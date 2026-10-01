@@ -312,7 +312,7 @@ $t + 1$, one period later, so `lead_time = L`.
 The physical story is identical: the same orders, the same arrivals, the same
 stock, and the same costs on every day. Three small things are worth knowing.
 
-- **The ledger row.** An order placed at the end of period $t$ appears on
+- **The event table row.** An order placed at the end of period $t$ appears on
   Stockcast's row $t + 1$, the morning it is placed. Order counts in a
   warm-up or scoring window can shift by one at the window's edge.
 - **The edges of the run.** A source's order at the end of the last period

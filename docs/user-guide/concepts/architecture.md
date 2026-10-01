@@ -19,7 +19,7 @@ owns, and how the engine puts them together.
 | **Supply model** | Decide which supplier delivers, when, and in how many parts | `SupplyModel`, `Supplier`, `SupplierShares` | `SupplierAllocation`, `DeliveryOutcome` |
 | **Inventory process** | Physical flows such as expiry, inspections, returns | `ShelfLife` | `InventoryProcess` |
 | **Engine** | Run the clock and apply every change to stock | `SimulationEngine` | – |
-| **Metric** | Summarise the ledger | 37 metric functions, `CoverageMetric`, `TotalCost` | any function, `BaseInventoryMetric` |
+| **Metric** | Summarise the event table | 37 metric functions, `CoverageMetric`, `TotalCost` | any function, `BaseInventoryMetric` |
 
 ## Ownership
 
@@ -44,7 +44,7 @@ flowchart TB
         SU --> PL[Pipeline or immediate receipt]
         PL --> DM[Meet demand]
         DM --> PR[Processes and<br/>on_after_demand callbacks]
-        PR --> LG[Record and check ledger row]
+        PR --> LG[Record and check event table row]
     end
     D --> Engine
     S0 --> Engine
@@ -58,7 +58,7 @@ Consequences:
   It cannot bypass accounting, so every policy is judged by the same rules.
 - **Constraints and suppliers are reusable.** A case-pack rule or a supplier
   with random lead times works with any policy.
-- **Every change is recorded.** The ledger records the policy's request, the
+- **Every change is recorded.** The event table records the policy's request, the
   callback-adjusted quantity, the constrained quantity, and the accepted
   order separately, so you can see what each component did.
 
@@ -165,7 +165,7 @@ The same objects serve two jobs:
 | Goal | choose a forecast and a policy | compute today's orders |
 | Demand | past or simulated, all at once | tonight's sales, one day at a time |
 | Driver | `SimulationEngine.run` / `run_comparison` | your scheduled job: `advance_period` → `fit` → `predict` → constraints → `update_inventory_with_orders`, then `fulfill_demand` |
-| Output | ledger, metrics, manifest | orders to send, the next state to save |
+| Output | event table, metrics, manifest | orders to send, the next state to save |
 
 Because both follow the same receive → decide → demand sequence with the same
 policy, constraints, and targets, a daily job reproduces its backtest exactly.
@@ -177,7 +177,7 @@ The objects share a small vocabulary, borrowed from scikit-learn and PyTorch:
 
 | Verb | Where | Meaning |
 |---|---|---|
-| `fit` | policies, evaluator | Bind data (targets, a ledger) to a configured object |
+| `fit` | policies, evaluator | Bind data (targets, an event table) to a configured object |
 | `predict` | policies | Propose an order for a given state |
 | `run` / `run_comparison` | engine | Play the system forward and record it |
 | `evaluate` | evaluator | Compute metrics over a window and grouping |

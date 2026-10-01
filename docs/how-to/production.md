@@ -135,7 +135,7 @@ it.
   the constraint audit, and the accepted order. Together they explain each
   order the job places.
 - **The engine for replays, primitives for live days.** The engine adds
-  validation, callbacks, the ledger, and the manifest, which suit
+  validation, callbacks, the event table, and the manifest, which suit
   backtests. A live daily job uses the primitives shown here.
 
 [Notebook 10](../notebooks/10_production_daily_close.ipynb) replays four days

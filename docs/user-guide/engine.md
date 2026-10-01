@@ -74,7 +74,7 @@ modified and can be reused.
 ## Each period
 
 Each period follows [receive, decide, then meet demand](concepts/timing.md).
-After each period, the engine writes one ledger row per SKU and checks its
+After each period, the engine writes one event table row per SKU and checks its
 [balance identities](concepts/accounting.md). The core loop runs on NumPy
 arrays, so thousands of SKUs over long horizons simulate quickly.
 
@@ -89,7 +89,7 @@ arrays, so thousands of SKUs over long horizons simulate quickly.
 | Settlement | Let late orders arrive and tails play out | only if `order_during_settlement=True` |
 
 Every window moves stock; only the scoring window counts by default. Each
-ledger row carries its window in `run_window`.
+event table row carries its window in `run_window`.
 
 ## Results
 
@@ -101,7 +101,7 @@ ledger row carries its window in `run_window`.
 
 | Member | Returns |
 |---|---|
-| `to_event_frame(window=None)` | The [event ledger](concepts/accounting.md), optionally one window (`"warmup"`, `"scoring"`, `"settlement"`, `"all"`) |
+| `to_event_frame(window=None)` | The [event table](concepts/accounting.md), optionally one window (`"warmup"`, `"scoring"`, `"settlement"`, `"all"`) |
 | `to_order_frame()` | One row per scheduled delivery: supplier, order and due periods, status |
 | `to_callback_audit_frame()` | One row per accepted callback effect, with reason and source |
 | `to_process_flow_frame()` | One row per inventory-process flow |
@@ -140,7 +140,7 @@ list(result.run_manifest)
 | `opening_inventory` | A fingerprint of the opening state and open orders |
 | `run_settings` | Frequency, windows, schedule, constraints, callbacks, supply, processes, timing convention, and `demand_period_offset`: the shift removed from a demand table's own period numbers (0 when none) |
 
-Store the manifest next to the ledger and any result can be traced back to
+Store the manifest next to the event table and any result can be traced back to
 its inputs.
 
 ## `run_comparison`

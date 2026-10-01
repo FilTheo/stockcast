@@ -20,7 +20,7 @@ Start here if you are new. These follow the same ideas as
 | Notebook | You will learn |
 |---|---|
 | [01 · Inventory flow](../notebooks/01_introduction_to_inventory_flow.ipynb) | how demand, an order, and the lead-time pipeline change the state |
-| [02 · First engine simulation](../notebooks/02_first_engine_simulation.ipynb) | what a complete, checked run produces: ledger, windows, manifest, metrics |
+| [02 · First engine simulation](../notebooks/02_first_engine_simulation.ipynb) | what a complete, checked run produces: event table, windows, manifest, metrics |
 | [02b · Decision schedules](../notebooks/02b_decision_schedules.ipynb) | periodic, delayed, one-time, and irregular ordering calendars |
 | [02c · Synthetic demand](../notebooks/02c_synthetic_demand.ipynb) | demand from any distribution: one sampler for the panel or one per SKU |
 | [03 · Your own loop](../notebooks/03_component_loop.ipynb) | the primitives behind the engine, and what the engine adds |

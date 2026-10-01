@@ -123,7 +123,7 @@ RUN_MANIFEST_REQUIRED_SECTIONS = (
 class SimulationResult:
     """The outcome of one simulation run.
 
-    Returned by ``SimulationEngine.run``. The event ledger is the main record;
+    Returned by ``SimulationEngine.run``. The event table is the main record;
     the other tables and the manifest add detail.
 
     Attributes:
@@ -185,7 +185,7 @@ class SimulationResult:
         )
 
     def to_event_frame(self, window: Optional[str] = None) -> pd.DataFrame:
-        """Return the event ledger: one row per SKU and period.
+        """Return the event table: one row per SKU and period.
 
         Every row satisfies the stock, pipeline and backorder balance identities.
         Columns are described in the output-tables reference
@@ -196,7 +196,7 @@ class SimulationResult:
                 / ``None`` for every row.
 
         Returns:
-            A copy of the ledger rows.
+            A copy of the event table rows.
         """
         result = self._event_frame.copy()
         if window is None or window == "all":
@@ -214,7 +214,7 @@ class SimulationResult:
 
     def to_order_frame(self) -> pd.DataFrame:
         """
-        Return the order-level ledger: one row per scheduled delivery.
+        Return the order table: one row per scheduled delivery.
 
         Rows cover the opening pipeline and every order placed during the
         run. Columns are ``stockcast.core.ORDER_FRAME_COLUMNS``:
@@ -234,7 +234,7 @@ class SimulationResult:
             - delivery_quantity: quantity of this delivery
             - status: ``"received"`` or ``"open"`` at the end of the run
 
-        Per SKU and period, received deliveries add up to the event ledger's
+        Per SKU and period, received deliveries add up to the event table's
         ``received_units`` and open ones to ``on_order_end``.
         """
         return self._order_frame.copy(deep=True)
@@ -244,12 +244,12 @@ class SimulationResult:
         Return one row per nonzero process flow, SKU and period.
 
         Columns are ``stockcast.core.PROCESS_FLOW_COLUMNS``: the SKU, the
-        event-ledger ``period``/``date``/``demand_period``/``run_window``,
+        event-table ``period``/``date``/``demand_period``/``run_window``,
         the ``process`` and ``flow`` names, the flow's ``direction``
         (``inflow``/``outflow``) and ``category`` (``general``/``expiry``),
         the ``phase`` it acted in, and its nonnegative ``quantity``.
 
-        Per SKU and period, expiry flows add up to the event ledger's
+        Per SKU and period, expiry flows add up to the event table's
         ``expired_units``; general inflows and outflows add up to
         ``process_inflow_units`` and ``process_outflow_units``. The frame is
         empty for a run without processes.
@@ -338,7 +338,7 @@ def _sum_in_transit(value) -> float:
 
 
 def _order_arrival_flags(event_frame: pd.DataFrame, order_frame: pd.DataFrame) -> np.ndarray:
-    """Flag the ledger rows in which a replenishment order first arrives.
+    """Flag the event table rows in which a replenishment order first arrives.
 
     An order is one SKU's decision in one period, with all of its supplier
     lines and partial or delayed deliveries. Opening orders follow the same
@@ -1077,7 +1077,7 @@ class _PeriodRun:
         """Order-audit columns for one decision period, keyed by column name.
 
         Equal to ``_attach_order_audit`` on the full event frame. The common
-        case (one decision, no constraints, trail in ledger SKU order with
+        case (one decision, no constraints, trail in event table SKU order with
         plain dtypes) is computed directly: grouping unique SKUs and summing
         one value each is ``value + 0.0`` for floats and the value for ints.
         Otherwise the pandas merges run on a two-column frame.
@@ -1182,7 +1182,7 @@ class SimulationEngine:
     Each period the engine receives due deliveries, lets the policy decide on
     scheduled periods (then applies callbacks, ordering constraints and the
     supply model), serves demand, applies inventory processes and after-demand
-    callbacks, and records one checked ledger row per SKU. Everything that can be
+    callbacks, and records one checked event table row per SKU. Everything that can be
     validated is checked before the first period.
 
     Example:
@@ -1224,7 +1224,7 @@ class SimulationEngine:
             demand_column: Demand column of the demand table (default ``"y"``).
 
         A column named other than its default must exist in the demand table,
-        and the table must not also hold the default name. Results and ledgers
+        and the table must not also hold the default name. Results and event tables
         use the default names.
         """
         for name, value in (
@@ -1628,7 +1628,7 @@ class SimulationEngine:
             policy_schedule=policy_schedule,
             update_log=update_log,
         )
-        # Ledger periods are whole numbers (the state holds one integer period),
+        # Event table periods are whole numbers (the state holds one integer period),
         # whatever dtype the opening state stored them in.
         event_frame['period'] = event_frame['period'].astype('int64')
 
@@ -1677,7 +1677,7 @@ class SimulationEngine:
             resolutions=self._run_resolutions,
             outcome_suppliers=self._run_outcome_suppliers,
         )
-        # Optional process and supplier columns stay last in the ledger.
+        # Optional process and supplier columns stay last in the event table.
         optional = [
             position for position, column in enumerate(event_frame.columns)
             if column in (
@@ -1764,12 +1764,12 @@ class SimulationEngine:
         policy_schedule: Mapping[int, BasePolicy],
         update_log: list,
     ) -> tuple:
-        """Execute every period; return final state, history, event ledger
+        """Execute every period; return final state, history, event table
         and the order-level deliveries placed at each decision.
 
         Live state is held as NumPy arrays (``ArrayState``). Policies,
         constraints and callbacks receive DataFrame-backed states built at
-        their boundary, and the history and event ledger are assembled once
+        their boundary, and the history and event table are assembled once
         from the run log. A state without an exact array form stays a
         DataFrame, and that period runs on the pandas path, so results are
         identical either way.
@@ -2425,7 +2425,7 @@ class SimulationEngine:
     def _order_frame(final, *, opening_book, placements, opening_period, opening_date,
                      period_offset, resolutions=None,
                      outcome_suppliers=frozenset()) -> pd.DataFrame:
-        """Order-level ledger of a run; the final book must match the pipeline."""
+        """Order table of a run; the final book must match the pipeline."""
         final_period = int(final.data['period'].iloc[0])
         book = final._open_orders
         if book is not None:

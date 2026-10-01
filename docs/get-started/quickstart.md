@@ -147,7 +147,7 @@ and meet the same demand, so any difference comes from the forecast alone.
 
 ## 6. Read what happened
 
-The **event ledger** has one row per SKU and day, recording every unit that
+The **event table** has one row per SKU and day, recording every unit that
 moved:
 
 ```python
@@ -182,7 +182,7 @@ The orders are fractional because the target is.
 
 ## 7. Evaluate
 
-`InventoryEvaluator` turns each ledger into metrics:
+`InventoryEvaluator` turns each event table into metrics:
 
 ```python
 from stockcast.evaluation import InventoryEvaluator, avg_on_hand, fill_rate
@@ -216,7 +216,7 @@ flowchart LR
     I[InventoryStateDataFrame] --> E
     D --> E
     P --> E[SimulationEngine.run]
-    E --> L[Event ledger]
+    E --> L[Event table]
     L --> V[InventoryEvaluator]
 ```
 

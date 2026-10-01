@@ -171,7 +171,7 @@ True
 ```
 
 The daily job and the backtest agree on every day's stock, so the backtest's
-ledger, metrics, and manifest describe the job you run.
+event table, metrics, and manifest describe the job you run.
 
 ## Deployment
 
@@ -185,7 +185,7 @@ to your systems:
 | Schedules the job (cron, Airflow, Dagster, …) | `plan`: receive, `predict`, constraints |
 | Approves and sends orders | returns the order and its audit trail |
 | Saves the state between runs, safely and once | `close`: the next state to save |
-| Monitors service and cost | the same metrics, on live ledgers or regular backtests |
+| Monitors service and cost | the same metrics, on live event tables or regular backtests |
 
 Recommended practice: keep the plan and the close as separate, saved steps, each
 with an idempotency key, so a retry never orders or sells twice; and before

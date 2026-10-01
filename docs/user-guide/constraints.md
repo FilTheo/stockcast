@@ -3,7 +3,7 @@
 A policy says what it would like to order. Real operations add rules: a
 supplier's minimum, whole cases, a truck's capacity, the space in a chiller.
 Ordering constraints turn the requested order into a feasible one, and the
-ledger records what each rule changed.
+event table records what each rule changed.
 
 ## Where constraints act
 
@@ -32,7 +32,7 @@ fixes the order.
 | `ShelfSpaceLimit(C)` | $q \le \max\bigl(0,\ C - (\mathit{OH} + P)\bigr)$ | $q \leftarrow$ the free space |
 
 Zero orders are always allowed. `MaximumOrderQuantity` and `ShelfSpaceLimit`
-are capacity rules: when they cut an order, the ledger's
+are capacity rules: when they cut an order, the event table's
 `capacity_violation_flag` is set.
 
 ```python
@@ -61,7 +61,7 @@ fit", write it as one constraint (below).
 
 ## Audit trail
 
-Every ledger row records the order at each stage:
+Every event table row records the order at each stage:
 
 | Column | Meaning |
 |---|---|
@@ -155,7 +155,7 @@ events.loc[events["requested_order_quantity"] > 0,
 ```
 
 A shelf of 40 packs cannot hold what a target of 46 asks for. On 6 January,
-30 packs already fill the shelf, so only one case of 6 fits; the ledger shows
+30 packs already fill the shelf, so only one case of 6 fits; the event table shows
 every cut. `to_manifest` stores the rule's settings in the run manifest.
 Implement `validate(order, context)` too if the rule should also check the
 final order after later constraints; the base class checks the basic shape.

@@ -56,7 +56,7 @@ PROCESS_FLOW_COLUMNS = (
 
 FLOW_DIRECTIONS = ("inflow", "outflow")
 FLOW_CATEGORIES = ("general", "expiry")
-# Event-ledger columns carrying non-expiry process flows. They appear only in
+# Event-table columns carrying non-expiry process flows. They appear only in
 # runs whose processes declare at least one ``general`` flow.
 PROCESS_EVENT_COLUMNS = ("process_inflow_units", "process_outflow_units")
 
@@ -71,7 +71,7 @@ class Flow:
 
     ``direction`` is ``"inflow"`` (adds on-hand units) or ``"outflow"``
     (removes on-hand units). ``category="expiry"`` marks an outflow as
-    expiry: it is recorded in the canonical ``expired_units`` ledger column
+    expiry: it is recorded in the canonical ``expired_units`` event table column
     and priced by ``waste_cost``. Every other flow is ``"general"`` and is
     recorded in ``process_inflow_units`` / ``process_outflow_units``.
     """
@@ -108,7 +108,7 @@ class ProcessContext:
       period's values.
 
     ``period`` and ``date`` identify the demand period being processed
-    (the event-ledger coordinates); ``demand_period`` is its zero-based
+    (the event-table coordinates); ``demand_period`` is its zero-based
     index. The context is a copy: changing it never changes engine state.
     """
 

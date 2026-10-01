@@ -164,7 +164,7 @@ nav:
           - 3. Forecast targets: learn/03-forecast-targets.md
           - 4. Policies: learn/04-policies.md
           - 5. The engine: learn/05-engine.md
-          - 6. The event ledger: learn/06-event-ledger.md
+          - 6. The event table: learn/06-event-table.md
           - 7. Evaluate a run: learn/07-evaluate.md
           - 8. Compare scenarios: learn/08-compare.md
           - 9. From backtest to production: learn/09-production.md
@@ -174,7 +174,7 @@ nav:
           - Targets cover a whole window: user-guide/design/cumulative-targets.md
           - Every input is explicit: user-guide/design/explicit-inputs.md
           - The engine owns the stock: user-guide/design/engine-owns-state.md
-          - The ledger is the record: user-guide/design/ledger.md
+          - The event table is the record: user-guide/design/event-table.md
           - Small parts you combine: user-guide/design/composition.md
   - Guide:
       - user-guide/index.md

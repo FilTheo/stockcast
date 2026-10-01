@@ -1,6 +1,6 @@
 # Evaluation
 
-The evaluator, ledger validation, and metric base classes. Guide: [Evaluation and metrics](../user-guide/metrics.md).
+The evaluator, event table validation, and metric base classes. Guide: [Evaluation and metrics](../user-guide/metrics.md).
 
 ::: stockcast.evaluation.InventoryEvaluator
 

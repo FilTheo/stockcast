@@ -12,12 +12,12 @@ described in the rest of the guide.
 
 | View | What you see | Where |
 |---|---|---|
-| Per SKU | `in_transit[k]`: units arriving $k + 1$ periods from now | the state, the ledger (`on_order_end`, `received_units`) |
+| Per SKU | `in_transit[k]`: units arriving $k + 1$ periods from now | the state, the event table (`on_order_end`, `received_units`) |
 | Per order | each open order line: supplier, order period, due period, remaining quantity | `state.open_orders()`, `result.to_order_frame()` |
 
 The two always agree: for every SKU and future period, the open deliveries due
 then add up to the matching `in_transit` slot. The accounting (inventory
-position, ledger identities) uses the per-SKU view, so the order view adds
+position, event table identities) uses the per-SKU view, so the order view adds
 detail without changing any number.
 
 ## A supply model
@@ -145,7 +145,7 @@ opening pipeline and every order placed during the run:
 | `ordered_quantity`, `delivery_quantity` | size of the whole line and of this delivery |
 | `status` | `"received"` or `"open"` at the end of the run (or `"disrupted"` with delivery outcomes) |
 
-Per SKU and period, received deliveries add up to the ledger's
+Per SKU and period, received deliveries add up to the event table's
 `received_units`, and open ones to the final `on_order_end`. A few lines of
 pandas give supplier-level views. Count the deliveries received rather than
 the placed rows, whose `mean_lead_time` would hide delays: a delayed
@@ -172,7 +172,7 @@ These are the supplier deliveries received. When there is no opening pipeline
 (its receipts count in `received_units` but have no supplier) and no
 [delivery outcome](unreliable-deliveries.md) (short or late deliveries are
 marked `"disrupted"`; sum `received_quantity` there), they add up to the
-ledger's received units, as in this run:
+event table's received units, as in this run:
 
 ```python
 events = result.to_event_frame()
@@ -185,7 +185,7 @@ round(float(by_supplier["units"].sum()), 2), round(float(events["received_units"
 
 ## Equivalence with the default
 
-A single supplier with the policy's lead time gives exactly the same ledger as
+A single supplier with the policy's lead time gives exactly the same event table as
 a run without a supply model:
 
 ```python
@@ -265,7 +265,7 @@ quantities, and parts that add up to the accepted order.
 Capacity needs no special object; choose the behaviour you mean:
 
 - **The excess is not ordered.** Write an [`OrderingConstraint`](constraints.md)
-  that caps the total. Constraints run before the supply stage, and the ledger
+  that caps the total. Constraints run before the supply stage, and the event table
   records every cut.
 - **The excess goes to another supplier.** Write a `SupplierAllocation` that
   gives each supplier at most its capacity and passes the rest on.
@@ -306,7 +306,7 @@ state.scheduled_receipts()
 
 See [Run your own simulation loop](../how-to/manual-loop.md).
 
-## What the ledger records
+## What the event table records
 
 - `order_quantity` is the accepted quantity, `received_units` the sum of all
   deliveries received, `on_order_end` the sum of open deliveries.

@@ -116,7 +116,7 @@ flowchart LR
     D[Demand] --> E
     F[Forecast target] --> P[Policy]
     P --> E[SimulationEngine]
-    E --> L[Event ledger]
+    E --> L[Event table]
     L --> V[InventoryEvaluator]
     L --> C[run_comparison]
 ```

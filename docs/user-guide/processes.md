@@ -3,7 +3,7 @@
 Stock does not only leave through sales. Food expires, quality checks discard
 units, customers return goods. Stockcast models these physical flows as
 **inventory processes**: small objects that add or remove on-hand stock at
-defined moments of each period, with every unit recorded in the ledger.
+defined moments of each period, with every unit recorded in the event table.
 
 Shelf life, the most common case, comes first.
 
@@ -22,7 +22,7 @@ $$
 
 Shelf life is measured in **calendar days**, whatever the period length.
 Demand and backorders consume the oldest lots first. Expired units appear in
-the ledger as `expired_units` and are priced by the `waste_cost` metric.
+the event table as `expired_units` and are priced by the `waste_cost` metric.
 
 ??? example "Setup: the tea shop from Learn the basics"
 
@@ -170,7 +170,7 @@ must say when it was received.
 
 ## Outputs
 
-- **Ledger:** expiry adds into `expired_units`; general flows add the pair
+- **Event table:** expiry adds into `expired_units`; general flows add the pair
   `process_inflow_units` and `process_outflow_units`, and the on-hand identity
   becomes
   $\mathit{OH}^{\text{end}} = \mathit{OH}^{\text{start}} + r - \text{served} - \text{expired} + \text{adjustment} + \text{inflow} - \text{outflow}$.

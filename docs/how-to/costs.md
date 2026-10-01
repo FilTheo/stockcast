@@ -1,7 +1,7 @@
 # Put costs on a run
 
 Costs put service and stock on one scale. Stockcast computes costs from the
-ledger with rates that you provide, so every euro in a result can be traced to
+event table with rates that you provide, so every euro in a result can be traced to
 a quantity and a rate.
 
 ??? example "Setup: the tea shop from Learn the basics"
@@ -43,7 +43,7 @@ are not assumed, so the total contains only the components you list.
 
 ## Rates per SKU or per period
 
-A rate can also be a **column of the ledger**. Add it, then fit the evaluator
+A rate can also be a **column of the event table**. Add it, then fit the evaluator
 on the enriched table:
 
 ```python

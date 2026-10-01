@@ -23,7 +23,7 @@ how much arrives now, how much arrives later and how much never arrives.
 Without an outcome, every delivery arrives in full on its due period.
 
 Policies, callbacks and constraints are unchanged: they still work on one
-order quantity per SKU. The event ledger keeps its per-SKU columns; the
+order quantity per SKU. The event table keeps its per-SKU columns; the
 supplier-level detail is in ``SimulationResult.to_order_frame()``.
 
 Mapping from the default engine: ``supply=None`` behaves exactly like
@@ -270,7 +270,7 @@ class SupplierAllocation:
     ``supplier_id`` and ``order_quantity``: at most one row per SKU and
     supplier, known suppliers only, quantities >= 0, and per-SKU totals equal
     to the requested quantity (within floating-point tolerance). The per-SKU
-    total in the event ledger is always the accepted order quantity.
+    total in the event table is always the accepted order quantity.
     ``context.decision`` holds the policy's full accepted decision, so an
     allocation can follow a supplier the policy chose.
 
@@ -453,7 +453,7 @@ class DeliveryOutcome:
           resolved again;
         - the rest, ``quantity - received - delayed``, never arrives. It
           leaves stock on order and is recorded as
-          ``supplier_shortfall_units`` in the event ledger.
+          ``supplier_shortfall_units`` in the event table.
 
     Quantities are finite and >= 0, and ``received + delayed`` must not
     exceed ``quantity``. A delayed delivery must still fall within

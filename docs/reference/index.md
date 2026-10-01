@@ -13,7 +13,7 @@ Import each name from its home module:
 |---|---|
 | `stockcast.core` | state, orders, the engine, schedules, constraints, callbacks, suppliers, processes |
 | `stockcast.policies` | built-in policies and the reorder-point target provider |
-| `stockcast.evaluation` | the evaluator, ledger validation, metrics |
+| `stockcast.evaluation` | the evaluator, event table validation, metrics |
 | `stockcast.utils` | demand generation and manual-loop primitives |
 | `stockcast.visualization` | plots |
 
@@ -36,7 +36,7 @@ package, and `stockcast.__version__` gives the installed version.
 | [Metrics](metrics.md) | all 37 metric functions |
 | [Utilities](utils.md) | `DemandGenerator`, `update_inventory_with_orders`, `place_order_lines` |
 | [Plots](visualization.md) | the six plotting functions |
-| [Output tables](schemas.md) | columns of the ledger, order frame, callback audit, process flows, and manifest |
+| [Output tables](schemas.md) | columns of the event table, order frame, callback audit, process flows, and manifest |
 
 ## Stability
 

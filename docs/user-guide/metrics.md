@@ -1,8 +1,8 @@
 # Evaluation and metrics
 
-Metrics summarise a run's ledger: how much demand was served, how much stock
+Metrics summarise a run's event table: how much demand was served, how much stock
 was held, and what it cost. Each metric is a documented function of the event
-ledger.
+event table.
 
 ## The evaluator
 
@@ -34,15 +34,15 @@ evaluator.evaluate(
 
 | Step | Choice |
 |---|---|
-| `fit(result, window="scoring")` | Which window: `"scoring"` (default), `"warmup"`, `"settlement"`, or `"all"`. You can also `fit(event_frame=...)` any saved ledger, with the same windows and default. |
-| `evaluate(metrics, groupby=None, context=None)` | Which metrics; the grain (one pooled row by default, or any ledger columns); and the rates and options the metrics need. |
+| `fit(result, window="scoring")` | Which window: `"scoring"` (default), `"warmup"`, `"settlement"`, or `"all"`. You can also `fit(event_frame=...)` any saved event table, with the same windows and default. |
+| `evaluate(metrics, groupby=None, context=None)` | Which metrics; the grain (one pooled row by default, or any event table columns); and the rates and options the metrics need. |
 
-The evaluator validates the ledger when you fit it, so every metric is
+The evaluator validates the event table when you fit it, so every metric is
 computed from balanced books.
 
 ## Notation
 
-For a slice of the ledger (a window, a group), sums run over its SKU-period
+For a slice of the event table (a window, a group), sums run over its SKU-period
 rows $(i, t)$. $D$ is demand, $F$ fulfilled units, $U$ shortage units, $r$
 receipts, $q$ order quantity, $\mathit{OH}$, $P$, $B$ ending on-hand,
 pipeline, and backorders.
@@ -53,7 +53,7 @@ pipeline, and backorders.
 |---|---|
 | `fill_rate` | $\dfrac{\sum F}{\sum D}$: share of demand served from stock in its own period (1 if there is no demand) |
 | `demand_period_service_level` | share of rows with $D > 0$ and $U = 0$ |
-| `cycle_service_level` | share of replenishment cycles with no shortage. A cycle runs from the arrival of one order to the arrival of the next (rows with `order_arrival_flag`); an order split across suppliers or delivered in parts starts one cycle. A ledger without that column (for example one you built yourself) uses every receipt. Requires `context["include_partial_cycles"]` to say whether the first and last, incomplete, cycles count |
+| `cycle_service_level` | share of replenishment cycles with no shortage. A cycle runs from the arrival of one order to the arrival of the next (rows with `order_arrival_flag`); an order split across suppliers or delivered in parts starts one cycle. An event table without that column (for example one you built yourself) uses every receipt. Requires `context["include_partial_cycles"]` to say whether the first and last, incomplete, cycles count |
 | `sku_period_stockout_rate` | share of SKU-period rows with a shortage |
 | `stockout_period_rate` | share of periods in which **any** SKU in the slice was short |
 | `backorder_period_rate` | share of periods in which any SKU ended with backorders |
@@ -93,8 +93,8 @@ SKU-period ratios, like `avg_on_hand`.
 
 ## Costs
 
-Cost metrics multiply ledger quantities by rates. A rate can be a number in
-`context` or a column of the ledger (for per-SKU or per-period rates).
+Cost metrics multiply event table quantities by rates. A rate can be a number in
+`context` or a column of the event table (for per-SKU or per-period rates).
 
 | Metric | Formula | Rate keys |
 |---|---|---|

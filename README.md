@@ -129,7 +129,7 @@ the policy you run:
 
 ```text
 Research: backtest and compare
-    forecast (any library) -> target -> policy -> SimulationEngine -> event ledger -> evaluation
+    forecast (any library) -> target -> policy -> SimulationEngine -> event table -> evaluation
 
 Production: every day
     sales and deliveries -> inventory state -> refreshed forecast -> policy
@@ -163,7 +163,7 @@ cumulative intervals, or means and standard deviations.
 - **One explicit clock.** Every period is receive → decide → meet demand, so
   lead time and the protection window `H = L + R` mean the same thing in every
   experiment.
-- **Every unit accounted for.** Only the engine changes stock, and every ledger
+- **Every unit accounted for.** Only the engine changes stock, and every event table
   row satisfies the stock, pipeline, and backorder balances.
 - **Fair, fast, reproducible.** Comparisons share demand and random draws, the
   inner loop runs on NumPy, and every result carries a manifest of its inputs.

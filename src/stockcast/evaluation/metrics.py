@@ -36,10 +36,10 @@ class BaseInventoryMetric(ABC):
 
     @abstractmethod
     def compute(self, event_frame: pd.DataFrame, context: dict) -> float:
-        """Compute the metric for one slice of the ledger.
+        """Compute the metric for one slice of the event table.
 
         Args:
-            event_frame: The ledger rows of one window and group.
+            event_frame: The event table rows of one window and group.
             context: The ``context`` dict passed to ``InventoryEvaluator.evaluate``.
 
         Returns:
@@ -74,7 +74,7 @@ def _boolean_series(event_frame: pd.DataFrame, column: str) -> pd.Series:
 
 
 def _period_events(event_frame: pd.DataFrame) -> pd.DataFrame:
-    """Keep the period rows (``event_type == "period"``) of a ledger."""
+    """Keep the period rows (``event_type == "period"``) of an event table."""
     if "event_type" not in event_frame.columns:
         return event_frame
     return event_frame[event_frame["event_type"] == "period"]
@@ -144,7 +144,7 @@ def demand_units(event_frame: pd.DataFrame, context: Optional[dict] = None) -> f
     """Total demand, ``sum(demand)`` over period rows.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -157,7 +157,7 @@ def fulfilled_units(event_frame: pd.DataFrame, context: Optional[dict] = None) -
     """Total demand served from stock in its own period, ``sum(fulfilled_units)``.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -172,7 +172,7 @@ def shortage_units(event_frame: pd.DataFrame, context: Optional[dict] = None) ->
     In lost-sales mode this equals lost sales; in backorder mode it equals new backorders.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -185,7 +185,7 @@ def lost_sales_units(event_frame: pd.DataFrame, context: Optional[dict] = None) 
     """Total lost sales, ``sum(lost_sales_units)``; zero in backorder mode.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -200,7 +200,7 @@ def backlog_unit_periods(event_frame: pd.DataFrame, context: Optional[dict] = No
     Measured in unit-periods: 3 units owed for 2 periods count 6.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -215,7 +215,7 @@ def terminal_backlog_units(event_frame: pd.DataFrame, context: Optional[dict] = 
     Uses each SKU's last period row in the slice.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -230,7 +230,7 @@ def terminal_pipeline_units(event_frame: pd.DataFrame, context: Optional[dict] =
     Uses each SKU's last period row in the slice.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -243,7 +243,7 @@ def order_units(event_frame: pd.DataFrame, context: Optional[dict] = None) -> fl
     """Total ordered quantity, ``sum(order_quantity)``.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -259,7 +259,7 @@ def sku_order_line_count(event_frame: pd.DataFrame, context: Optional[dict] = No
     supplier line counts.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -272,12 +272,12 @@ def order_event_count(event_frame: pd.DataFrame, context: Optional[dict] = None)
     """Number of decisions that placed at least one positive order.
 
     Counted once per decision for the whole portfolio, for a fee per decision:
-    the ledger stores each decision's count on one row, so totals add up
+    the event table stores each decision's count on one row, so totals add up
     across periods and across runs. It is not a per-SKU count; to count orders
     per SKU, use ``sku_order_line_count``.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -296,7 +296,7 @@ def sku_order_quantity_variance(
     ``sku_order_line_count``; NaN when there is no order line.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -318,7 +318,7 @@ def capacity_violation_count(event_frame: pd.DataFrame, context: Optional[dict] 
     ``ShelfSpaceLimit``, or a custom capacity rule).
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -333,7 +333,7 @@ def capacity_violation_rate(event_frame: pd.DataFrame, context: Optional[dict] =
     0.0 when nothing was requested.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -353,7 +353,7 @@ def fill_rate(event_frame: pd.DataFrame, context: Optional[dict] = None) -> floa
     demand. Backorders served in later periods do not count as filled.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -374,7 +374,7 @@ def demand_period_service_level(
     Rows without demand are excluded; 1.0 when no row has demand.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -395,13 +395,13 @@ def cycle_service_level(event_frame: pd.DataFrame, context: Optional[dict] = Non
     A cycle runs from the arrival of one replenishment order to the arrival of
     the next, per SKU. An order that arrives in several deliveries (supplier
     lines, partial or delayed deliveries) starts one cycle, at its first
-    delivery; the ledger marks these rows in ``order_arrival_flag``. Ledgers
+    delivery; the event table marks these rows in ``order_arrival_flag``. Event tables
     without that column use every receipt, which is the same when each order
     arrives in one delivery. The cycle before the first arrival and the one
     after the last arrival are incomplete; the context says whether they count.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Must contain ``include_partial_cycles`` (bool).
 
     Returns:
@@ -440,7 +440,7 @@ def _cycle_outcomes(
 ) -> Optional[np.ndarray]:
     """Vectorised cycle outcomes (``True`` = no shortage), or ``None`` to use the reference loop.
 
-    Covers the ledgers the engine writes: SKU ids without missing values, one row
+    Covers the event tables the engine writes: SKU ids without missing values, one row
     per SKU and period, NumPy numeric columns with finite values and a boolean
     arrival flag. Anything else, including invalid values that must raise the
     reference loop's error, returns ``None``.
@@ -519,7 +519,7 @@ def sku_period_stockout_rate(event_frame: pd.DataFrame, context: Optional[dict] 
     """Share of SKU-period rows with a shortage.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -535,7 +535,7 @@ def stockout_period_rate(event_frame: pd.DataFrame, context: Optional[dict] = No
     """Share of periods in which any SKU in the slice was short.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -555,7 +555,7 @@ def backorder_period_rate(event_frame: pd.DataFrame, context: Optional[dict] = N
     """Share of periods in which any SKU in the slice ended with backorders.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -578,7 +578,7 @@ def avg_on_hand(event_frame: pd.DataFrame, context: Optional[dict] = None) -> fl
     ``peak_ending_on_hand`` or sum ``ending_on_hand`` by period yourself.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -591,7 +591,7 @@ def avg_inventory_position(event_frame: pd.DataFrame, context: Optional[dict] = 
     """Mean ending inventory position over SKU-period rows.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -604,7 +604,7 @@ def avg_on_order(event_frame: pd.DataFrame, context: Optional[dict] = None) -> f
     """Mean ending pipeline (units on order) over SKU-period rows.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -619,7 +619,7 @@ def ending_on_hand_variance(event_frame: pd.DataFrame, context: Optional[dict] =
     Stock is first summed over the SKUs of the slice for each period.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -642,7 +642,7 @@ def peak_ending_on_hand(event_frame: pd.DataFrame, context: Optional[dict] = Non
     Stock is first summed over the SKUs of the slice for each period.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Not used by this metric; accepted for a uniform signature.
 
     Returns:
@@ -660,7 +660,7 @@ def peak_ending_on_hand(event_frame: pd.DataFrame, context: Optional[dict] = Non
 
 
 def _periods_per_year(period_events: pd.DataFrame, context: dict) -> float:
-    """``context['periods_per_year']``, or the standard value for the ledger's dates."""
+    """``context['periods_per_year']``, or the standard value for the event table's dates."""
     if "periods_per_year" in context:
         value = _context_scalar(context, "periods_per_year")
         if value <= 0:
@@ -695,9 +695,9 @@ def inventory_turns(event_frame: pd.DataFrame, context: Optional[dict] = None) -
     later.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Optional ``periods_per_year`` (> 0). Without it, the period
-            length is read from the ledger's dates: daily 365, weekly 52,
+            length is read from the event table's dates: daily 365, weekly 52,
             monthly 12, quarterly 4, yearly 1 (divided by the step, so ``"2D"``
             is 182.5). Other frequencies, irregular dates, or fewer than three
             dates raise an error asking for it.
@@ -727,8 +727,8 @@ def holding_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> f
     """Holding cost, ``sum(h * ending_on_hand)`` over period rows.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
-        context: Evaluation options. Supplies ``holding_cost_per_unit_period`` unless the ledger has a
+        event_frame: Event table, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``holding_cost_per_unit_period`` unless the event table has a
             column of that name (per-row rates). Rates are per unit and per period.
 
     Returns:
@@ -744,8 +744,8 @@ def shortage_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> 
     """Shortage cost, ``sum(p * shortage_units)`` over period rows.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
-        context: Evaluation options. Supplies ``shortage_cost_per_unit`` unless the ledger has a
+        event_frame: Event table, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``shortage_cost_per_unit`` unless the event table has a
             column of that name (per-row rates). Rates are per unit short.
 
     Returns:
@@ -761,8 +761,8 @@ def backlog_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> f
     """Backorder cost, ``sum(b * backorders_end)`` over period rows.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
-        context: Evaluation options. Supplies ``backlog_cost_per_unit_period`` unless the ledger has a
+        event_frame: Event table, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``backlog_cost_per_unit_period`` unless the event table has a
             column of that name (per-row rates). Rates are per unit owed and per period.
 
     Returns:
@@ -782,9 +782,9 @@ def ordering_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> 
     sums of SKU costs. For a fee per decision, use ``order_event_count``.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Evaluation options with ``order_cost_per_sku_line`` and
-            ``order_cost_per_unit``, unless the ledger has columns of those names.
+            ``order_cost_per_unit``, unless the event table has columns of those names.
 
     Returns:
         The cost.
@@ -803,8 +803,8 @@ def purchase_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> 
     """Purchase cost, ``sum(c * order_quantity)``, charged when orders are placed.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
-        context: Evaluation options. Supplies ``purchase_cost_per_unit`` unless the ledger has a
+        event_frame: Event table, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``purchase_cost_per_unit`` unless the event table has a
             column of that name (per-row rates). Rates are per unit ordered.
 
     Returns:
@@ -819,8 +819,8 @@ def waste_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> flo
     """Waste cost, ``sum(w * expired_units)`` over period rows.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
-        context: Evaluation options. Supplies ``waste_cost_per_unit`` unless the ledger has a
+        event_frame: Event table, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``waste_cost_per_unit`` unless the event table has a
             column of that name (per-row rates). Rates are per unit expired.
 
     Returns:
@@ -838,8 +838,8 @@ def terminal_backlog_cost(event_frame: pd.DataFrame, context: Optional[dict] = N
     Rate times each SKU's final ``backorders_end``.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
-        context: Evaluation options. Supplies ``terminal_backlog_cost_per_unit`` unless the ledger has a
+        event_frame: Event table, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``terminal_backlog_cost_per_unit`` unless the event table has a
             column of that name (per-row rates). Rates are per unit owed.
 
     Returns:
@@ -857,8 +857,8 @@ def terminal_pipeline_cost(event_frame: pd.DataFrame, context: Optional[dict] = 
     Rate times each SKU's final ``on_order_end``.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
-        context: Evaluation options. Supplies ``terminal_pipeline_cost_per_unit`` unless the ledger has a
+        event_frame: Event table, or a slice of it (for example one window or group).
+        context: Evaluation options. Supplies ``terminal_pipeline_cost_per_unit`` unless the event table has a
             column of that name (per-row rates). Rates are per unit on order.
 
     Returns:
@@ -877,9 +877,9 @@ def salvage_credit(event_frame: pd.DataFrame, context: Optional[dict] = None) ->
     final on_order_end`` per SKU. ``total_cost`` subtracts it.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: Evaluation options with ``on_hand_salvage_per_unit`` and
-            ``pipeline_salvage_per_unit``, unless the ledger has columns of those names.
+            ``pipeline_salvage_per_unit``, unless the event table has columns of those names.
 
     Returns:
         The credit (a positive number).
@@ -916,7 +916,7 @@ def total_cost(event_frame: pd.DataFrame, context: Optional[dict] = None) -> flo
     rates, zeros included; ``salvage`` is subtracted, the others are added.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: ``cost_components`` plus the rates of every listed component.
 
     Returns:
@@ -942,7 +942,7 @@ def cost_per_demand_unit(event_frame: pd.DataFrame, context: Optional[dict] = No
     """``total_cost`` divided by total demand.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: As for ``total_cost``.
 
     Returns:
@@ -958,7 +958,7 @@ def cost_per_fulfilled_unit(event_frame: pd.DataFrame, context: Optional[dict] =
     """``total_cost`` divided by units served from stock.
 
     Args:
-        event_frame: Event ledger, or a slice of it (for example one window or group).
+        event_frame: Event table, or a slice of it (for example one window or group).
         context: As for ``total_cost``.
 
     Returns:
@@ -1085,7 +1085,7 @@ class TotalCost(BaseInventoryMetric):
         for key, value in self.rates.items():
             if key in event_frame.columns:
                 raise ValueError(
-                    f"cost rate '{key}' is both a ledger column and a TotalCost "
+                    f"cost rate '{key}' is both an event table column and a TotalCost "
                     "argument; use one"
                 )
             if key in context and float(context[key]) != value:
@@ -1101,7 +1101,7 @@ class CoverageMetric(BaseInventoryMetric):
     """Mean inventory coverage in periods: stock divided by a demand rate.
 
     ``mode="forward"`` divides ending stock by an expected demand rate, taken from
-    an ``expected_demand_rate`` ledger column or ``context["forward_demand_rate"]``.
+    an ``expected_demand_rate`` event table column or ``context["forward_demand_rate"]``.
     ``mode="trailing"`` divides by each SKU's average realised demand in the
     slice. Rows with a zero rate are ignored. For slices with more than one SKU
     the result is the mean of the SKU-period ratios.

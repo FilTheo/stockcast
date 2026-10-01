@@ -324,7 +324,7 @@ class OrderMultiple(_PerSkuConstraint):
 class MaximumOrderQuantity(_PerSkuConstraint):
     """Orders may not exceed a maximum quantity.
 
-    With ``mode="adjust"``, larger orders are cut to the maximum and the ledger's
+    With ``mode="adjust"``, larger orders are cut to the maximum and the event table's
     ``capacity_violation_flag`` is set.
 
     Args:
@@ -365,7 +365,7 @@ class ShelfSpaceLimit(_PerSkuConstraint):
     """On-hand stock plus pipeline plus the new order may not exceed a capacity.
 
     The free space is ``max(0, capacity - (on_hand + on_order))``. With
-    ``mode="adjust"``, larger orders are cut to it and the ledger's
+    ``mode="adjust"``, larger orders are cut to it and the event table's
     ``capacity_violation_flag`` is set.
 
     Args:

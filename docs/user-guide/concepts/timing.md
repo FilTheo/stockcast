@@ -17,7 +17,7 @@ Every period runs the same steps, in this order:
 | **4. Place** | $L > 0$: the order enters the pipeline. $L = 0$: it is received now | engine |
 | **5. Meet demand** | Serve customers from the shelf; the rest is lost or backordered | engine |
 | **6. Close** | After-demand process flows, then stock adjustments from callbacks | `InventoryProcess.after_demand`, `on_after_demand` |
-| **7. Record** | One ledger row per SKU, with every balance identity checked | engine |
+| **7. Record** | One event table row per SKU, with every balance identity checked | engine |
 
 In one sentence: **receive, decide, then meet demand.** This is the classic
 periodic-review convention in the inventory literature: receive outstanding
@@ -29,7 +29,7 @@ Section 3).
 At step 3 the policy sees the state *after* today's deliveries and *before*
 today's demand. Current-period flow fields are reset and the policy receives a
 copy of the state, so today's demand is never visible when the decision is
-made. The inventory position it sees is recorded in the ledger as
+made. The inventory position it sees is recorded in the event table as
 `decision_inventory_position`.
 
 ### When an order arrives
@@ -159,7 +159,7 @@ the decision it is used for.
 
 ## Two period counters
 
-The ledger carries two period columns, for two different jobs:
+The event table carries two period columns, for two different jobs:
 
 | Column | Counts | First value | Used by |
 |---|---|---|---|

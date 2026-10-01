@@ -14,7 +14,7 @@ Every period follows the same order: **receive, decide, then meet demand.**
 flowchart LR
     A["1 · Receive<br/>deliveries due today<br/>arrive before opening"] --> B["2 · Decide<br/>on a review day, the policy<br/>sees the state and orders"]
     B --> C["3 · Meet demand<br/>serve customers;<br/>lost sales or backorders"]
-    C --> D["Record<br/>one ledger row per SKU,<br/>balances checked"]
+    C --> D["Record<br/>one event table row per SKU,<br/>balances checked"]
 ```
 
 Because the decision comes before demand, the policy never sees today's sales
@@ -153,4 +153,4 @@ result.run_manifest["run_settings"]["decision_schedule"]
 [Timing: receive, decide, demand](../user-guide/concepts/timing.md) ·
 [Notebook 02](../notebooks/02_first_engine_simulation.ipynb)
 
-[Next: The event ledger :octicons-arrow-right-24:](06-event-ledger.md){ .md-button }
+[Next: The event table :octicons-arrow-right-24:](06-event-table.md){ .md-button }

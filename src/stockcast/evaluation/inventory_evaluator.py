@@ -15,11 +15,11 @@ from .event_validation import validate_event_frame
 
 
 class InventoryEvaluator:
-    """Compute metrics from a run's event ledger.
+    """Compute metrics from a run's event table.
 
-    ``fit`` selects and validates the ledger rows (by default the run's scoring
+    ``fit`` selects and validates the event table rows (by default the run's scoring
     window); ``evaluate`` computes metrics, pooled into one row by default or
-    grouped by ledger columns such as ``["unique_id"]``.
+    grouped by event table columns such as ``["unique_id"]``.
 
     Example:
         ```python
@@ -39,14 +39,14 @@ class InventoryEvaluator:
         *,
         window: Optional[str] = None,
     ) -> "InventoryEvaluator":
-        """Select and validate the ledger rows to evaluate.
+        """Select and validate the event table rows to evaluate.
 
-        Pass either a ``SimulationResult`` or a ledger DataFrame. The rows are checked
+        Pass either a ``SimulationResult`` or an event table DataFrame. The rows are checked
         with ``validate_event_frame`` so metrics are computed from balanced books.
 
         Args:
             simulation_result: A result from ``SimulationEngine.run``.
-            event_frame: A ledger DataFrame, for example one you saved or enriched
+            event_frame: An event table DataFrame, for example one you saved or enriched
                 with per-row cost rates.
             window: ``"scoring"`` (default, the window ``summary()`` uses),
                 ``"warmup"``, ``"settlement"``, or ``"all"``, for a
@@ -57,13 +57,13 @@ class InventoryEvaluator:
 
         Raises:
             ValueError: If both or neither inputs are given, the window is unknown,
-                or the ledger fails validation.
+                or the event table fails validation.
         """
         if (simulation_result is None) == (event_frame is None):
             raise ValueError("Provide either simulation_result or event_frame")
 
         if window is None:
-            # A saved ledger is scored on the same rows as its result.
+            # A saved event table is scored on the same rows as its result.
             window = "scoring"
         if simulation_result is not None:
             self.event_frame_ = validate_event_frame(
@@ -89,13 +89,13 @@ class InventoryEvaluator:
         groupby: Optional[Sequence[str]] = None,
         context: Optional[dict] = None,
     ) -> pd.DataFrame:
-        """Compute metrics for each group of the fitted ledger.
+        """Compute metrics for each group of the fitted event table.
 
         Args:
             metrics: Metric functions (``metric(event_frame, context)``) or objects
                 with ``name`` and ``compute``, such as ``BaseInventoryMetric``
                 subclasses. A function's ``__name__`` becomes its column name.
-            groupby: Ledger columns to group by, such as ``["unique_id"]``;
+            groupby: Event table columns to group by, such as ``["unique_id"]``;
                 ``None`` or ``[]`` (default) gives one pooled row.
             context: Options and rates for the metrics, for example cost rates,
                 ``cost_components``, ``include_partial_cycles``, or

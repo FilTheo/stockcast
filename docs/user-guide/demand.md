@@ -35,7 +35,7 @@ the names they need in their constructor in the same way;
 `InventoryStateDataFrame.from_observed` takes them in the call. For the demand table, a callback schedule
 or `ShelfLife`'s opening lots, a name you set must be a column of the table,
 and the table must not also hold the default name, so no column is read by
-mistake. Results and event ledgers always use the default names.
+mistake. Results and event tables always use the default names.
 
 ### The calendar
 

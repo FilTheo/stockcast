@@ -15,7 +15,7 @@ opens with 30 packs on the shelf, and sales it cannot serve are lost.
 | [3. Forecast targets](03-forecast-targets.md) | How a forecast becomes a stock target, and why it covers a whole window | target tables |
 | [4. Policies](04-policies.md) | Turning a target into an order with `fit` and `predict` | `OrderUpToPolicy`, `OrderDecision` |
 | [5. The engine](05-engine.md) | What happens inside one simulated day | `SimulationEngine` |
-| [6. The event ledger](06-event-ledger.md) | Reading the record of every unit | `SimulationResult` |
+| [6. The event table](06-event-table.md) | Reading the record of every unit | `SimulationResult` |
 | [7. Evaluate a run](07-evaluate.md) | Service, stock, and cost metrics | `InventoryEvaluator` |
 | [8. Compare scenarios](08-compare.md) | Fair comparisons on identical demand | `run_comparison` |
 | [9. From backtest to production](09-production.md) | Running the chosen policy every day, and why it matches the backtest | `plan` / `close` with the same objects |

@@ -7,7 +7,7 @@ The symbols and terms used throughout the docs.
 | Symbol | Meaning | In code |
 |---|---|---|
 | $i$ | A SKU | `unique_id` |
-| $t$ | A demand period, counted from 0 | `demand_period` in the ledger; keys of schedules |
+| $t$ | A demand period, counted from 0 | `demand_period` in the event table; keys of schedules |
 | $\Delta$ | The length of one period, a pandas frequency | `freq` |
 | $L$ | Lead time: periods from order to delivery, $L \ge 0$ | `lead_time` |
 | $R$ | Review period: periods between ordering opportunities, $R \ge 1$ | `review_period`, `PeriodicSchedule(every=R)` |
@@ -16,7 +16,7 @@ The symbols and terms used throughout the docs.
 
 ## Stock
 
-| Symbol | Meaning | Ledger column |
+| Symbol | Meaning | Event table column |
 |---|---|---|
 | $\mathit{OH}_t$ | On-hand stock | `starting_on_hand`, `ending_on_hand` |
 | $P_t$ | Pipeline: units on order, not yet received | `starting_on_order`, `on_order_end` |
@@ -85,7 +85,7 @@ Order-up-to level
 Reorder point
 :   The inventory position at or below which a policy orders.
 
-Event ledger
+Event table
 :   The table with one row per SKU and period that records every flow of units
     in a run. The output of `SimulationResult.to_event_frame()`.
 

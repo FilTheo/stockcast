@@ -21,7 +21,7 @@ documented order and checks the result.
 
 **Nothing is lost between steps.** The engine records each stage of an order
 (requested, after callbacks, after constraints, accepted) and each physical
-flow, so every change has a place in the ledger.
+flow, so every change has a place in the event table.
 
 **Your objects stay yours.** The engine copies the opening state and the
 policy before a run. After `run`, your `inventory` and `policy` are exactly as

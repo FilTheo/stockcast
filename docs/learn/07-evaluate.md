@@ -2,7 +2,7 @@
 
 # Evaluate a run
 
-`InventoryEvaluator` reads the event ledger and computes metrics over the window and grouping you
+`InventoryEvaluator` reads the event table and computes metrics over the window and grouping you
 choose.
 
 ??? example "Setup: the tea shop from steps 1 to 5"
@@ -14,7 +14,7 @@ choose.
 ## Fit and evaluate
 
 The evaluator follows the same fit / apply rhythm as policies. `fit` selects
-the ledger rows; `evaluate` computes the metrics:
+the event table rows; `evaluate` computes the metrics:
 
 ```python
 from stockcast.evaluation import (
@@ -36,7 +36,7 @@ Two choices shape the answer:
   scoring window, like `result.summary()`; pass `window="all"`, `"warmup"`,
   or `"settlement"` for another part.
 - **`groupby`**: the grain of the answer. By default everything is pooled
-  into one row; `groupby=["unique_id"]` gives one row per SKU, and any ledger
+  into one row; `groupby=["unique_id"]` gives one row per SKU, and any event table
   column works.
 
 ## Service metrics
@@ -81,7 +81,7 @@ the same number. Comparing the two is one of the main uses of a simulation.
 
 ## Costs
 
-Cost metrics multiply ledger quantities by rates you supply in `context`:
+Cost metrics multiply event table quantities by rates you supply in `context`:
 
 | Metric | Formula | Rate key(s) |
 |---|---|---|
@@ -133,7 +133,7 @@ evaluator.evaluate([TotalCost(holding=0.02, shortage=2.00,
 
 ## Custom metrics
 
-A metric is any function that takes the ledger slice and the context:
+A metric is any function that takes the event table slice and the context:
 
 ```python
 def units_left_at_the_end(events, context=None):
