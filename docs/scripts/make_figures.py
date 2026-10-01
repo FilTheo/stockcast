@@ -481,6 +481,63 @@ def fig_dashboard():
     save(axes[0].figure, "dashboard.svg")
 
 
+# One picture per plotting function, for the API reference.
+
+
+def tea_comparison():
+    return SimulationEngine().run_comparison(
+        policies=[tea_policy(0.8), tea_policy(0.95)],
+        labels=["80%", "95%"],
+        demand_source=tea_demand(),
+        inventory=tea_inventory(),
+        random_seed=3,
+    )
+
+
+def fig_plot_inventory():
+    from stockcast.visualization import plot_inventory
+
+    result = tea_run(tea_policy(0.8), tea_demand())
+    ax = plot_inventory(result, sku=SKU, figsize=(9, 3.2))
+    save(ax.figure, "plot-inventory.svg")
+
+
+def fig_plot_demand_vs_orders():
+    from stockcast.visualization import plot_demand_vs_orders
+
+    result = tea_run(tea_policy(0.8), tea_demand())
+    ax = plot_demand_vs_orders(result, sku=SKU, figsize=(9, 3.2))
+    save(ax.figure, "plot-demand-vs-orders.svg")
+
+
+def fig_plot_comparison():
+    from stockcast.visualization import plot_comparison
+
+    fig, ax = plt.subplots(figsize=(9, 3))
+    plot_comparison(tea_comparison(), metric="on_hand", sku=SKU, ax=ax)
+    ax.set_title("On-hand stock: 80% versus 95% target")
+    save(fig, "plot-comparison.svg")
+
+
+def fig_plot_summary_comparison():
+    from stockcast.visualization import plot_summary_comparison
+
+    ax = plot_summary_comparison(
+        tea_comparison(),
+        metrics=["fill_rate", "demand_period_service_level"],
+        figsize=(7, 3.2),
+    )
+    ax.legend(loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    save(ax.figure, "plot-summary-comparison.svg")
+
+
+def fig_plot_comparison_dashboard():
+    from stockcast.visualization import plot_comparison_dashboard
+
+    axes = plot_comparison_dashboard(tea_comparison(), sku=SKU, figsize=(10, 7))
+    save(axes.flat[0].figure, "plot-comparison-dashboard.svg")
+
+
 if __name__ == "__main__":
     fig_quickstart_run()
     fig_tea_demand()
@@ -493,3 +550,8 @@ if __name__ == "__main__":
     fig_newsvendor()
     fig_run_windows()
     fig_dashboard()
+    fig_plot_inventory()
+    fig_plot_demand_vs_orders()
+    fig_plot_comparison()
+    fig_plot_summary_comparison()
+    fig_plot_comparison_dashboard()

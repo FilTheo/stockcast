@@ -57,6 +57,8 @@ plot_comparison(comparison, metric="on_hand", sku=sku, ax=ax)
 ax.set_title("On-hand stock: 80% versus 95% target")
 ```
 
+![On-hand stock of the 80% and 95% targets](../assets/figures/plot-comparison.svg)
+
 ## Custom charts
 
 The event table is a tidy DataFrame, so any plotting library works directly on
