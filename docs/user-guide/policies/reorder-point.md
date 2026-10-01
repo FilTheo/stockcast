@@ -291,9 +291,9 @@ The window arguments (`reorder_horizon`, `target_probability`,
   basis for $s$. Realised service also depends on undershoot, $Q$, and the
   shortage rule, which a simulation measures.
 
-**Notebooks:** [05b: reorder points and review frequency](../../notebooks/05b_reorder_points_and_review_frequency.ipynb) ·
-[05g: reorder points from any source](../../notebooks/05g_reorder_point_sources.ipynb) ·
-[02b: decision schedules](../../notebooks/02b_decision_schedules.ipynb) ·
-[08: callbacks and audit](../../notebooks/08_callbacks_and_audit.ipynb) ·
-[05: custom policies](../../notebooks/05_custom_policies.ipynb) ·
-[06: fair comparisons](../../notebooks/06_fair_forecast_and_policy_comparisons.ipynb)
+**See also:** [Notebook 05b: reorder points and review frequency](../../notebooks/05b_reorder_points_and_review_frequency.ipynb) ·
+[Notebook 05g: reorder points from any source](../../notebooks/05g_reorder_point_sources.ipynb) ·
+[Notebook 02b: decision schedules](../../notebooks/02b_decision_schedules.ipynb) ·
+[Notebook 08: callbacks and audit](../../notebooks/08_callbacks_and_audit.ipynb) ·
+[Notebook 05: custom policies](../../notebooks/05_custom_policies.ipynb) ·
+[Notebook 06: fair comparisons](../../notebooks/06_fair_forecast_and_policy_comparisons.ipynb)

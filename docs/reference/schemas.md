@@ -95,7 +95,7 @@ columns are listed in `stockcast.evaluation.CANONICAL_EVENT_COLUMNS`.
 
 `validate_event_frame` checks all balance identities, including these columns
 when present, and that consecutive rows of a SKU chain from one period to the
-next. See [Stock accounting](../user-guide/concepts/accounting.md).
+next. See [The event table](../user-guide/concepts/accounting.md).
 
 ## Order frame
 

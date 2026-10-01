@@ -160,4 +160,4 @@ any opening pipeline arrives by the season's start.
   seven-period season, and the target is then a quantile of the seven-day
   total.
 
-**Notebook:** [04b: daily newsvendor](../../notebooks/04b_daily_newsvendor.ipynb)
+**See also:** [Notebook 04b: daily newsvendor](../../notebooks/04b_daily_newsvendor.ipynb)

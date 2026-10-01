@@ -1,8 +1,11 @@
-# Stock accounting
+# The event table
 
-Every unit that enters or leaves the shelf, the pipeline, or the backorder
-list is recorded in the event table, and each row must balance. This page lists
-the identities and shows how to check them.
+Every run produces an **event table**: one row per SKU and period, recording
+every unit that entered or left the shelf, the pipeline, or the backorder
+list. `result.to_event_frame()` returns it, and every metric and plot is
+computed from it. [Output tables](../../reference/schemas.md#event-table) lists
+its columns; this page gives the identities each row satisfies and shows how
+to check them.
 
 ## The four stocks
 

@@ -155,5 +155,5 @@ got 6 extra packs.
     - A **recurring physical mechanism** (expiry, inspections, returns): an
       [inventory process](processes.md).
 
-**Notebooks:** [08: callbacks and audit](../notebooks/08_callbacks_and_audit.ipynb) ·
-[05c: extension points](../notebooks/05c_extension_points.ipynb)
+**See also:** [Notebook 08: callbacks and audit](../notebooks/08_callbacks_and_audit.ipynb) ·
+[Notebook 05c: extension points](../notebooks/05c_extension_points.ipynb)

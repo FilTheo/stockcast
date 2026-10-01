@@ -199,5 +199,5 @@ inspected.to_process_flow_frame()[["date", "process", "flow", "phase", "quantity
     [`ScheduledInventoryAdjustment`](callbacks.md) callback. Use a process for
     a **recurring physical mechanism**.
 
-**Notebooks:** [05e: inventory processes](../notebooks/05e_inventory_processes.ipynb) ·
-[07: FIFO shelf life on M5 demand](../notebooks/07_m5_fifo_perishable_scenario.ipynb)
+**See also:** [Notebook 05e: inventory processes](../notebooks/05e_inventory_processes.ipynb) ·
+[Notebook 07: FIFO shelf life on M5 demand](../notebooks/07_m5_fifo_perishable_scenario.ipynb)

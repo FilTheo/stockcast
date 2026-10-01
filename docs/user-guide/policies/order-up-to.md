@@ -141,6 +141,6 @@ defaults to $L + R$ and the probability `target_probability` to the
   *Operations Research*, 52(5), 795–803.
   [doi:10.1287/opre.1040.0130](https://doi.org/10.1287/opre.1040.0130)
 
-**Notebooks:** [04: weekly forecast to order](../../notebooks/04_forecast_to_inventory_integration.ipynb) ·
-[04c: cumulative protection target](../../notebooks/04c_cumulative_protection_target.ipynb) ·
-[04d: rolling targets](../../notebooks/04d_rolling_cumulative_targets.ipynb)
+**See also:** [Notebook 04: weekly forecast to order](../../notebooks/04_forecast_to_inventory_integration.ipynb) ·
+[Notebook 04c: cumulative protection target](../../notebooks/04c_cumulative_protection_target.ipynb) ·
+[Notebook 04d: rolling targets](../../notebooks/04d_rolling_cumulative_targets.ipynb)

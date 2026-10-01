@@ -120,7 +120,7 @@ above; Stockcast does not assume any of them.
 - Pipeline slot $i$ arrives $i + 1$ periods from now.
 
 **See also:** [Inventory state](../user-guide/inventory-state.md) ·
-[Stock accounting](../user-guide/concepts/accounting.md) ·
+[The event table](../user-guide/concepts/accounting.md) ·
 [Notebook 01](../notebooks/01_introduction_to_inventory_flow.ipynb)
 
 [Next: Demand and time :octicons-arrow-right-24:](02-demand-and-time.md){ .md-button }

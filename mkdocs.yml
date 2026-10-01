@@ -170,16 +170,9 @@ nav:
       - Philosophy: get-started/philosophy.md
   - Guide:
       - user-guide/index.md
-      - Core ideas:
-          - How Stockcast fits together: user-guide/concepts/architecture.md
-          - Notation and glossary: user-guide/concepts/notation.md
-          - "Timing: receive, decide, demand": user-guide/concepts/timing.md
-          - Work with any timing convention: how-to/timing-conventions.md
-          - Stock accounting: user-guide/concepts/accounting.md
-      - Building blocks:
+      - The core of a run:
           - Inventory state: user-guide/inventory-state.md
           - Demand and calendars: user-guide/demand.md
-          - Decision schedules: user-guide/decision-schedules.md
           - Forecast targets: user-guide/forecast-targets.md
           - Policies:
               - user-guide/policies/index.md
@@ -187,14 +180,19 @@ nav:
               - Reorder point (s, Q) and (s, S): user-guide/policies/reorder-point.md
               - Single order (newsvendor): user-guide/policies/single-order.md
               - Write your own policy: user-guide/policies/custom-policies.md
+          - Decision schedules: user-guide/decision-schedules.md
           - The simulation engine: user-guide/engine.md
+          - "Timing: receive, decide, demand": user-guide/concepts/timing.md
+          - Work with any timing convention: how-to/timing-conventions.md
+          - The event table: user-guide/concepts/accounting.md
+          - Evaluation and metrics: user-guide/metrics.md
+          - Plots: user-guide/visualization.md
+      - Real-world operations:
           - Ordering constraints: user-guide/constraints.md
           - Callbacks: user-guide/callbacks.md
           - Suppliers and open orders: user-guide/suppliers.md
           - Unreliable deliveries: user-guide/unreliable-deliveries.md
           - Shelf life and inventory processes: user-guide/processes.md
-          - Evaluation and metrics: user-guide/metrics.md
-          - Plots: user-guide/visualization.md
       - Recipes:
           - how-to/index.md
           - Connect any forecasting model: how-to/connect-a-forecaster.md
@@ -248,3 +246,4 @@ nav:
       - Utilities: reference/utils.md
       - Plots: reference/visualization.md
       - Output tables: reference/schemas.md
+      - Notation: user-guide/concepts/notation.md

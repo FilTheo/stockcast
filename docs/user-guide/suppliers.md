@@ -325,5 +325,5 @@ Every supplier delivers to the same stocking point; there is no multi-echelon
 network. `SupplierAllocation` and the order frame are the natural extension
 points for that kind of work.
 
-**Notebooks:** [05d: open orders and suppliers](../notebooks/05d_open_orders_and_suppliers.ipynb) ·
-[05f: unreliable supplier](../notebooks/05f_unreliable_supplier.ipynb)
+**See also:** [Notebook 05d: open orders and suppliers](../notebooks/05d_open_orders_and_suppliers.ipynb) ·
+[Notebook 05f: unreliable supplier](../notebooks/05f_unreliable_supplier.ipynb)

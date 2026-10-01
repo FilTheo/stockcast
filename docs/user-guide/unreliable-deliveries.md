@@ -193,4 +193,4 @@ InventoryEvaluator().fit(result, window="scoring").evaluate(
 - `reset()` runs before every run; `get_config()` returns settings for the
   manifest.
 
-**Notebook:** [05f: unreliable supplier](../notebooks/05f_unreliable_supplier.ipynb)
+**See also:** [Notebook 05f: unreliable supplier](../notebooks/05f_unreliable_supplier.ipynb)

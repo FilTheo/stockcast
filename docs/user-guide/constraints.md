@@ -160,5 +160,5 @@ every cut. `to_manifest` stores the rule's settings in the run manifest.
 Implement `validate(order, context)` too if the rule should also check the
 final order after later constraints; the base class checks the basic shape.
 
-**Notebooks:** [05c: extension points](../notebooks/05c_extension_points.ipynb) ·
-[09: full operational experiment](../notebooks/09_full_operational_experiment.ipynb)
+**See also:** [Notebook 05c: extension points](../notebooks/05c_extension_points.ipynb) ·
+[Notebook 09: full operational experiment](../notebooks/09_full_operational_experiment.ipynb)

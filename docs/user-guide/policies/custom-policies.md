@@ -139,5 +139,5 @@ class CappedOrderUpTo(OrderUpToPolicy):
 | `validate_demand_window(demand, n_periods)` | Check the demand table before the run (for example, a season's boundaries). |
 | `policy_name` | A readable name used as the default label in comparisons and the event table. |
 
-**Notebooks:** [05: custom policies](../../notebooks/05_custom_policies.ipynb) ·
-[05c: extension points](../../notebooks/05c_extension_points.ipynb)
+**See also:** [Notebook 05: custom policies](../../notebooks/05_custom_policies.ipynb) ·
+[Notebook 05c: extension points](../../notebooks/05c_extension_points.ipynb)

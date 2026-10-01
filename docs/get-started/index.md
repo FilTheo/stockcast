@@ -24,5 +24,5 @@ it first appears.
 - [Philosophy](philosophy.md): why Stockcast is built the way it is, and the
   research behind it.
 
-See [Notation and glossary](../user-guide/concepts/notation.md) for the terms
-and symbols used throughout the documentation.
+See [Notation](../user-guide/concepts/notation.md) for the symbols used
+throughout the documentation.

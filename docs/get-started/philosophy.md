@@ -221,7 +221,7 @@ rate. Stockcast does not claim optimality for any rule. It gives every rule,
 from a textbook heuristic to a trained neural network, the same honest
 accounting, so you can see what it actually delivers.
 
-The deep dive: [Stock accounting](../user-guide/concepts/accounting.md).
+The deep dive: [The event table](../user-guide/concepts/accounting.md).
 
 ## Principle 4: small parts, one base class each
 
@@ -288,7 +288,7 @@ or `to_manifest`) into the run manifest, and every intervention
 lands in an audit table, with the reason and source you give it. A result can always be
 traced back to the objects that produced it.
 
-The deep dive: [How Stockcast fits together](../user-guide/concepts/architecture.md).
+The deep dive: [every part in one run](../user-guide/index.md#all-together).
 
 ## Principle 5: fair experiments by construction
 
