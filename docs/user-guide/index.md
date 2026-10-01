@@ -1,11 +1,12 @@
 # Guide
 
 The guide covers each part of Stockcast in depth: what it does, the theory
-behind it, and how to configure it. New users may prefer
-[Learn the basics](../learn/index.md) first.
+behind it, and how to configure it. New users may prefer the
+[Walkthrough](../learn/index.md) first.
 
 - **Core ideas**: [architecture](concepts/architecture.md),
-  [notation](concepts/notation.md), [timing](concepts/timing.md), and
+  [notation](concepts/notation.md), [timing](concepts/timing.md) and
+  [other timing conventions](../how-to/timing-conventions.md), and
   [stock accounting](concepts/accounting.md).
 - **Building blocks**: one page per component, from
   [inventory state](inventory-state.md) to [plots](visualization.md).
@@ -37,7 +38,7 @@ notebook that uses it.
 | simulate a policy over time | `SimulationEngine.run` | [The simulation engine](engine.md) | [02](../notebooks/02_first_engine_simulation.ipynb) |
 | compare forecasts or policies fairly | `run_comparison` | [Compare forecasts and policies](../how-to/compare-policies.md) | [06](../notebooks/06_fair_forecast_and_policy_comparisons.ipynb), [09](../notebooks/09_full_operational_experiment.ipynb) |
 | measure service, stock, and cost | `InventoryEvaluator`, metrics | [Evaluation and metrics](metrics.md), [Put costs on a run](../how-to/costs.md) | [07](../notebooks/07_m5_fifo_perishable_scenario.ipynb), [09](../notebooks/09_full_operational_experiment.ipynb) |
-| compute real orders every day | `advance_period` → `predict` → constraints → `fulfill_demand` | [Use Stockcast in a daily job](../how-to/production.md), [Learn step 9](../learn/09-production.md) | [10](../notebooks/10_production_daily_close.ipynb) |
+| compute real orders every day | `advance_period` → `predict` → constraints → `fulfill_demand` | [Use Stockcast in a daily job](../how-to/production.md), [Walkthrough step 9](../learn/09-production.md) | [10](../notebooks/10_production_daily_close.ipynb) |
 
 The reasoning behind the design is in the
 [Philosophy](../get-started/philosophy.md).

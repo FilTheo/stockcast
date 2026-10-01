@@ -68,7 +68,7 @@ plt.rcParams.update({
 
 
 # ---------------------------------------------------------------------------
-# The tea-shop scenario used throughout "Learn the basics".
+# The tea-shop scenario used throughout the Walkthrough.
 # ---------------------------------------------------------------------------
 
 SKU = "tea_250g"

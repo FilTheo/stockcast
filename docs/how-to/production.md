@@ -2,7 +2,7 @@
 
 !!! tip "New to production with Stockcast?"
 
-    [Learn step 9: From backtest to production](../learn/09-production.md)
+    [Walkthrough step 9: From backtest to production](../learn/09-production.md)
     walks through the whole daily cycle and compares the daily job with its
     backtest. This page is the short reference.
 

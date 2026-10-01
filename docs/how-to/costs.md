@@ -4,7 +4,7 @@ Costs put service and stock on one scale. Stockcast computes costs from the
 event table with rates that you provide, so every euro in a result can be traced to
 a quantity and a rate.
 
-??? example "Setup: the tea shop from Learn the basics"
+??? example "Setup: the tea shop from the Walkthrough"
 
     ```python
     --8<-- "learn-setup.py"

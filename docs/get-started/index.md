@@ -13,13 +13,13 @@ To install the development version from GitHub:
 pip install "git+https://github.com/FilTheo/stockcast.git"
 ```
 
-Then run the Quickstart and follow Learn the basics. No background in
+Then run the Quickstart and follow the Walkthrough. No background in
 inventory theory is needed: each idea is introduced with a small example where
 it first appears.
 
 - [Quickstart](quickstart.md): a forecast → order → simulate → evaluate
   workflow for one product.
-- [Learn the basics](../learn/index.md): nine short pages, from inventory
+- [Walkthrough](../learn/index.md): nine short pages, from inventory
   state to a production daily job.
 - [Philosophy](philosophy.md): why Stockcast is built the way it is, and the
   research behind it.

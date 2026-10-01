@@ -109,7 +109,7 @@ takes the policy's setting.
 ## Explicit inputs
 
 The opening stock, the opening date, and the shortage rule are all declared
-above; Stockcast does not assume any of them. See [Every input is explicit](../user-guide/design/explicit-inputs.md).
+above; Stockcast does not assume any of them.
 
 ## Summary
 

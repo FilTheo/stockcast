@@ -42,7 +42,7 @@ probabilists call *comonotonic*). For upper quantiles of ordinary demand, the
 sum of daily quantiles is too high, because high days and low days partly
 cancel over a window. With six days of Poisson(6) demand, the 95% quantile of
 the total is 46 while six daily 95% quantiles add up to 60
-([Learn step 3](../learn/03-forecast-targets.md) shows the histogram).
+([Walkthrough step 3](../learn/03-forecast-targets.md) shows the histogram).
 Stockcast therefore always works with the target of the **whole window**.
 
 ## Computing the quantile of the total
@@ -259,6 +259,5 @@ reliability. The evaluator measures what the whole system delivers
 ([Evaluation and metrics](metrics.md)); comparing it with the target
 probability shows how well the forecast and the policy work together.
 
-**See also:** [Targets cover a whole window](design/cumulative-targets.md) ·
-[Connect any forecasting model](../how-to/connect-a-forecaster.md) ·
+**See also:** [Connect any forecasting model](../how-to/connect-a-forecaster.md) ·
 [Notebook 04e: three target methods](../notebooks/04e_cumulative_target_methods.ipynb)

@@ -391,5 +391,4 @@ Simulation software whose documented conventions appear on this page:
 - [gym-invmgmt (Barati and Hu, 2026)](https://arxiv.org/abs/2605.11355)
 
 **See also:** [Timing: receive, decide, demand](../user-guide/concepts/timing.md) ·
-[Decisions happen before demand](../user-guide/design/decide-before-demand.md) ·
 [Decision schedules](../user-guide/decision-schedules.md)

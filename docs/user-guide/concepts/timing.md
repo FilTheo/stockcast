@@ -215,5 +215,5 @@ agree with Stockpyl's cost formulas within simulation error.
 - [Stockpyl simulation: sequence of events](https://stockpyl.readthedocs.io/en/latest/tutorial/tutorial_sim.html#sequence-of-events)
 - [SimOpt: (s, S) inventory model](https://simopt.readthedocs.io/en/development/models/sscont.html)
 
-**See also:** [Decisions happen before demand](../design/decide-before-demand.md) ·
+**See also:** [Work with any timing convention](../../how-to/timing-conventions.md) ·
 [Notebook 02b: decision schedules](../../notebooks/02b_decision_schedules.ipynb)

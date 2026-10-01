@@ -156,7 +156,7 @@ nav:
   - Get started:
       - get-started/index.md
       - Quickstart: get-started/quickstart.md
-      - Learn the basics:
+      - Walkthrough:
           - learn/index.md
           - 1. Inventory state: learn/01-inventory-state.md
           - 2. Demand and time: learn/02-demand-and-time.md
@@ -167,20 +167,14 @@ nav:
           - 7. Evaluate a run: learn/07-evaluate.md
           - 8. Compare scenarios: learn/08-compare.md
           - 9. From backtest to production: learn/09-production.md
-      - Philosophy:
-          - get-started/philosophy.md
-          - Decisions happen before demand: user-guide/design/decide-before-demand.md
-          - Targets cover a whole window: user-guide/design/cumulative-targets.md
-          - Every input is explicit: user-guide/design/explicit-inputs.md
-          - The engine owns the stock: user-guide/design/engine-owns-state.md
-          - The event table is the record: user-guide/design/event-table.md
-          - Small parts you combine: user-guide/design/composition.md
+      - Philosophy: get-started/philosophy.md
   - Guide:
       - user-guide/index.md
       - Core ideas:
           - How Stockcast fits together: user-guide/concepts/architecture.md
           - Notation and glossary: user-guide/concepts/notation.md
           - "Timing: receive, decide, demand": user-guide/concepts/timing.md
+          - Work with any timing convention: how-to/timing-conventions.md
           - Stock accounting: user-guide/concepts/accounting.md
       - Building blocks:
           - Inventory state: user-guide/inventory-state.md
@@ -206,7 +200,6 @@ nav:
           - Connect any forecasting model: how-to/connect-a-forecaster.md
           - Build a target from sample paths: how-to/targets-from-sample-paths.md
           - Refresh targets as forecasts roll: how-to/rolling-targets.md
-          - Work with any timing convention: how-to/timing-conventions.md
           - Compare forecasts and policies: how-to/compare-policies.md
           - Put costs on a run: how-to/costs.md
           - Run your own simulation loop: how-to/manual-loop.md

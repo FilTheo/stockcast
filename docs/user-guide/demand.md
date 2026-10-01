@@ -293,5 +293,5 @@ The generator's own seed, model, and parameters are not recorded; pass its
 seed as `random_seed` and keep the call that built the demand with your
 experiment.
 
-**See also:** [Learn step 2](../learn/02-demand-and-time.md) ·
+**See also:** [Walkthrough step 2](../learn/02-demand-and-time.md) ·
 [API: utilities](../reference/utils.md)

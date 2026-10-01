@@ -137,7 +137,6 @@ scenario with shortages.
 - Everything downstream (metrics, plots, your analysis) reads the event table.
 
 **See also:** [Stock accounting](../user-guide/concepts/accounting.md) ·
-[Output tables](../reference/schemas.md) ·
-[The event table is the record](../user-guide/design/event-table.md)
+[Output tables](../reference/schemas.md)
 
 [Next: Evaluate a run :octicons-arrow-right-24:](07-evaluate.md){ .md-button }

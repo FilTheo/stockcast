@@ -48,7 +48,7 @@ target = pd.DataFrame({
 ```
 
 Then fit the policy on it as in
-[Learn step 4](../learn/04-policies.md), with `forecast_origin=origin`. Notebooks
+[Walkthrough step 4](../learn/04-policies.md), with `forecast_origin=origin`. Notebooks
 [04](../notebooks/04_forecast_to_inventory_integration.ipynb),
 [04c](../notebooks/04c_cumulative_protection_target.ipynb),
 [04e](../notebooks/04e_cumulative_target_methods.ipynb), and
@@ -123,7 +123,7 @@ policy.get_target_levels()
   opening date for $t = 0$). Stockcast checks the dates you declare.
 - **Quantile forecasts per step are not enough on their own.** They are
   marginal: combine them through paths or a cumulative forecast, not by
-  adding them ([why](../user-guide/design/cumulative-targets.md)).
+  adding them ([why](../user-guide/forecast-targets.md#quantiles-of-sums)).
 - **Record how the target was made.** Keep the model, its settings, and the
   seed next to the target table; the run manifest stores the target itself
   and its metadata.

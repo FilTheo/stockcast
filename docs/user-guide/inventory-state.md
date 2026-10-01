@@ -177,6 +177,6 @@ See [Run your own simulation loop](../how-to/manual-loop.md).
 | `scheduled_receipts()` | One row per open delivery |
 | `get_history()` | Snapshots of past periods recorded on this object |
 
-**See also:** [Learn step 1](../learn/01-inventory-state.md) ·
+**See also:** [Walkthrough step 1](../learn/01-inventory-state.md) ·
 [API: state and orders](../reference/state.md) ·
 [Notebook 01](../notebooks/01_introduction_to_inventory_flow.ipynb)

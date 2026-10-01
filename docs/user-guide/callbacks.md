@@ -38,7 +38,7 @@ both date ranges.
 | `ScheduledOrderHold` | after prediction | – | set the order to zero |
 | `ScheduledInventoryAdjustment` | after demand | `quantity_delta` (and optional `received_date`) | add or remove stock |
 
-??? example "Setup: the tea shop from Learn the basics"
+??? example "Setup: the tea shop from the Walkthrough"
 
     ```python
     --8<-- "learn-setup.py"

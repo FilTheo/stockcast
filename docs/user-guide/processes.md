@@ -24,7 +24,7 @@ Shelf life is measured in **calendar days**, whatever the period length.
 Demand and backorders consume the oldest lots first. Expired units appear in
 the event table as `expired_units` and are priced by the `waste_cost` metric.
 
-??? example "Setup: the tea shop from Learn the basics"
+??? example "Setup: the tea shop from the Walkthrough"
 
     ```python
     --8<-- "learn-setup.py"

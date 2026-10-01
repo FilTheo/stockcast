@@ -73,6 +73,6 @@ return a request. Constraints, callbacks, suppliers, receipts, and demand are
 all applied by the engine, after the policy. As a result,
 every policy is judged by the same accounting.
 
-**See also:** [Learn step 4](../../learn/04-policies.md) ·
+**See also:** [Walkthrough step 4](../../learn/04-policies.md) ·
 [Notebook 05b](../../notebooks/05b_reorder_points_and_review_frequency.ipynb) ·
 [Notebook 06](../../notebooks/06_fair_forecast_and_policy_comparisons.ipynb)

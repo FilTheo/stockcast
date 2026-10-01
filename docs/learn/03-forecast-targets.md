@@ -61,7 +61,7 @@ Both numbers come from the same forecast, but they answer different
 questions. The first is what "95% protection over six days" means: 46 packs.
 The second would hold 14 extra packs on the shelf all the time. That is why
 Stockcast asks for the target of the whole window.
-[Targets cover a whole window](../user-guide/design/cumulative-targets.md) has
+[Forecast targets](../user-guide/forecast-targets.md#quantiles-of-sums) has
 the full argument.
 
 ## Computing the target

@@ -114,7 +114,7 @@ grams or millilitres balance just as well as event tables in units.
 - **Types and labels.** Flags are booleans, window labels are known, and
   `order_arrival_flag` is set only on rows that received stock.
 
-??? example "Setup: the tea shop from Learn the basics"
+??? example "Setup: the tea shop from the Walkthrough"
 
     ```python
     --8<-- "learn-setup.py"
@@ -151,5 +151,5 @@ always computed from balanced books.
 - **Explanations.** When a metric surprises you, the event table tells you which
   flow caused it.
 
-**See also:** [The event table is the record](../design/event-table.md) ·
+**See also:** [Walkthrough step 6](../../learn/06-event-table.md) ·
 [Output tables](../../reference/schemas.md)

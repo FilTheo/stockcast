@@ -78,7 +78,7 @@ The pieces:
 
 ## Run with suppliers
 
-??? example "Setup: the tea shop from Learn the basics"
+??? example "Setup: the tea shop from the Walkthrough"
 
     ```python
     --8<-- "learn-setup.py"

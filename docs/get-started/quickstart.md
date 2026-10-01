@@ -231,10 +231,10 @@ lead times, or a shelf life.
 Here an order arrives the same morning, so it only has to last one day. With
 a lead time of $L$ days and a review every $R$ days, each order must last
 $H = L + R$ days, and the forecast covers total demand over that window.
-[Learn step 3](../learn/03-forecast-targets.md) shows how, with the same tea
+[Walkthrough step 3](../learn/03-forecast-targets.md) shows how, with the same tea
 shop.
 
-- [Learn the basics](../learn/index.md): one idea per page, from inventory
+- [Walkthrough](../learn/index.md): one idea per page, from inventory
   state to [production](../learn/09-production.md).
 - [Guide](../user-guide/index.md): theory and options for each building block.
 - [Examples](../tutorials/index.md): complete notebooks, including real

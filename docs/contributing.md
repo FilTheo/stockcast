@@ -45,7 +45,6 @@ How the docs are organised:
 |---|---|---|
 | `docs/get-started/`, `docs/learn/` | first contact and the 9-step series | one idea per page, the tea-shop example throughout |
 | `docs/user-guide/` | concepts and building blocks | idea → math → code → notebooks |
-| `docs/user-guide/design/` | the reasoning behind core choices | short essays |
 | `docs/how-to/` | task recipes | straight to the point |
 | `docs/reference/` | generated API pages | driven by docstrings (Google style) |
 | `docs/notebooks/` | link to `examples/notebooks`, rendered with mkdocs-jupyter | executed notebooks |

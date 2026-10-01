@@ -5,7 +5,7 @@ annotate, or combine them, and none of them calls `plt.show()` for you.
 
 ## One run
 
-??? example "Setup: the tea shop from Learn the basics"
+??? example "Setup: the tea shop from the Walkthrough"
 
     ```python
     --8<-- "learn-setup.py"

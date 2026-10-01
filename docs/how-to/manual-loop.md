@@ -18,7 +18,7 @@ Each call returns a **new** state, so earlier states stay available.
 
 ## Example loop
 
-??? example "Setup: the tea shop from Learn the basics"
+??? example "Setup: the tea shop from the Walkthrough"
 
     ```python
     --8<-- "learn-setup.py"

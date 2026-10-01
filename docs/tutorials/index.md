@@ -14,8 +14,8 @@ here is the executed notebook; use the download button to run it yourself.
 
 ## Foundations
 
-Start here if you are new. These follow the same ideas as
-[Learn the basics](../learn/index.md), with more pictures.
+Start here if you are new. These follow the same ideas as the
+[Walkthrough](../learn/index.md), with more pictures.
 
 | Notebook | You will learn |
 |---|---|

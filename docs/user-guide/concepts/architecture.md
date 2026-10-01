@@ -68,7 +68,7 @@ Here is one run that uses a policy, a decision schedule, two ordering
 constraints, a callback, a supplier with a random lead time, and shelf life.
 Each piece is one argument; remove any of them and the rest still works.
 
-??? example "Setup: the tea shop from Learn the basics"
+??? example "Setup: the tea shop from the Walkthrough"
 
     ```python
     --8<-- "learn-setup.py"
@@ -169,7 +169,7 @@ The same objects serve two jobs:
 
 Because both follow the same receive → decide → demand sequence with the same
 policy, constraints, and targets, a daily job reproduces its backtest exactly.
-[Learn step 9](../../learn/09-production.md) shows it on the tea shop.
+[Walkthrough step 9](../../learn/09-production.md) shows it on the tea shop.
 
 ## Method names
 
@@ -199,5 +199,4 @@ Each extension point is a base class with a few methods to fill in:
 | `InventoryProcess` | `before_demand` and/or `after_demand` | [Processes](../processes.md) |
 | `BaseInventoryMetric` | `compute` | [Metrics](../metrics.md) |
 
-**See also:** [Small parts you combine](../design/composition.md) ·
-[Notebook 05c: extension points](../../notebooks/05c_extension_points.ipynb)
+**See also:** [Notebook 05c: extension points](../../notebooks/05c_extension_points.ipynb)

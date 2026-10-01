@@ -1,4 +1,4 @@
-# Learn the basics
+# Walkthrough
 
 Nine short pages, one idea each, all built on the same small example. They
 cover every object in a Stockcast run and end with running the backtested
@@ -24,8 +24,7 @@ Steps 1 to 8 build the **research pipeline**: simulate, evaluate, and compare.
 Step 9 takes the chosen policy into the **production pipeline**: a daily job
 on live stock and fresh forecasts.
 
-Each page takes about five minutes. The code blocks run as they are, in
-order, and reproduce the numbers shown.
+The code blocks run as they are, in order, and reproduce the numbers shown.
 
 !!! tip "Prefer notebooks?"
 

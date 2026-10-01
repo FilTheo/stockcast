@@ -54,7 +54,7 @@ columns:
 `period`, `date`, `supplier_id`, and `rng`: a NumPy generator seeded from the
 supply model's `random_seed`, one stream per supplier.
 
-??? example "Setup: the tea shop from Learn the basics"
+??? example "Setup: the tea shop from the Walkthrough"
 
     ```python
     --8<-- "learn-setup.py"

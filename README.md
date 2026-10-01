@@ -131,7 +131,7 @@ The same policy takes a mean and a spread or a quantile forecast, from any
 model. `from_mean_std.to_event_frame()` holds the full record: one balanced
 row per SKU and day with every receipt, order, sale, and shortage. With a lead
 time, an order must cover the lead time plus the review period;
-[Learn step 3](https://filtheo.github.io/stockcast/learn/03-forecast-targets/)
+[Walkthrough step 3](https://filtheo.github.io/stockcast/learn/03-forecast-targets/)
 shows how.
 
 ## Research and production
@@ -186,7 +186,7 @@ The reasoning behind each choice, with the literature it rests on, is in our
 
 ## Learn more
 
-- [Learn the basics](https://filtheo.github.io/stockcast/learn/): nine short
+- [Walkthrough](https://filtheo.github.io/stockcast/learn/): nine short
   steps, from inventory state to a production daily job.
 - [Guide](https://filtheo.github.io/stockcast/user-guide/): the theory and
   options of every building block, plus task recipes.

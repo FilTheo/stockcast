@@ -100,7 +100,7 @@ Uncertainty, including the uncertainty of estimated parameters themselves
 downstream makes a result look precise while describing nobody's operation.
 If a target is missing, a run stops and says so.
 
-The deep dive: [Targets cover a whole window](../user-guide/design/cumulative-targets.md).
+The deep dive: [Forecast targets](../user-guide/forecast-targets.md).
 
 ## Principle 2: one explicit clock
 
@@ -171,8 +171,7 @@ by shortening the period, not by a second simulation paradigm;
 shows reorder-point behaviour approaching it as reviews go from daily to
 three-hourly.
 
-The deep dives: [Timing: receive, decide, demand](../user-guide/concepts/timing.md) ·
-[Decisions happen before demand](../user-guide/design/decide-before-demand.md).
+The deep dive: [Timing: receive, decide, demand](../user-guide/concepts/timing.md).
 
 ## Principle 3: accounting before optimisation
 
@@ -222,10 +221,7 @@ rate. Stockcast does not claim optimality for any rule. It gives every rule,
 from a textbook heuristic to a trained neural network, the same honest
 accounting, so you can see what it actually delivers.
 
-The deep dives: [Stock accounting](../user-guide/concepts/accounting.md) ·
-[The engine owns the stock](../user-guide/design/engine-owns-state.md) ·
-[The event table is the record](../user-guide/design/event-table.md) ·
-[Every input is explicit](../user-guide/design/explicit-inputs.md).
+The deep dive: [Stock accounting](../user-guide/concepts/accounting.md).
 
 ## Principle 4: small parts, one base class each
 
@@ -292,8 +288,7 @@ or `to_manifest`) into the run manifest, and every intervention
 lands in an audit table, with the reason and source you give it. A result can always be
 traced back to the objects that produced it.
 
-The deep dives: [How Stockcast fits together](../user-guide/concepts/architecture.md) ·
-[Small parts you combine](../user-guide/design/composition.md).
+The deep dive: [How Stockcast fits together](../user-guide/concepts/architecture.md).
 
 ## Principle 5: fair experiments by construction
 
@@ -366,7 +361,7 @@ compute real orders. A production day is two calls around your own data: a
 supplier's rules, send) and a **close** in the evening (serve the day's
 sales, save the state). Because the daily job follows the same receive →
 decide → demand sequence with the same objects, it reproduces its backtest
-exactly; [Learn step 9](../learn/09-production.md) runs both and checks that
+exactly; [Walkthrough step 9](../learn/09-production.md) runs both and checks that
 the stock matches on every day.
 
 That is the property we care about most for practitioners: the policy you
@@ -433,17 +428,6 @@ Boundaries are design decisions too.
   re-deriving targets for a random window.
 
 *Happy stockcasting.*<br>*~ F*
-
-## Deep dives
-
-| Essay | The decision |
-|---|---|
-| [Decisions happen before demand](../user-guide/design/decide-before-demand.md) | Each period is receive → decide → meet demand, so lead time and the protection window have exact meanings. |
-| [Targets cover a whole window](../user-guide/design/cumulative-targets.md) | A target is a quantile of total demand over the protection window, never a sum of daily quantiles. |
-| [Every input is explicit](../user-guide/design/explicit-inputs.md) | Stock, dates, costs, and uncertainty come from you; Stockcast never fills them in. |
-| [The engine owns the stock](../user-guide/design/engine-owns-state.md) | Policies and extensions propose; only the engine changes stock. |
-| [The event table is the record](../user-guide/design/event-table.md) | One balanced row per SKU and period is the source of every metric. |
-| [Small parts you combine](../user-guide/design/composition.md) | One job per object, one base class per extension point. |
 
 ## References
 

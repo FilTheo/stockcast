@@ -73,7 +73,9 @@ modified and can be reused.
 
 ## Each period
 
-Each period follows [receive, decide, then meet demand](concepts/timing.md).
+Each period follows [receive, decide, then meet demand](concepts/timing.md);
+to match a timing convention from a paper or another tool, see
+[Work with any timing convention](../how-to/timing-conventions.md).
 After each period, the engine writes one event table row per SKU and checks its
 [balance identities](concepts/accounting.md). The core loop runs on NumPy
 arrays, so thousands of SKUs over long horizons simulate quickly.
@@ -93,7 +95,7 @@ event table row carries its window in `run_window`.
 
 ## Results
 
-??? example "Setup: the tea shop from Learn the basics"
+??? example "Setup: the tea shop from the Walkthrough"
 
     ```python
     --8<-- "learn-setup.py"
@@ -190,7 +192,7 @@ See [Shelf life and inventory processes](processes.md).
 `SimulationEngine(verbose=1)` prints start, end, and milestones;
 `verbose=2` prints a line for every period.
 
-**See also:** [Learn step 5](../learn/05-engine.md) ·
+**See also:** [Walkthrough step 5](../learn/05-engine.md) ·
 [API: engine](../reference/engine.md) ·
 [Notebook 02](../notebooks/02_first_engine_simulation.ipynb) ·
 [Notebook 03: your own loop](../notebooks/03_component_loop.ipynb)

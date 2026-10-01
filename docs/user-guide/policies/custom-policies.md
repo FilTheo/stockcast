@@ -39,7 +39,7 @@ $$
 q_t = \max\bigl(0,\; k \cdot \hat\mu - \mathit{IP}_t\bigr)
 $$
 
-??? example "Setup: the tea shop from Learn the basics"
+??? example "Setup: the tea shop from the Walkthrough"
 
     ```python
     --8<-- "learn-setup.py"

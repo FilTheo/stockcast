@@ -13,7 +13,7 @@ release line and a migration note.
 **What's included**
 
 - **Timing you can reason about.** Decisions are made
-  [before demand](user-guide/design/decide-before-demand.md), lead time may be
+  [before demand](user-guide/concepts/timing.md), lead time may be
   zero, and a `DecisionSchedule` (periodic, one-time, explicit, or your own)
   says when a policy may order, separately from how much it orders.
 - **Synthetic demand from any distribution.** `DemandGenerator` builds
@@ -38,8 +38,8 @@ release line and a migration note.
 - **Evidence you can check.** Every run produces a validated event table, a
   run manifest, callback audits, order and process-flow frames, and service
   and cost metrics.
-- **Documentation.** A Quickstart, a *Learn the basics* series, a Guide to
-  every building block, recipes, design essays, 23 runnable example notebooks,
+- **Documentation.** A Quickstart, a nine-step *Walkthrough*, a Guide to
+  every building block, recipes, 23 runnable example notebooks,
   and a full API reference. Every Python example in the docs is executed in
   the test suite.
 

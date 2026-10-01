@@ -6,7 +6,7 @@ event table.
 
 ## The evaluator
 
-??? example "Setup: the tea shop from Learn the basics"
+??? example "Setup: the tea shop from the Walkthrough"
 
     ```python
     --8<-- "learn-setup.py"
@@ -155,6 +155,6 @@ evaluator.evaluate([fill_rate, ShareOfDaysBelow(10)], groupby=[])
 0        1.0          0.125
 ```
 
-**See also:** [Learn step 7](../learn/07-evaluate.md) ·
+**See also:** [Walkthrough step 7](../learn/07-evaluate.md) ·
 [API: metrics](../reference/metrics.md) ·
 [Notebook 06](../notebooks/06_fair_forecast_and_policy_comparisons.ipynb)
