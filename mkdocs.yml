@@ -155,7 +155,6 @@ nav:
   - Home: index.md
   - Get started:
       - get-started/index.md
-      - Installation: get-started/installation.md
       - Quickstart: get-started/quickstart.md
       - Learn the basics:
           - learn/index.md
