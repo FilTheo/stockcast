@@ -13,28 +13,31 @@ much should it order each morning, and how well does that work?
 
 Stockcast reads demand as a long table: one row per SKU and period, with the
 columns `unique_id`, `date` (or a `period` number, or both), and `y`. Here we
-generate twelve weeks of daily sales with the built-in `DemandGenerator`. In
-your own work this is your sales history or a demand scenario.
+make twelve weeks of daily sales, about six packs a day. In your own work
+this is your sales history or a demand scenario.
 
 ```python
+import numpy as np
 import pandas as pd
-
-from stockcast.utils import DemandGenerator
 
 sku, today = "tea_250g", pd.Timestamp("2026-02-01")
 
-sales = DemandGenerator([sku], first_date="2026-01-05", freq="D", random_seed=3).sample(
-    84, lambda rng, periods: rng.poisson(6, periods.size))
+days = pd.date_range("2026-01-05", periods=84, freq="D")
+sales = pd.DataFrame({
+    "unique_id": sku,
+    "date": days,
+    "y": np.random.default_rng(3).poisson(6, len(days)),
+})
 past, future = sales[sales["date"] <= today], sales[sales["date"] > today]
 
 sales.head(3)
 ```
 
 ```text
-  unique_id    y  period       date
-0  tea_250g  4.0       0 2026-01-05
-1  tea_250g  5.0       1 2026-01-06
-2  tea_250g  9.0       2 2026-01-07
+  unique_id       date  y
+0  tea_250g 2026-01-05  4
+1  tea_250g 2026-01-06  5
+2  tea_250g 2026-01-07  9
 ```
 
 Today is 1 February. The four weeks up to today are the `past` we forecast
@@ -78,11 +81,12 @@ what is on the shelf, what is on order, and what is owed to customers.
 ```python
 from stockcast.core import InventoryStateDataFrame
 
-shelf = InventoryStateDataFrame.from_observed(
-    pd.DataFrame({"unique_id": [sku], "date": [today], "on_hand": [30]}))
+shelf = InventoryStateDataFrame.from_observed(pd.DataFrame({
+    "unique_id": [sku],
+    "date": [today],     # the day the shelf was counted
+    "on_hand": [30],     # packs on the shelf
+}))
 ```
-
-The `date` column is the day the shelf was counted: today.
 
 ## 4. A policy
 
@@ -102,8 +106,13 @@ configured, then **fit** on a forecast:
 ```python
 from stockcast.policies import OrderUpToPolicy
 
-policy = OrderUpToPolicy(lead_time=0, review_period=1, freq="D",
-                         service_level=0.95, allow_backorders=False)
+policy = OrderUpToPolicy(
+    lead_time=0,             # delivered before the shop opens
+    review_period=1,         # order every morning
+    freq="D",                # one period is one day
+    service_level=0.95,      # cover tomorrow's demand on 95% of days
+    allow_backorders=False,  # a missed sale is lost
+)
 
 policy.fit(forecast, mean_column="mean", std_column="std")
 policy.get_target_levels()

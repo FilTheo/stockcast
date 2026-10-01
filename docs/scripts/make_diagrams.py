@@ -150,7 +150,7 @@ def compare():
     d = Diagram("compare", 860, 270,
                 "Comparing candidates: two candidates run on the same demand and "
                 "starting stock; the results differ only because of the candidate.")
-    (x1, w1), (x2, w2), (x3, w3) = (20, 220), (300, 260), (640, 200)
+    (x1, w1), (x2, w2), (x3, w3) = (20, 220), (300, 260), (620, 230)
     rows, h = [44, 144], 64
     d.head(x1 + 2, 28, "Your candidates", "choice")
     d.head(x2 + 2, 28, "Stockcast", "engine")
@@ -161,8 +161,9 @@ def compare():
     d.box(x1, rows[1] + h + 14, w1, 34, "choice", [], "+ as many as you like", optional=True)
     d.box(x2, rows[0], w2, rows[1] + h - rows[0], "engine",
           ["Same demand,", "same starting stock"], "each candidate played out day by day")
-    d.box(x3, rows[0], w3, h, "result", "A: 99% served", "5.3 packs on the shelf")
-    d.box(x3, rows[1], w3, h, "result", "B: 99% served", "5.7 packs on the shelf")
+    # Illustrative numbers with a trade-off: more service costs more stock.
+    d.box(x3, rows[0], w3, h, "result", "A: 98% served", "avg. 14 packs on the shelf")
+    d.box(x3, rows[1], w3, h, "result", "B: 93% served", "avg. 8 packs on the shelf")
 
     for r in rows:
         y = r + h / 2

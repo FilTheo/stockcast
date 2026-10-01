@@ -166,8 +166,12 @@ def fig_tea_demand():
 def quickstart_runs():
     """The Quickstart: one daily policy fitted on a mean/std and on a quantile forecast."""
     today = pd.Timestamp("2026-02-01")
-    sales = DemandGenerator([SKU], first_date="2026-01-05", freq="D", random_seed=3).sample(
-        84, lambda rng, periods: rng.poisson(6, periods.size))
+    days = pd.date_range("2026-01-05", periods=84, freq="D")
+    sales = pd.DataFrame({
+        "unique_id": SKU,
+        "date": days,
+        "y": np.random.default_rng(3).poisson(6, len(days)),
+    })
     past, future = sales[sales["date"] <= today], sales[sales["date"] > today]
     last_4_weeks = past["y"].tail(28)
     forecast = pd.DataFrame({

@@ -64,18 +64,22 @@ orders with the supplier's rules, and save the state.
 ## Example
 
 ```python
+import numpy as np
 import pandas as pd
 
 from stockcast.core import InventoryStateDataFrame, SimulationEngine
 from stockcast.evaluation import InventoryEvaluator, avg_on_hand, fill_rate
 from stockcast.policies import OrderUpToPolicy
-from stockcast.utils import DemandGenerator
 
 sku, today = "tea_250g", pd.Timestamp("2026-02-01")
 
 # Twelve weeks of daily tea sales, about six packs a day.
-sales = DemandGenerator([sku], first_date="2026-01-05", freq="D", random_seed=3).sample(
-    84, lambda rng, periods: rng.poisson(6, periods.size))
+days = pd.date_range("2026-01-05", periods=84, freq="D")
+sales = pd.DataFrame({
+    "unique_id": sku,
+    "date": days,
+    "y": np.random.default_rng(3).poisson(6, len(days)),
+})
 past, future = sales[sales["date"] <= today], sales[sales["date"] > today]
 
 # Forecast tomorrow from the last four weeks. Any model works; here, two
@@ -90,12 +94,20 @@ forecast = pd.DataFrame({
     "q95": [last_4_weeks.quantile(0.95)],     # or a 95% quantile forecast
 })
 
-# 30 packs on the shelf today. Order every morning, delivered before opening,
-# up to the 95% quantile of tomorrow's demand.
-shelf = InventoryStateDataFrame.from_observed(
-    pd.DataFrame({"unique_id": [sku], "date": [today], "on_hand": [30]}))
-policy = OrderUpToPolicy(lead_time=0, review_period=1, freq="D",
-                         service_level=0.95, allow_backorders=False)
+# Today's stock and the ordering policy.
+shelf = InventoryStateDataFrame.from_observed(pd.DataFrame({
+    "unique_id": [sku],
+    "date": [today],     # the day the shelf was counted
+    "on_hand": [30],     # packs on the shelf
+}))
+policy = OrderUpToPolicy(
+    lead_time=0,             # delivered before the shop opens
+    review_period=1,         # order every morning
+    freq="D",                # one period is one day
+    service_level=0.95,      # cover tomorrow's demand on 95% of days
+    allow_backorders=False,  # a missed sale is lost
+)
+
 engine = SimulationEngine()
 
 # From a mean and a spread, the policy computes the quantile...
@@ -142,11 +154,10 @@ The [Quickstart](get-started/quickstart.md) walks through each of these lines.
 
 ## About
 
-Stockcast is built and maintained by
-[Filotas Theodosiou](https://filtheo.github.io/) at the Predictive AI and
-Digital Shift (PADS) research group, VIVES University of Applied Sciences,
-where it supports our research on turning forecasts into inventory
-decisions.
+Stockcast is maintained by our team at the Predictive AI and Digital Shift
+(PADS) research group, VIVES University of Applied Sciences.
+
+[:octicons-arrow-right-24: Read more](https://filtheo.github.io/)
 
 ## Citation
 
