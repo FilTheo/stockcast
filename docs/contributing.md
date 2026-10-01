@@ -43,7 +43,7 @@ How the docs are organised:
 
 | Folder | Purpose | Style |
 |---|---|---|
-| `docs/get-started/`, `docs/learn/` | first contact and the 9-step series | one idea per page, the tea-shop example throughout |
+| `docs/get-started/`, `docs/learn/` | first contact and the nine-step Walkthrough | one idea per page, the tea-shop example throughout |
 | `docs/user-guide/` | concepts and building blocks | idea → math → code → notebooks |
 | `docs/how-to/` | task recipes | straight to the point |
 | `docs/reference/` | generated API pages | driven by docstrings (Google style) |

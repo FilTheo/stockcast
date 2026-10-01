@@ -1,8 +1,8 @@
 # Recipes
 
 Short, task-focused recipes, part of the [Guide](../user-guide/index.md).
-Each one assumes you know the basics from
-the [Walkthrough](../learn/index.md).
+Each one assumes you know the basics from the
+[Walkthrough](../learn/index.md).
 
 | Recipe | You want to… |
 |---|---|

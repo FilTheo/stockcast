@@ -5,14 +5,14 @@ behind it, and every option it takes. New to Stockcast? The
 [Walkthrough](../learn/index.md) introduces the same parts in nine short steps.
 
 - **The core of a run**: the parts every simulation uses, in the order a run
-  uses them. [Inventory state](inventory-state.md),
+  uses them: [inventory state](inventory-state.md),
   [demand](demand.md), [forecast targets](forecast-targets.md),
   [policies](policies/index.md) and their [schedules](decision-schedules.md),
   [the engine](engine.md) and its [timing](concepts/timing.md),
   [the event table](concepts/accounting.md), [metrics](metrics.md), and
   [plots](visualization.md).
-- **Real-world operations**: optional rules, each added with one argument.
-  [Ordering constraints](constraints.md), [callbacks](callbacks.md),
+- **Real-world operations**: optional rules, each added with one argument:
+  [ordering constraints](constraints.md), [callbacks](callbacks.md),
   [suppliers](suppliers.md), [unreliable deliveries](unreliable-deliveries.md),
   and [shelf life](processes.md).
 - **Recipes**: [short pages for specific tasks](../how-to/index.md), with
