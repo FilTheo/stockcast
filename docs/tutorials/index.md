@@ -31,7 +31,7 @@ How forecasts become targets, and targets become orders.
 
 | Notebook | You will learn |
 |---|---|
-| [04 · Weekly forecast to order](../notebooks/04_forecast_to_inventory_integration.ipynb) | a one-week smooth forecast becomes a weekly order, with two policy APIs |
+| [04 · Weekly forecast to order](../notebooks/04_forecast_to_inventory_integration.ipynb) | a one-week smooth forecast becomes a weekly order: one step, then a loop through time, then the simulator |
 | [04b · Daily newsvendor](../notebooks/04b_daily_newsvendor.ipynb) | price, cost, and salvage choose one daily purchase |
 | [04c · Cumulative protection target](../notebooks/04c_cumulative_protection_target.ipynb) | lead time turns a forecast into a multi-day protection target |
 | [04d · Rolling cumulative targets](../notebooks/04d_rolling_cumulative_targets.ipynb) | dated forecast snapshots refitted at every review |
