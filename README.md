@@ -127,14 +127,15 @@ shows how.
 The same objects run a backtest and a daily job, so the policy you evaluated is
 the policy you run:
 
-```text
-Research: backtest and compare
-    forecast (any library) -> target -> policy -> SimulationEngine -> event table -> evaluation
+![How Stockcast works: your data and choices go in, Stockcast plays out each day, you get service, stock and cost](https://raw.githubusercontent.com/FilTheo/stockcast/main/docs/assets/diagrams/how-it-works.svg)
 
-Production: every day
-    sales and deliveries -> inventory state -> refreshed forecast -> policy
-        -> constraints and suppliers -> orders to send -> next day
-```
+**Research: compare candidates on identical demand.**
+
+![Candidates A and B run on the same demand and starting stock, then you compare the results](https://raw.githubusercontent.com/FilTheo/stockcast/main/docs/assets/diagrams/compare.svg)
+
+**Production: run the chosen policy every day.**
+
+![The daily loop: sales and deliveries, update the stock, fresh forecast, your policy, orders to send](https://raw.githubusercontent.com/FilTheo/stockcast/main/docs/assets/diagrams/production-loop.svg)
 
 ## Building blocks
 

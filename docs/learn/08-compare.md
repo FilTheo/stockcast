@@ -108,18 +108,11 @@ For longer studies with rolling forecasts, see
 
 ## Summary
 
-The complete research pipeline:
+The research pipeline:
 
-```mermaid
-flowchart LR
-    S[Inventory state] --> E
-    D[Demand] --> E
-    F[Forecast target] --> P[Policy]
-    P --> E[SimulationEngine]
-    E --> L[Event table]
-    L --> V[InventoryEvaluator]
-    L --> C[run_comparison]
-```
+<figure class="sc-diagram">
+--8<-- "compare.svg"
+</figure>
 
 - `run_comparison` runs several policies on identical demand from
   identical, separate starting states.

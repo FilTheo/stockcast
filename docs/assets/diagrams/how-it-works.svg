@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="sc-diagram-svg" viewBox="0 0 920 290" width="920" height="290" role="img" aria-label="How Stockcast works: your forecast feeds your policy; with your optional rules, demand and starting stock, Stockcast plays out each day and reports service, stock and cost." font-family="Roboto, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title>How Stockcast works: your forecast feeds your policy; with your optional rules, demand and starting stock, Stockcast plays out each day and reports service, stock and cost.</title>
+<style>.sc-bg{fill:#ffffff} .sc-label-bg{fill:#ffffff} .sc-box rect{stroke-width:1.5} .sc-data rect{fill:#f1f0ec;stroke:#898781} .sc-choice rect{fill:#fdeee6;stroke:#eb6834} .sc-engine rect{fill:#e7effb;stroke:#2a78d6} .sc-result rect{fill:#e4f5ee;stroke:#1baf7a} .sc-optional rect{stroke-dasharray:5 4} .sc-title{font-size:15px;font-weight:600;fill:#0b0b0b} .sc-sub{font-size:12.5px;fill:#52514e} .sc-head{font-size:11px;font-weight:700;letter-spacing:.08em} .sc-head.sc-data{fill:#52514e} .sc-head.sc-choice{fill:#c4531f} .sc-head.sc-engine{fill:#1f5fae} .sc-head.sc-result{fill:#12855c} .sc-arrow{fill:none;stroke:#52514e;stroke-width:1.6} .sc-arrowhead{fill:#52514e} .sc-lane{fill:none;stroke:#2a78d6;stroke-width:1;stroke-dasharray:3 4;opacity:.6} .sc-note{font-size:12px;font-style:italic;fill:#52514e}</style>
+<rect class="sc-bg" width="920" height="290" rx="12"/>
+<text class="sc-head sc-data" x="22" y="28" text-anchor="start">YOUR DATA</text>
+<text class="sc-head sc-choice" x="242" y="28" text-anchor="start">YOUR CHOICES</text>
+<text class="sc-head sc-engine" x="512" y="28" text-anchor="start">STOCKCAST</text>
+<text class="sc-head sc-result" x="722" y="28" text-anchor="start">YOU GET</text>
+<g class="sc-box sc-data"><rect x="20" y="44" width="170" height="64" rx="10"/><text class="sc-title" x="105.0" y="69.5" text-anchor="middle">Forecast</text><text class="sc-sub" x="105.0" y="91.5" text-anchor="middle">from any library</text></g>
+<g class="sc-box sc-data"><rect x="20" y="204" width="170" height="64" rx="10"/><text class="sc-title" x="105.0" y="229.5" text-anchor="middle">Demand</text><text class="sc-sub" x="105.0" y="251.5" text-anchor="middle">and starting stock</text></g>
+<g class="sc-box sc-choice"><rect x="240" y="44" width="210" height="64" rx="10"/><text class="sc-title" x="345.0" y="69.5" text-anchor="middle">Policy</text><text class="sc-sub" x="345.0" y="91.5" text-anchor="middle">when and how much to order</text></g>
+<g class="sc-box sc-choice sc-optional"><rect x="240" y="124" width="210" height="64" rx="10"/><text class="sc-title" x="345.0" y="149.5" text-anchor="middle">Rules (optional)</text><text class="sc-sub" x="345.0" y="171.5" text-anchor="middle">suppliers · packs · shelf life</text></g>
+<g class="sc-box sc-engine"><rect x="510" y="44" width="160" height="224" rx="10"/><text class="sc-title" x="590.0" y="114.5" text-anchor="middle">Plays out</text><text class="sc-title" x="590.0" y="133.5" text-anchor="middle">each day</text><text class="sc-sub" x="590.0" y="155.5" text-anchor="middle"></text><text class="sc-sub" x="590.0" y="172.5" text-anchor="middle">1  deliveries arrive</text><text class="sc-sub" x="590.0" y="189.5" text-anchor="middle">2  orders go out</text><text class="sc-sub" x="590.0" y="206.5" text-anchor="middle">3  demand is met</text></g>
+<g class="sc-box sc-result"><rect x="720" y="124" width="180" height="64" rx="10"/><text class="sc-title" x="810.0" y="149.5" text-anchor="middle">Service, stock, cost</text><text class="sc-sub" x="810.0" y="171.5" text-anchor="middle">and the event table</text></g>
+<polyline class="sc-arrow" points="190,76.0 232,76.0"/>
+<polygon class="sc-arrowhead" points="240,76.0 232,71.0 232,81.0"/>
+<polyline class="sc-arrow" points="450,76.0 502,76.0"/>
+<polygon class="sc-arrowhead" points="510,76.0 502,71.0 502,81.0"/>
+<polyline class="sc-arrow" points="450,156.0 502,156.0"/>
+<polygon class="sc-arrowhead" points="510,156.0 502,151.0 502,161.0"/>
+<polyline class="sc-arrow" points="190,236.0 502,236.0"/>
+<polygon class="sc-arrowhead" points="510,236.0 502,231.0 502,241.0"/>
+<polyline class="sc-arrow" points="670,156.0 712,156.0"/>
+<polygon class="sc-arrowhead" points="720,156.0 712,151.0 712,161.0"/>
+</svg>

@@ -105,7 +105,7 @@ markdown_extensions:
       pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets:
-      base_path: [docs/includes]
+      base_path: [docs/includes, docs/assets/diagrams]
       auto_append: [abbreviations.md]
   - pymdownx.superfences:
       custom_fences:

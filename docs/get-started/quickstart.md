@@ -209,19 +209,12 @@ below shows both runs.
 
 ## Summary
 
-```mermaid
-flowchart LR
-    D[Sales] --> F[Forecast]
-    F --> P[OrderUpToPolicy.fit]
-    I[InventoryStateDataFrame] --> E
-    D --> E
-    P --> E[SimulationEngine.run]
-    E --> L[Event table]
-    L --> V[InventoryEvaluator]
-```
+<figure class="sc-diagram">
+--8<-- "how-it-works.svg"
+</figure>
 
-Each box is a separate object, so you can replace one and keep the rest: a
-forecast from a real model, a `ReorderPointPolicy`, a supplier with random
+You can swap any box on the left and keep the rest: a forecast from a real
+model, a `ReorderPointPolicy`, a supplier with random
 lead times, or a shelf life.
 
 ## Next steps

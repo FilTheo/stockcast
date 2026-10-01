@@ -33,22 +33,21 @@ else stays the same.
 :octicons-arrow-right-24: **[Read our philosophy](get-started/philosophy.md)**:
 why Stockcast is built this way, and the research behind it.
 
+## How it works
+
+<figure class="sc-diagram">
+--8<-- "how-it-works.svg"
+</figure>
+
 ## Two pipelines
 
 **Research: backtest and compare.** For researchers and analysts who measure
 forecasts by the decisions they lead to. Compare policies, forecasting models,
 lead times, suppliers, and shelf-life rules on identical demand.
 
-```mermaid
-flowchart LR
-    F["Your forecast<br/>(any library)"] --> T["Forecast target"]
-    T --> P["Policy<br/>fit · predict"]
-    S["Inventory state"] --> E
-    D["Demand"] --> E
-    P --> E["SimulationEngine"]
-    E --> L["Event table"]
-    L --> M["Inventory evaluation"]
-```
+<figure class="sc-diagram">
+--8<-- "compare.svg"
+</figure>
 
 [:octicons-arrow-right-24: Compare scenarios](learn/08-compare.md)
 
@@ -56,15 +55,9 @@ flowchart LR
 chosen policy behind a daily job: load stock, refresh the forecast, compute
 orders with the supplier's rules, and save the state.
 
-```mermaid
-flowchart LR
-    N["Incoming sales<br/>and deliveries"] --> U["Update the state"]
-    U --> R["Refresh the forecast<br/>and targets"]
-    R --> P["Policy<br/>predict"]
-    P --> C["Constraints<br/>and suppliers"]
-    C --> O["Orders to send"]
-    O -->|next day| N
-```
+<figure class="sc-diagram">
+--8<-- "production-loop.svg"
+</figure>
 
 [:octicons-arrow-right-24: From backtest to production](learn/09-production.md)
 

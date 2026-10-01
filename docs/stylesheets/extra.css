@@ -92,3 +92,33 @@ div.arithmatex {
   color: var(--md-default-fg-color--light);
   margin: -0.6rem 0 0.4rem;
 }
+
+/* Pipeline diagrams from docs/scripts/make_diagrams.py, inlined so their
+   colours follow the theme. Narrow screens scroll instead of shrinking the
+   text out of reach. */
+.md-typeset figure.sc-diagram {
+  display: block;
+  margin: 1.2em 0;
+  overflow-x: auto;
+}
+.md-typeset figure.sc-diagram svg {
+  display: block;
+  width: 100%;
+  min-width: 36rem;
+  height: auto;
+}
+.md-typeset figure.sc-diagram .sc-bg { fill: transparent; }
+.md-typeset figure.sc-diagram .sc-label-bg { fill: var(--md-default-bg-color); }
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-data rect { fill: #2b2d33; stroke: #8f8d87; }
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-choice rect { fill: #3b2a21; stroke: #eb6834; }
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-engine rect { fill: #1d2b40; stroke: #5a9be8; }
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-result rect { fill: #1a362c; stroke: #1baf7a; }
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-title { fill: #ececea; }
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-sub,
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-note { fill: #b5b3ad; }
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-head.sc-data { fill: #b5b3ad; }
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-head.sc-choice { fill: #f08a5d; }
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-head.sc-engine { fill: #7fb0ee; }
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-head.sc-result { fill: #3fcf9a; }
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-arrow { stroke: #b5b3ad; }
+[data-md-color-scheme="slate"] figure.sc-diagram .sc-arrowhead { fill: #b5b3ad; }
