@@ -17,8 +17,8 @@ pip install jupyterlab "smooth>=1.0.7"
 jupyter lab examples/notebooks
 ```
 
-Notebooks 04e and 09 use smooth's simulated intervals, so their simulated
-targets can differ slightly between runs.
+Notebook 04e uses smooth's simulated intervals, so its simulated targets can
+differ slightly between runs.
 
 ## Contents
 
@@ -27,11 +27,11 @@ targets can differ slightly between runs.
 | Foundations | 01 inventory flow · 02 first engine simulation · 02b decision schedules · 02c synthetic demand · 03 your own loop |
 | Forecasts to orders | 04 weekly forecast to order · 04a forecasting from sales · 04b daily newsvendor · 04c cumulative protection target · 04d rolling cumulative targets · 04e cumulative target methods · 04f scheduled forecast simulation |
 | Extending Stockcast | 05 custom policies · 05b reorder points and review frequency · 05c extension points · 05d open orders and suppliers · 05e inventory processes · 05f unreliable supplier · 05g reorder points from any source |
-| Experiments and operations | 06 fair comparisons · 07 FIFO shelf life on M5 demand · 08 callbacks and audit · 09 full operational experiment · 10 production daily close |
+| Experiments and operations | 06 fair comparisons · 07 FIFO shelf life on M5 demand · 08 callbacks and audit · 09 a full experiment · 10 a daily planning job |
 
 ## Data
 
-`notebooks/data/m5/` holds the small M5-derived inputs used by Notebooks 07,
-09, and 10. They live in the repository for reproducible examples and are not
+`notebooks/data/m5/` holds the small M5-derived input used by Notebooks 07,
+09, and 10. It lives in the repository for reproducible examples and is not
 part of the installed package. See the [data README](notebooks/data/m5/README.md)
 for attribution and scope.

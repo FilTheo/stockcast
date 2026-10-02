@@ -138,5 +138,7 @@ it.
   validation, callbacks, the event table, and the manifest, which suit
   backtests. A live daily job uses the primitives shown here.
 
-[Notebook 10](../notebooks/10_production_daily_close.ipynb) replays four days
-of a 100-SKU daily job with smooth forecasts refitted at each review.
+[Notebook 10](../notebooks/10_production_daily_close.ipynb) runs this job for
+two weeks on five M5 items with smooth forecasts refitted at each review,
+checks it against an engine backtest, and rebuilds a morning from a stock
+count and a late delivery.

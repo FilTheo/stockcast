@@ -144,5 +144,5 @@ deliveries took three days, and the callback audit
     [Suppliers: the lead-time assumption](suppliers.md#lead-time-assumption).
 
 **See also:** [Notebook 05c: extension points](../notebooks/05c_extension_points.ipynb) ·
-[Notebook 09: full operational experiment](../notebooks/09_full_operational_experiment.ipynb) ·
+[Notebook 09: a full experiment](../notebooks/09_full_operational_experiment.ipynb) ·
 [Philosophy](../get-started/philosophy.md): why Stockcast is built this way
