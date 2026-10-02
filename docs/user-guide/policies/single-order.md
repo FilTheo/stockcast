@@ -10,8 +10,9 @@ whatever is left has little value. This is the **newsvendor problem**, and
 Let $p$ be the selling price, $c$ the purchase cost, and $v$ the salvage value
 of a leftover unit ($p > c > v$; a negative $v$ is a disposal cost). Buying
 one unit too few loses the margin $c_u = p - c$; buying one too many loses
-$c_o = c - v$. The best quantity balances the two: buy until the chance of
-selling one more unit equals the cost ratio,
+$c_o = c - v$. The best quantity balances the two: one more unit sells with
+probability $1 - F(q)$ and is left over with probability $F(q)$, so buy until
+$c_u \bigl(1 - F(q)\bigr) = c_o F(q)$, which gives
 
 $$
 F(q^*) = \frac{c_u}{c_u + c_o} = \frac{p - c}{p - v} = \alpha ,
