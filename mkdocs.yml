@@ -223,15 +223,15 @@ nav:
           - 05b · How often to check stock: notebooks/05b_reorder_points_and_review_frequency.ipynb
           - 05c · Real-world rules and disruptions: notebooks/05c_extension_points.ipynb
           - 05d · Several suppliers and late deliveries: notebooks/05d_open_orders_and_suppliers.ipynb
-          - 05e · Inventory processes: expiry, discards and returns: notebooks/05e_inventory_processes.ipynb
-          - 05f · Supplier delivery outcomes: delays, shortfalls and caps: notebooks/05f_unreliable_supplier.ipynb
+          - "05e · Inventory processes: expiry, discards and returns": notebooks/05e_inventory_processes.ipynb
+          - "05f · Supplier delivery outcomes: delays, shortfalls and caps": notebooks/05f_unreliable_supplier.ipynb
           - 05g · Reorder levels per item: notebooks/05g_reorder_point_sources.ipynb
       - Experiments and operations:
           - 06 · Controlled comparisons with run_comparison: notebooks/06_fair_forecast_and_policy_comparisons.ipynb
           - 07 · Shelf life on real demand (M5): notebooks/07_m5_fifo_perishable_scenario.ipynb
-          - 08 · Callbacks: changing orders and stock during a run: notebooks/08_callbacks_and_audit.ipynb
-          - 09 · A full experiment: forecasts, policies and extensions: notebooks/09_full_operational_experiment.ipynb
-          - 10 · A daily planning job: plan and close: notebooks/10_production_daily_close.ipynb
+          - "08 · Callbacks: changing orders and stock during a run": notebooks/08_callbacks_and_audit.ipynb
+          - "09 · A full experiment: forecasts, policies and extensions": notebooks/09_full_operational_experiment.ipynb
+          - "10 · A daily planning job: plan and close": notebooks/10_production_daily_close.ipynb
   - API reference:
       - reference/index.md
       - Simulation engine: reference/engine.md
