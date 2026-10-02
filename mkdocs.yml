@@ -223,9 +223,9 @@ nav:
           - 05b · How often to check stock: notebooks/05b_reorder_points_and_review_frequency.ipynb
           - 05c · Real-world rules and disruptions: notebooks/05c_extension_points.ipynb
           - 05d · Several suppliers and late deliveries: notebooks/05d_open_orders_and_suppliers.ipynb
-          - 05e · Inventory processes: notebooks/05e_inventory_processes.ipynb
-          - 05f · Unreliable supplier: notebooks/05f_unreliable_supplier.ipynb
-          - 05g · Reorder points from any source: notebooks/05g_reorder_point_sources.ipynb
+          - 05e · Shelf life, inspections and returns: notebooks/05e_inventory_processes.ipynb
+          - 05f · Late, short and limited suppliers: notebooks/05f_unreliable_supplier.ipynb
+          - 05g · Where reorder points come from: notebooks/05g_reorder_point_sources.ipynb
       - Experiments and operations:
           - 06 · Fair comparisons: notebooks/06_fair_forecast_and_policy_comparisons.ipynb
           - 07 · FIFO shelf life on M5 demand: notebooks/07_m5_fifo_perishable_scenario.ipynb

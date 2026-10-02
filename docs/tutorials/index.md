@@ -49,9 +49,9 @@ Custom rules and richer operations, one building block at a time.
 | [05b · How often to check stock](../notebooks/05b_reorder_points_and_review_frequency.ipynb) | where to put the reorder point and how often to check stock when checks happen at set times, from one SKU to 100 |
 | [05c · Real-world rules and disruptions](../notebooks/05c_extension_points.ipynb) | order days, whole-case and chiller-space rules, a cancelled supplier day and a stock count, added one at a time on the same demand |
 | [05d · Several suppliers and late deliveries](../notebooks/05d_open_orders_and_suppliers.ipynb) | buy from a local roaster and a cheaper importer: random delivery times, deliveries in two parts, and a rule for who gets each order |
-| [05e · Inventory processes](../notebooks/05e_inventory_processes.ipynb) | shelf life as a process, plus an inspection and a dated return |
-| [05f · Unreliable supplier](../notebooks/05f_unreliable_supplier.ipynb) | late and short deliveries, supplier capacity, and a backup supplier |
-| [05g · Reorder points from any source](../notebooks/05g_reorder_point_sources.ipynb) | one reorder-point policy with levels from a house rule, a planning table, a forecast, and your own rule, compared on shared demand |
+| [05e · Shelf life, inspections and returns](../notebooks/05e_inventory_processes.ipynb) | how to account for stock that leaves or returns outside sales and orders: expiry, a weekly inspection and customer returns |
+| [05f · Late, short and limited suppliers](../notebooks/05f_unreliable_supplier.ipynb) | what happens to your orders when a supplier delivers late or short or can ship only so much, and how a backup supplier helps |
+| [05g · Where reorder points come from](../notebooks/05g_reorder_point_sources.ipynb) | one reorder-point policy with levels from a house rule, a planning table, a forecast, and your own rule, compared on shared demand |
 
 ## Experiments and operations
 
