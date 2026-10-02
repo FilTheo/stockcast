@@ -27,6 +27,7 @@ notebook that uses it.
 |---|---|---|---|
 | start from my current stock and open orders | `InventoryStateDataFrame`, `with_open_orders` | [Inventory state](inventory-state.md) | [01](../notebooks/01_introduction_to_inventory_flow.ipynb), [05d](../notebooks/05d_open_orders_and_suppliers.ipynb) |
 | feed in sales history or simulated demand | demand table, `DemandGenerator` | [Demand and calendars](demand.md) | [02](../notebooks/02_first_engine_simulation.ipynb), [02c](../notebooks/02c_synthetic_demand.ipynb) |
+| forecast from sales that ran out of stock | `demand` vs `fulfilled_units` in the event table, `get_history()` in `predict` | [Sales and demand](demand.md#sales-and-demand), [When the forecast learns from the run](../how-to/rolling-targets.md#when-the-forecast-learns-from-the-run) | [04a](../notebooks/04a_forecasting_from_sales.ipynb) |
 | turn my forecast into a stock target | target table + `fit` | [Forecast targets](forecast-targets.md), [Connect any forecasting model](../how-to/connect-a-forecaster.md) | [04c](../notebooks/04c_cumulative_protection_target.ipynb), [04e](../notebooks/04e_cumulative_target_methods.ipynb) |
 | order up to a level at every review | `OrderUpToPolicy` | [Order-up-to](policies/order-up-to.md) | [04](../notebooks/04_forecast_to_inventory_integration.ipynb), [06](../notebooks/06_fair_forecast_and_policy_comparisons.ipynb) |
 | order only when stock falls low | `ReorderPointPolicy` | [Reorder point](policies/reorder-point.md) | [05b](../notebooks/05b_reorder_points_and_review_frequency.ipynb), [05g](../notebooks/05g_reorder_point_sources.ipynb), [08](../notebooks/08_callbacks_and_audit.ipynb) |
@@ -43,7 +44,7 @@ notebook that uses it.
 | use several suppliers or random lead times | `SupplyModel`, `Supplier`, `SupplierAllocation` | [Suppliers and open orders](suppliers.md) | [05d](../notebooks/05d_open_orders_and_suppliers.ipynb) |
 | model late or short deliveries | `DeliveryOutcome` | [Unreliable deliveries](unreliable-deliveries.md) | [05f](../notebooks/05f_unreliable_supplier.ipynb) |
 | model products that expire, inspections, returns | `ShelfLife`, `InventoryProcess` | [Shelf life and processes](processes.md) | [05e](../notebooks/05e_inventory_processes.ipynb), [07](../notebooks/07_m5_fifo_perishable_scenario.ipynb) |
-| refresh targets as new forecasts arrive | `policy_schedule` | [Refresh targets as forecasts roll](../how-to/rolling-targets.md) | [04d](../notebooks/04d_rolling_cumulative_targets.ipynb), [09](../notebooks/09_full_operational_experiment.ipynb) |
+| refresh targets as new forecasts arrive | `policy_schedule` | [Refresh targets as forecasts roll](../how-to/rolling-targets.md) | [04a](../notebooks/04a_forecasting_from_sales.ipynb), [04d](../notebooks/04d_rolling_cumulative_targets.ipynb), [09](../notebooks/09_full_operational_experiment.ipynb) |
 | compare forecasts or policies fairly | `run_comparison` | [Compare forecasts and policies](../how-to/compare-policies.md) | [06](../notebooks/06_fair_forecast_and_policy_comparisons.ipynb), [09](../notebooks/09_full_operational_experiment.ipynb) |
 | compute real orders every day | `advance_period` → `predict` → constraints → `fulfill_demand` | [Use Stockcast in a daily job](../how-to/production.md), [Walkthrough step 9](../learn/09-production.md) | [10](../notebooks/10_production_daily_close.ipynb) |
 

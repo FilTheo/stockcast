@@ -118,6 +118,10 @@ policy.get_target_levels()
   value layout as Stockcast, so reshaping is usually a `groupby`.
 - **Forecast the window you need.** Ask your model for exactly $H$ steps from
   the decision's origin. For irregular schedules, $H$ differs per decision.
+- **Forecast demand.** A target protects against demand, so fit the model on
+  demand. Sales are demand on days that had stock left; on days that ran out
+  they are a floor. [Sales and demand](../user-guide/demand.md#sales-and-demand)
+  shows how to forecast from such a history.
 - **Use the correct origin.** Fit on data up to the origin only. For a
   decision at demand period $t$, the origin is the date of period $t - 1$ (the
   opening date for $t = 0$). Stockcast checks the dates you declare.

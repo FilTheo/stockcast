@@ -23,7 +23,7 @@ class MyPolicy(BasePolicy):
 |---|---|
 | `__init__` | Call `super().__init__(lead_time, review_period=..., service_level=..., allow_backorders=..., schedule=...)`. This sets up the timing, the schedule, and the shortage rule. |
 | `fit(...)` | Store what the policy needs, set `self.fitted_ = True`, return `self`. The engine only runs fitted policies. |
-| `predict(state, *, current_period)` | Receives a **copy** of the `InventoryStateDataFrame` before demand. Returns an `OrderDecision`. |
+| `predict(state, *, current_period)` | Receives a **copy** of the `InventoryStateDataFrame` before demand; its `get_history()` lists the completed periods of the run. Returns an `OrderDecision`. |
 | The `OrderDecision` | One row per SKU with `order_quantity` $\ge 0$. For positive orders, `order_period = current_period` and `expected_delivery_period = current_period + lead_time`. Its `lead_time` must equal the policy's. |
 
 The engine decides *when* `predict` is called (the policy's schedule), and

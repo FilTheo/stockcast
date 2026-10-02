@@ -28,7 +28,7 @@ result = SimulationEngine(verbose=0).run(
 | `order_during_settlement` | Whether the policy may still order in the settlement window. Needed when `settlement_periods > 0`. |
 | `demand_source_name` | Optional label for the demand, stored in the manifest. |
 | `random_seed` | Optional seed behind the demand, stored in the manifest. |
-| `policy_schedule` | `{decision_period: fitted_policy}`: fresh targets at later decisions. |
+| `policy_schedule` | `{decision_period: fitted_policy}`: fresh targets at later decisions, prepared before the run. To refit a forecast during the run, see [Refresh targets as forecasts roll](../how-to/rolling-targets.md#when-the-forecast-learns-from-the-run). |
 | `order_constraints` | A list of [ordering constraints](constraints.md), applied in order. |
 | `callbacks` | A list of [callbacks](callbacks.md), applied in order. |
 | `supply` | A [`SupplyModel`](suppliers.md): suppliers, lead times, split deliveries. |

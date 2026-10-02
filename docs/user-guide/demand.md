@@ -101,7 +101,108 @@ sales.head(4)
 Pass it as it is: the first day after the opening date is period 0.
 
 If some SKUs have no sales row on a day, complete the grid with zeros first,
-for example with `pivot_table(..., fill_value=0)` and `melt`.
+for example with `pivot_table(..., fill_value=0)` and `melt`. Sales equal
+demand on days that had stock left; [Sales and demand](#sales-and-demand)
+covers the days that ran out.
+
+## Sales and demand
+
+**Demand** is what customers wanted; **sales** are what the shop served.
+Under lost sales, a period's sales are its demand capped by the stock on the
+shelf:
+
+$$
+\text{sales}_t = \min(\text{demand}_t,\ \text{stock}_t) .
+$$
+
+On a day with stock left over, sales equal demand. On a day that ran out,
+sales equal the stock, and demand was *at least* that much: the rest was never
+seen (Nahmias, 1994). With backorders, the unmet part waits as a backorder, so
+demand stays on record.
+
+The demand table holds demand, and the engine works out the sales: the
+[event table](concepts/accounting.md) reports `demand`, `fulfilled_units`
+(sales) and `lost_sales_units` for every period. When you build the table
+from a sales history, the days that ran out hold a floor for demand rather
+than demand itself; [What to forecast](#what-to-forecast) shows how to
+estimate it.
+
+A week with eight units on the shelf each morning shows the difference:
+
+```python
+week = pd.DataFrame({
+    "date": pd.date_range("2026-01-06", periods=7, freq="D"),
+    "demand": [6.0, 9.0, 4.0, 11.0, 7.0, 12.0, 5.0],
+    "stock": 8.0,                      # on the shelf each morning
+})
+week["sales"] = week[["demand", "stock"]].min(axis=1)
+week["stockout"] = week["demand"] > week["stock"]
+week
+```
+
+```text
+        date  demand  stock  sales  stockout
+0 2026-01-06     6.0    8.0    6.0     False
+1 2026-01-07     9.0    8.0    8.0      True
+2 2026-01-08     4.0    8.0    4.0     False
+3 2026-01-09    11.0    8.0    8.0      True
+4 2026-01-10     7.0    8.0    7.0     False
+5 2026-01-11    12.0    8.0    8.0      True
+6 2026-01-12     5.0    8.0    5.0     False
+```
+
+Customers wanted 7.71 units a day. Two quick estimates from the sales both
+come out lower:
+
+```python
+pd.Series({
+    "mean demand": week["demand"].mean(),
+    "mean sales": week["sales"].mean(),
+    "mean sales, stockout days dropped": week.loc[~week["stockout"], "sales"].mean(),
+}).round(2)
+```
+
+```text
+mean demand                          7.71
+mean sales                           6.57
+mean sales, stockout days dropped    5.50
+dtype: float64
+```
+
+Raw sales cap the busy days at the stock. Dropping the stockout days removes
+exactly the busy days, because a day runs out precisely when its demand is
+above the stock.
+
+### What to forecast
+
+A Stockcast target is a quantile of **demand** over the protection period
+([Forecast targets](forecast-targets.md)), so the forecast should describe
+demand:
+
+- **When demand is on record**, forecast it directly: sales from periods that
+  never ran out, sales plus new backorders, or logged requests the shop could
+  not serve.
+- **When some periods ran out**, give the forecaster what those periods really
+  say: demand of at least the sales. Methods built for such censored data
+  estimate demand from it: maximum likelihood for normal demand (Nahmias,
+  1994), negative binomial demand for retail (Agrawal and Smith, 1996), a
+  Tobit Kalman filter for state-space forecasting models (Trapero et al.,
+  2024), and the Kaplan–Meier estimator, which assumes no distribution (Huh
+  et al., 2011). If you record when the shelf emptied, use it: for Poisson
+  and normal demand, that one time carries everything the timing of sales
+  reveals about demand (Jain, Rudi and Wang, 2015).
+- **When customers switch** to another product on an empty shelf, that
+  product's sales include some of the missing demand. Anupindi, Dada and
+  Gupta (1998) estimate demand and substitution together.
+
+A forecast fitted to raw sales comes out low. How far depends on how often
+stockouts happen, how variable demand is, and how strongly it is correlated
+over time (Wecker, 1978). Inside a run, a low forecast can feed itself: it
+means less stock, more stockouts, and lower sales to learn from next time.
+[Notebook 04a](../notebooks/04a_forecasting_from_sales.ipynb) follows a shop
+through that loop, and
+[When the forecast learns from the run](../how-to/rolling-targets.md#when-the-forecast-learns-from-the-run)
+shows how to refit a forecast during a run from what the run records.
 
 ## Synthetic demand: `DemandGenerator`
 
@@ -293,5 +394,35 @@ The generator's own seed, model, and parameters are not recorded; pass its
 seed as `random_seed` and keep the call that built the demand with your
 experiment.
 
+## References
+
+- Agrawal, N., and Smith, S. A. (1996). Estimating negative binomial demand
+  for retail inventory management with unobservable lost sales. *Naval
+  Research Logistics*, 43(6), 839–861.
+  [doi:10.1002/(SICI)1520-6750(199609)43:6&lt;839::AID-NAV4&gt;3.0.CO;2-5](https://doi.org/10.1002/%28SICI%291520-6750%28199609%2943%3A6%3C839%3A%3AAID-NAV4%3E3.0.CO%3B2-5)
+- Anupindi, R., Dada, M., and Gupta, S. (1998). Estimation of consumer demand
+  with stock-out based substitution: An application to vending machine
+  products. *Marketing Science*, 17(4), 406–423.
+  [doi:10.1287/mksc.17.4.406](https://doi.org/10.1287/mksc.17.4.406)
+- Huh, W. T., Levi, R., Rusmevichientong, P., and Orlin, J. B. (2011).
+  Adaptive data-driven inventory control with censored demand based on
+  Kaplan-Meier estimator. *Operations Research*, 59(4), 929–941.
+  [doi:10.1287/opre.1100.0906](https://doi.org/10.1287/opre.1100.0906)
+- Jain, A., Rudi, N., and Wang, T. (2015). Demand estimation and ordering
+  under censoring: Stock-out timing is (almost) all you need. *Operations
+  Research*, 63(1), 134–150.
+  [doi:10.1287/opre.2014.1326](https://doi.org/10.1287/opre.2014.1326)
+- Nahmias, S. (1994). Demand estimation in lost sales inventory systems.
+  *Naval Research Logistics*, 41(6), 739–757.
+  [doi:10.1002/1520-6750(199410)41:6&lt;739::AID-NAV3220410605&gt;3.0.CO;2-A](https://doi.org/10.1002/1520-6750%28199410%2941%3A6%3C739%3A%3AAID-NAV3220410605%3E3.0.CO%3B2-A)
+- Trapero, J. R., Holgado de Frutos, E., and Pedregal, D. J. (2024). Demand
+  forecasting under lost sales stock policies. *International Journal of
+  Forecasting*, 40(3), 1055–1068.
+  [doi:10.1016/j.ijforecast.2023.09.004](https://doi.org/10.1016/j.ijforecast.2023.09.004)
+- Wecker, W. E. (1978). Predicting demand from sales data in the presence of
+  stockouts. *Management Science*, 24(10), 1043–1054.
+  [doi:10.1287/mnsc.24.10.1043](https://doi.org/10.1287/mnsc.24.10.1043)
+
 **See also:** [Walkthrough step 2](../learn/02-demand-and-time.md) ·
+[Notebook 04a: forecasting from sales](../notebooks/04a_forecasting_from_sales.ipynb) ·
 [API: utilities](../reference/utils.md)
