@@ -219,10 +219,10 @@ nav:
           - 04e · Cumulative target methods: notebooks/04e_cumulative_target_methods.ipynb
           - 04f · Scheduled forecast simulation: notebooks/04f_scheduled_forecast_simulation.ipynb
       - Extending Stockcast:
-          - 05 · Custom policies: notebooks/05_custom_policies.ipynb
-          - 05b · Reorder points and review frequency: notebooks/05b_reorder_points_and_review_frequency.ipynb
-          - 05c · Extension points: notebooks/05c_extension_points.ipynb
-          - 05d · Open orders and suppliers: notebooks/05d_open_orders_and_suppliers.ipynb
+          - 05 · Write your own ordering rule: notebooks/05_custom_policies.ipynb
+          - 05b · How often to check stock: notebooks/05b_reorder_points_and_review_frequency.ipynb
+          - 05c · Real-world rules and disruptions: notebooks/05c_extension_points.ipynb
+          - 05d · Several suppliers and late deliveries: notebooks/05d_open_orders_and_suppliers.ipynb
           - 05e · Inventory processes: notebooks/05e_inventory_processes.ipynb
           - 05f · Unreliable supplier: notebooks/05f_unreliable_supplier.ipynb
           - 05g · Reorder points from any source: notebooks/05g_reorder_point_sources.ipynb

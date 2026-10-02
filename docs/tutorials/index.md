@@ -45,10 +45,10 @@ Custom rules and richer operations, one building block at a time.
 
 | Notebook | You will learn |
 |---|---|
-| [05 · Custom policies](../notebooks/05_custom_policies.ipynb) | write an $(s, Q)$ rule yourself, tune it on costs, and extend it |
-| [05b · Reorder points and review frequency](../notebooks/05b_reorder_points_and_review_frequency.ipynb) | review timing, dated reorder points, and order sizing, from one SKU to 100 |
-| [05c · Extension points](../notebooks/05c_extension_points.ipynb) | a custom calendar, whole-case capacity rules, and dated exceptions in one run |
-| [05d · Open orders and suppliers](../notebooks/05d_open_orders_and_suppliers.ipynb) | named orders, two suppliers, split deliveries, and allocation for a café chain |
+| [05 · Write your own ordering rule](../notebooks/05_custom_policies.ipynb) | write an $(s, Q)$ rule yourself, tune it on costs, and extend it |
+| [05b · How often to check stock](../notebooks/05b_reorder_points_and_review_frequency.ipynb) | where to put the reorder point and how often to check stock when checks happen at set times, from one SKU to 100 |
+| [05c · Real-world rules and disruptions](../notebooks/05c_extension_points.ipynb) | order days, whole-case and chiller-space rules, a cancelled supplier day and a stock count, added one at a time on the same demand |
+| [05d · Several suppliers and late deliveries](../notebooks/05d_open_orders_and_suppliers.ipynb) | buy from a local roaster and a cheaper importer: random delivery times, deliveries in two parts, and a rule for who gets each order |
 | [05e · Inventory processes](../notebooks/05e_inventory_processes.ipynb) | shelf life as a process, plus an inspection and a dated return |
 | [05f · Unreliable supplier](../notebooks/05f_unreliable_supplier.ipynb) | late and short deliveries, supplier capacity, and a backup supplier |
 | [05g · Reorder points from any source](../notebooks/05g_reorder_point_sources.ipynb) | one reorder-point policy with levels from a house rule, a planning table, a forecast, and your own rule, compared on shared demand |
