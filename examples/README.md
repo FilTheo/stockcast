@@ -27,7 +27,7 @@ differ slightly between runs.
 | Foundations | 01 inventory flow · 02 first engine simulation · 02b decision schedules · 02c synthetic demand · 03 your own loop |
 | Forecasts to orders | 04 weekly forecast to order · 04a forecasting from sales · 04b daily newsvendor · 04c cumulative protection target · 04d rolling cumulative targets · 04e cumulative target methods · 04f scheduled forecast simulation |
 | Extending Stockcast | 05 custom policies · 05b reorder points and review frequency · 05c extension points · 05d open orders and suppliers · 05e inventory processes · 05f unreliable supplier · 05g reorder points from any source |
-| Experiments and operations | 06 fair comparisons · 07 FIFO shelf life on M5 demand · 08 callbacks and audit · 09 a full experiment · 10 a daily planning job |
+| Experiments and operations | 06 fair comparisons · 07 FIFO shelf life on M5 demand · 08 callbacks and audit · 09 a full experiment · 10 a production job |
 
 ## Data
 
