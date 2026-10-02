@@ -62,9 +62,15 @@ div.arithmatex {
   padding: 0.35em 0.8em;
 }
 
-/* Notebook pages rendered by mkdocs-jupyter: keep wide outputs scrollable. */
-.jp-OutputArea-output pre,
-.jp-RenderedText pre {
+/* Notebook pages rendered by mkdocs-jupyter: keep wide outputs on one line and
+   scrollable. JupyterLab's CSS wraps them mid-word (pre-wrap, break-all), which
+   breaks printed tables apart; the extra .md-content outranks that CSS, which
+   is inlined after this file. */
+.md-content .jupyter-wrapper .jp-OutputArea-output pre,
+.md-content .jupyter-wrapper .jp-RenderedText pre {
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
   overflow-x: auto;
 }
 
