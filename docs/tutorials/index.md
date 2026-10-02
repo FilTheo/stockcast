@@ -60,7 +60,7 @@ Complete studies and a production pattern.
 | Notebook | You will learn |
 |---|---|
 | [06 · Controlled comparisons with `run_comparison`](../notebooks/06_fair_forecast_and_policy_comparisons.ipynb) | targets from an external forecaster, one `run_comparison` with five branches, and the controlled contrasts it gives: forecast probability, forecast model, and policy rule |
-| [07 · Shelf life on real demand (M5)](../notebooks/07_m5_fifo_perishable_scenario.ipynb) | `ShelfLife` with dated opening lots on 20 M5 items, forecast and history targets across three shelf lives, a custom waste-rate metric and the cost components |
+| [07 · Shelf life on real demand (M5)](../notebooks/07_m5_fifo_perishable_scenario.ipynb) | `ShelfLife` with dated opening deliveries on 20 M5 items, forecast and history targets across three shelf lives, a custom waste-rate metric and the cost components |
 | [08 · Callbacks: changing orders and stock during a run](../notebooks/08_callbacks_and_audit.ipynb) | `on_after_prediction` and `on_after_demand` callbacks, the audit table, why callback order matters, and how constraints apply after callbacks |
 | [09 · Full operational experiment](../notebooks/09_full_operational_experiment.ipynb) | calibrate cumulative targets, replay a shared operation, and select by accepted all-in cost |
 | [10 · Production daily close](../notebooks/10_production_daily_close.ipynb) | one way to run Stockcast as a daily planning and closing job |
