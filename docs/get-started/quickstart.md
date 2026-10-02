@@ -161,8 +161,8 @@ moved:
 
 ```python
 events = from_mean_std.to_event_frame()
-events[["date", "demand", "received_units", "fulfilled_units",
-        "order_quantity", "ending_on_hand"]].head(7).round(2)
+units = ["demand", "received_units", "fulfilled_units", "order_quantity", "ending_on_hand"]
+events[["date"] + units].head(7).round({column: 2 for column in units})
 ```
 
 ```text
