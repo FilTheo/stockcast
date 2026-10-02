@@ -212,6 +212,7 @@ nav:
           - 03 · Your own loop: notebooks/03_component_loop.ipynb
       - Forecasts to orders:
           - 04 · Weekly forecast to order: notebooks/04_forecast_to_inventory_integration.ipynb
+          - 04a · Forecasting from sales: notebooks/04a_forecasting_from_sales.ipynb
           - 04b · Daily newsvendor: notebooks/04b_daily_newsvendor.ipynb
           - 04c · Cumulative protection target: notebooks/04c_cumulative_protection_target.ipynb
           - 04d · Rolling cumulative targets: notebooks/04d_rolling_cumulative_targets.ipynb

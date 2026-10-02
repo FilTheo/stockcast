@@ -1,6 +1,6 @@
 # Examples
 
-Twenty-three runnable notebooks, from a first simulation to multi-supplier,
+Twenty-four runnable notebooks, from a first simulation to multi-supplier,
 perishable, and production workflows, with real forecasts from
 [smooth](https://openforecast.org/smooth-py/). Each page
 here is the executed notebook; use the download button to run it yourself.
@@ -32,6 +32,7 @@ How forecasts become targets, and targets become orders.
 | Notebook | You will learn |
 |---|---|
 | [04 · Weekly forecast to order](../notebooks/04_forecast_to_inventory_integration.ipynb) | a one-week smooth forecast becomes a weekly order: one step, then a loop through time, then the simulator |
+| [04a · Forecasting from sales](../notebooks/04a_forecasting_from_sales.ipynb) | how stockouts hide demand from a forecaster that learns from sales, and how to refit the forecast inside a run |
 | [04b · Daily newsvendor](../notebooks/04b_daily_newsvendor.ipynb) | price, cost, and salvage choose one daily purchase |
 | [04c · Cumulative protection target](../notebooks/04c_cumulative_protection_target.ipynb) | lead time turns a forecast into a multi-day protection target |
 | [04d · Rolling cumulative targets](../notebooks/04d_rolling_cumulative_targets.ipynb) | dated forecast snapshots refitted at every review |
