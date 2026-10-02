@@ -39,7 +39,7 @@ release line and a migration note.
   run manifest, callback audits, order and process-flow frames, and service
   and cost metrics.
 - **Documentation.** A Quickstart, a nine-step *Walkthrough*, a Guide to
-  every building block, recipes, 23 runnable example notebooks,
+  every building block, recipes, 24 runnable example notebooks,
   and a full API reference. Every Python example in the docs is executed in
   the test suite.
 
