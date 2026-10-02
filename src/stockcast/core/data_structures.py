@@ -176,7 +176,10 @@ def _require_period_date(stamp, offset, name: str) -> None:
     if offset.is_on_offset(stamp):
         return
     before, after = offset.rollback(stamp), offset.rollforward(stamp)
-    day = (lambda value: str(value.date()) if value == value.normalize() else str(value))
+
+    def day(value):
+        return str(value.date()) if value == value.normalize() else str(value)
+
     raise ValueError(
         f"{name} {day(stamp)} is not on the {offset.freqstr!r} calendar: every "
         f"date must be a period date of freq, such as {day(before)} or {day(after)}"

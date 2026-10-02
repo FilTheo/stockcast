@@ -91,14 +91,14 @@ def test_end_of_period_order_is_lead_time_minus_one_a_period_later(L, R, backlog
 
 
 @pytest.mark.parametrize("R", [1, 3])
-@pytest.mark.parametrize("l", [0, 1, 4])
-def test_arrival_at_start_of_t_plus_l_plus_one_is_lead_time_l(l, R):
+@pytest.mark.parametrize("lead", [0, 1, 4])
+def test_arrival_at_start_of_t_plus_l_plus_one_is_lead_time_l(lead, R):
     """Case 3: order at the end of t arriving at the start of t + l + 1."""
-    demand = np.random.default_rng(l + 7 * R).poisson(4, N).astype(float)
-    level = 4.0 * (l + R) + 3
-    source_orders, source_stock = order_after_demand(demand, l + 1, R, level, 10.0, backlog=False)
+    demand = np.random.default_rng(lead + 7 * R).poisson(4, N).astype(float)
+    level = 4.0 * (lead + R) + 3
+    source_orders, source_stock = order_after_demand(demand, lead + 1, R, level, 10.0, backlog=False)
 
-    events = run(level_policy(l, R, level, backlog=False, start=1), demand, 10.0, False)
+    events = run(level_policy(lead, R, level, backlog=False, start=1), demand, 10.0, False)
 
     np.testing.assert_array_equal(events["order_quantity"].to_numpy(dtype=float)[1:],
                                   source_orders[:-1])
