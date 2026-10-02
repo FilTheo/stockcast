@@ -227,9 +227,9 @@ nav:
           - 05f · Supplier delivery outcomes: delays, shortfalls and caps: notebooks/05f_unreliable_supplier.ipynb
           - 05g · Reorder levels per item: notebooks/05g_reorder_point_sources.ipynb
       - Experiments and operations:
-          - 06 · Fair comparisons: notebooks/06_fair_forecast_and_policy_comparisons.ipynb
-          - 07 · FIFO shelf life on M5 demand: notebooks/07_m5_fifo_perishable_scenario.ipynb
-          - 08 · Callbacks and audit: notebooks/08_callbacks_and_audit.ipynb
+          - 06 · Controlled comparisons with run_comparison: notebooks/06_fair_forecast_and_policy_comparisons.ipynb
+          - 07 · Shelf life on real demand (M5): notebooks/07_m5_fifo_perishable_scenario.ipynb
+          - 08 · Callbacks: changing orders and stock during a run: notebooks/08_callbacks_and_audit.ipynb
           - 09 · Full operational experiment: notebooks/09_full_operational_experiment.ipynb
           - 10 · Production daily close: notebooks/10_production_daily_close.ipynb
   - API reference:
