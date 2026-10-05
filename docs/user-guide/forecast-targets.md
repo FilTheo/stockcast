@@ -37,13 +37,14 @@ Q_\alpha\!\left(\sum_h D_{t+h}\right) \;\ne\; \sum_h Q_\alpha(D_{t+h})
 \quad\text{in general.}
 $$
 
-Equality holds when all periods move in perfect lockstep (what
-probabilists call *comonotonic*). For upper quantiles of ordinary demand, the
-sum of daily quantiles is too high, because high days and low days partly
-cancel over a window. With six days of Poisson(6) demand, the 95% quantile of
-the total is 46 while six daily 95% quantiles add up to 60
+Quantiles add in special cases, such as when every day's demand is exactly
+the same as the first day's. With six independent days of Poisson(6) demand,
+the 95% quantile of the total is 46 while six daily 95% quantiles add up to 60
 ([Walkthrough step 3](../learn/03-forecast-targets.md) shows the histogram).
-Stockcast therefore always works with the target of the **whole window**.
+For sparse, intermittent demand the sum can be too low: with six independent
+days, each having a 4% chance of one unit of demand, every daily 95% quantile
+is 0, yet the 95% quantile of the total is 1. Stockcast therefore always works
+with the target of the **whole window**.
 
 ## Computing the quantile of the total
 
@@ -251,10 +252,10 @@ $\text{opening date} + t\,\Delta$. See
 
 ## Target probability and realised service
 
-The target probability describes the forecast: "with probability 0.95, demand
-over the window stays below $S$". Realised service in a simulation also
-depends on things the forecast does not know about: how accurate it actually
-is, the opening stock, lost sales, expiry, order minimums, and supplier
+The target probability describes the forecast: "with probability at least
+0.95, demand over the window stays at or below $S$". Realised service in a
+simulation also depends on things the forecast does not know about: how
+accurate it actually is, the opening stock, lost sales, expiry, order minimums, and supplier
 reliability. The evaluator measures what the whole system delivers
 ([Evaluation and metrics](metrics.md)); comparing it with the target
 probability shows how well the forecast and the policy work together.

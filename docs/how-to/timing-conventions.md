@@ -47,7 +47,10 @@ The second line is not an approximation. At the end of period $t$ and at the
 start of period $t + 1$ the decision has seen the same demand, up to period
 $t$. In between, the only thing that happens is the arrival of goods already
 on order, and arrivals move stock from the pipeline to the shelf without
-changing the inventory position. Same information, same position, same order.
+changing the inventory position. Same information, same position, same order:
+when a policy uses only that position and the same fitted levels, it proposes
+the same quantity. Rules that also read on-hand stock or pipeline need the
+state check below.
 
 ![The same order in three conventions](../assets/figures/timing-conventions.svg)
 
@@ -309,8 +312,9 @@ $t + 1$, one period later, so `lead_time = L`.
 
 ## What the translation changes
 
-The physical story is identical: the same orders, the same arrivals, the same
-stock, and the same costs on every day. Three small things are worth knowing.
+When the policy, constraints and other components make the same decisions,
+the translation preserves the physical story: the same orders, arrivals and
+stock. Four details matter when comparing the records and costs.
 
 - **The event table row.** An order placed at the end of period $t$ appears on
   Stockcast's row $t + 1$, the morning it is placed. Order counts in a
@@ -323,6 +327,12 @@ stock, and the same costs on every day. Three small things are worth knowing.
   supplier outcomes ([unreliable deliveries](../user-guide/unreliable-deliveries.md)).
   A decision at the end of period $t$ would not see them yet. This only
   matters when you use those features.
+- **Rules that read the stock on the shelf.** That morning's arrivals are
+  already received when Stockcast decides. A custom policy that orders on
+  on-hand stock alone, rather than on the inventory position, sees that
+  morning view. So does `ShelfSpaceLimit` while backorders are waiting: the
+  morning's receipt fills them, which frees shelf space without changing the
+  inventory position.
 
 Every run's manifest records Stockcast's own convention under
 `run_settings["timing_convention"]`, so a saved result always says which

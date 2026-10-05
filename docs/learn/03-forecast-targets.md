@@ -29,7 +29,9 @@ S \;=\; Q_{\alpha}\!\left(\,\sum_{h=0}^{H-1} D_{t+h}\right),
 $$
 
 where $\alpha$ is the target probability, for example $0.95$. If the forecast
-is right, the six-day total stays at or below $S$ with probability $\alpha$.
+is right, the six-day total stays at or below $S$ with probability at least
+$\alpha$. For continuous demand this is exactly $\alpha$; for whole-unit
+demand the probability can be higher because quantiles move in steps.
 
 ## Quantile of the sum
 

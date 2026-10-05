@@ -72,26 +72,44 @@ $$
 \boxed{H = L + R}
 $$
 
-periods. With backorders, the last period of the window ends without a
-shortage exactly when total demand over the window is at most
+periods. This holds when new orders arrive exactly $L$ periods after they are
+placed, all pipeline stock counted in $\mathit{IP}_t^{+}$ arrives within the
+window, and nothing else moves stock in or out during it (no shelf-life
+write-offs, no stock changed by a callback). For opening orders, check their
+recorded arrival dates.
+With backorders, the net stock at the end
+of period $t + H - 1$ is then $\mathit{IP}_t^{+}$ minus the window's demand,
+so the window ends with no backlog exactly when that demand is at most
 $\mathit{IP}_t^{+}$:
 
 $$
-\Pr(\text{no shortage at } t + H - 1)
+\Pr(\text{no backlog at the end of } t + H - 1)
 = \Pr\!\left(\sum_{h=0}^{H-1} D_{t+h} \le \mathit{IP}_t^{+}\right).
 $$
 
-An order-up-to policy sets $\mathit{IP}_t^{+} = S$. Choosing $S$ as the
-$\alpha$-quantile of total demand over the window,
+This is a statement about the end of the window. A shortage earlier in the
+window can still occur and be cleared when today's order arrives.
+
+An order-up-to policy raises the position to $\mathit{IP}_t^{+} = S$ whenever
+it starts at or below $S$. Choosing $S$ as the $\alpha$-quantile of total
+demand over the window,
 
 $$
 S = Q_\alpha\!\left(\sum_{h=0}^{H-1} D_{t+h}\right),
 $$
 
-makes that probability $\alpha$. This is the familiar "lead time plus review
-period" protection interval of periodic review (Graves; Silver, Pyke and
-Thomas). The event sequence above fixes its exact endpoints. With lost sales
-the same target is the standard, widely used approximation.
+makes that probability at least $\alpha$, when the forecast distribution is
+the true one. It is exactly $\alpha$ for continuous demand. For whole-unit
+demand the quantile is the smallest level whose probability reaches $\alpha$,
+so the coverage can be above it. A position that is already above $S$, or an
+order rounded up by a constraint, can increase that probability; an order
+capped by a constraint can decrease it. This is
+the familiar "lead time plus review period" protection interval of periodic
+review (Graves; Silver, Pyke and Thomas). The event sequence above fixes its
+exact endpoints. With lost sales the same target is the standard, widely used
+approximation. With [unreliable deliveries](../unreliable-deliveries.md) or
+random lead times, orders no longer arrive on the policy's clock, so the
+probability above no longer holds as stated.
 
 | $L$ | $R$ | $H$ | Periods covered by a decision at $t$ |
 |---:|---:|---:|---|
