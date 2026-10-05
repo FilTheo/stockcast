@@ -609,6 +609,19 @@ class ReorderPointPolicy(BasePolicy):
         other = self.order_quantities_ if self.policy_type == "sQ" else self.order_up_to_levels_
         return self.reorder_points_.merge(other, on=self.sku_column_, how="left")
 
+    def _fitted_levels(self):
+        """``s`` with ``Q`` or ``S`` for the run manifest: per SKU, or one value for all."""
+        if self._uniform_levels is not None:
+            s_value, S_value = self._uniform_levels
+            levels = {"reorder_point": float(s_value)}
+            if self.policy_type == "sQ":
+                levels["order_quantity"] = self.order_quantity
+            else:
+                levels["order_up_to_level"] = float(S_value)
+            return levels
+        other = self.order_quantities_ if self.policy_type == "sQ" else self.order_up_to_levels_
+        return self.reorder_points_.merge(other, on=self.sku_column_, how="left")
+
     def get_target_metadata(self) -> dict:
         """Return a copy of target, window, and quantity provenance."""
         if not self.fitted_:

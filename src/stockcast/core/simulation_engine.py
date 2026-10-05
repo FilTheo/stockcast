@@ -2618,6 +2618,7 @@ class SimulationEngine:
                 'allow_backorders': policy.allow_backorders,
                 'target_metadata': target_metadata,
                 'target_data': SimulationEngine._policy_target_fingerprint(policy),
+                'fitted_levels': SimulationEngine._policy_levels_record(policy),
             },
             'opening_inventory': copy.deepcopy(opening_inventory),
             'run_settings': copy.deepcopy(run_settings),
@@ -2631,14 +2632,145 @@ class SimulationEngine:
 
     @staticmethod
     def _dataframe_checksum(frame: pd.DataFrame, sort_columns: List[str]) -> str:
-        """Hash a DataFrame's schema and values in a deterministic row order."""
-        ordered = frame.sort_values(sort_columns, kind="stable").reset_index(drop=True)
+        """Hash a DataFrame's schema and values in a deterministic row order.
+
+        Columns that pandas hashes faithfully (numbers, dates, text) are hashed
+        as they are. Any other column (mixed objects, lists, dicts, arrays,
+        extended precision) is hashed through a type-tagged encoding of every
+        cell, preserving distinctions that direct pandas hashing can lose.
+        """
+        encoded = [
+            position for position in range(frame.shape[1])
+            if SimulationEngine._needs_encoding(frame.iloc[:, position])
+        ]
+        if encoded:
+            frame = frame.copy()
+            for position in encoded:
+                frame.isetitem(
+                    position, frame.iloc[:, position].map(SimulationEngine._canonical_cell)
+                )
+        ordered = SimulationEngine._sorted_rows(frame, sort_columns)
         row_hashes = pd.util.hash_pandas_object(ordered, index=True).to_numpy()
         hasher = hashlib.sha256()
         hasher.update("|".join(map(str, ordered.columns)).encode("utf-8"))
         hasher.update("|".join(map(str, ordered.dtypes)).encode("utf-8"))
+        if encoded:
+            # Mark the encoded columns, so they never match plain text columns.
+            hasher.update(("encoded:" + json.dumps(encoded)).encode("utf-8"))
         hasher.update(row_hashes.tobytes())
         return hasher.hexdigest()
+
+    @staticmethod
+    def _needs_encoding(column: pd.Series) -> bool:
+        """Whether pandas would fail on a column or hash different values alike.
+
+        pandas hashes mixed object values through their text, so ``1`` and
+        ``"1"`` would match; only all-text object columns are hashed directly.
+        """
+        dtype = column.dtype
+        if isinstance(dtype, pd.CategoricalDtype):
+            return SimulationEngine._needs_encoding(pd.Series(dtype.categories))
+        if pd.api.types.is_object_dtype(dtype):
+            return pd.api.types.infer_dtype(column, skipna=False) not in {"string", "empty"}
+        if isinstance(dtype, np.dtype) and (
+            (dtype.kind == "f" and dtype.itemsize > 8)
+            or (dtype.kind == "c" and dtype.itemsize > 16)
+        ):
+            return True  # extended precision: older pandas rounds it to float64
+        try:
+            pd.util.hash_pandas_object(column, index=False)
+        except Exception:  # e.g. extended precision: pandas cannot hash it
+            return True
+        return False
+
+    @staticmethod
+    def _sorted_rows(frame: pd.DataFrame, sort_columns: List[str]) -> pd.DataFrame:
+        """Rows in a deterministic order, even when pandas cannot sort the keys."""
+        try:
+            return frame.sort_values(sort_columns, kind="stable").reset_index(drop=True)
+        except Exception:  # mixed types, float16 keys, duplicate column names
+            pass
+        positions = [
+            position
+            for name in dict.fromkeys(sort_columns)
+            for position, column in enumerate(frame.columns)
+            if column == name
+        ]
+        if not positions:
+            return frame.reset_index(drop=True)
+        keys = pd.DataFrame({
+            rank: frame.iloc[:, position].map(SimulationEngine._canonical_cell).tolist()
+            for rank, position in enumerate(positions)
+        })
+        order = keys.sort_values(list(keys.columns), kind="stable").index
+        return frame.iloc[order].reset_index(drop=True)
+
+    @staticmethod
+    def _canonical_cell(value) -> str:
+        """Encode supported cell values as type-tagged JSON text.
+
+        Each value is tagged with its type, so ``1`` and ``"1"``, a list and the
+        string of its JSON, or a 0-d array and its number never encode alike.
+        Extended-precision real and complex values use decimal strings.
+        """
+        def encode(item, seen):
+            if isinstance(item, (list, tuple, set, frozenset, dict, np.ndarray,
+                                 pd.Series, pd.DataFrame)):
+                if id(item) in seen:
+                    return ["cycle"]
+                seen = seen | {id(item)}
+            if isinstance(item, np.ndarray):
+                return ["ndarray", str(item.dtype), list(item.shape),
+                        [encode(element, seen) for element in item.ravel().tolist()]]
+            if isinstance(item, pd.DataFrame):
+                return ["DataFrame", encode(list(item.columns), seen),
+                        [str(dtype) for dtype in item.dtypes],
+                        encode(item.index.tolist(), seen),
+                        [encode(item.iloc[:, position].tolist(), seen)
+                         for position in range(item.shape[1])]]
+            if isinstance(item, pd.Series):
+                return ["Series", encode(item.name, seen), str(item.dtype),
+                        encode(item.index.tolist(), seen), encode(item.tolist(), seen)]
+            if isinstance(item, np.generic):
+                plain = item.item()
+                if not isinstance(plain, np.generic):
+                    return ["numpy", str(item.dtype), encode(plain, seen)]
+                # Extended precision has no Python type: keep every digit as text.
+                if isinstance(item, np.complexfloating):
+                    parts = [item.real, item.imag]
+                elif isinstance(item, np.floating):
+                    parts = [item]
+                else:
+                    return ["numpy", str(item.dtype), repr(item)]
+                return ["numpy", str(item.dtype),
+                        [np.format_float_scientific(part, unique=True) for part in parts]]
+            if item is None:
+                return ["none"]
+            if isinstance(item, bool):
+                return ["bool", item]
+            if isinstance(item, int):
+                return ["int", str(item)]
+            if isinstance(item, float):
+                return ["float", repr(item)]
+            if isinstance(item, str):
+                return ["str", item]
+            if isinstance(item, (list, tuple)):
+                return [type(item).__name__, [encode(element, seen) for element in item]]
+            if isinstance(item, (set, frozenset)):
+                elements = [encode(element, seen) for element in item]
+                return [type(item).__name__, sorted(elements, key=json.dumps)]
+            if isinstance(item, dict):
+                pairs = [[encode(key, seen), encode(element, seen)]
+                         for key, element in item.items()]
+                return ["dict", sorted(pairs, key=lambda pair: json.dumps(pair[0]))]
+            if isinstance(item, pd.Timestamp):
+                return ["timestamp", item.isoformat(), str(item.tz)]
+            return ["repr", type(item).__qualname__, repr(item)]
+
+        try:
+            return json.dumps(encode(value, frozenset()), separators=(",", ":"))
+        except RecursionError:  # nesting deeper than Python's recursion limit
+            return json.dumps(["too_deep", type(value).__qualname__])
 
     @staticmethod
     def _inventory_fingerprint(inventory: InventoryStateDataFrame) -> dict:
@@ -2661,11 +2793,12 @@ class SimulationEngine:
 
     @staticmethod
     def _policy_target_fingerprint(policy: BasePolicy) -> Optional[dict]:
-        """Identify the exact fitted target table without copying it into a manifest."""
-        target_data = getattr(policy, "target_df_", None)
-        if not isinstance(target_data, pd.DataFrame):
-            target_data = getattr(policy, "target_table", None)
-        if not isinstance(target_data, pd.DataFrame):
+        """Identify the exact input target table without copying it into a manifest."""
+        for attribute in ("target_df_", "target_table", "forecast_df_"):
+            target_data = getattr(policy, attribute, None)
+            if isinstance(target_data, pd.DataFrame):
+                break
+        else:
             return None
         sort_columns = [
             column
@@ -2678,6 +2811,21 @@ class SimulationEngine:
             "sha256": SimulationEngine._dataframe_checksum(target_data, sort_columns),
             "rows": len(target_data),
             "columns": list(target_data.columns),
+        }
+
+    @staticmethod
+    def _policy_levels_record(policy: BasePolicy) -> Optional[dict]:
+        """Record the levels a policy decides with: plain values, or a table fingerprint."""
+        get_levels = getattr(policy, "_fitted_levels", None)
+        levels = get_levels() if callable(get_levels) else None
+        if isinstance(levels, dict):
+            return {"values": copy.deepcopy(levels)}
+        if not isinstance(levels, pd.DataFrame):
+            return None
+        return {
+            "sha256": SimulationEngine._dataframe_checksum(levels, [levels.columns[0]]),
+            "rows": len(levels),
+            "columns": list(levels.columns),
         }
 
     @staticmethod
@@ -2913,6 +3061,7 @@ class SimulationEngine:
             'policy_name': snapshot.policy_name,
             'target_metadata': metadata,
             'target_data': SimulationEngine._policy_target_fingerprint(snapshot),
+            'fitted_levels': SimulationEngine._policy_levels_record(snapshot),
         })
         return snapshot
 
@@ -3167,8 +3316,9 @@ class SimulationEngine:
         The demand is built once and shared; each policy starts from its own copy of
         ``inventory``. Constraints, callbacks, supply and processes apply to every
         branch (callbacks and processes are reset between branches), and random
-        supplier lead times are drawn once and shared, so branches differ only by
-        the policy. Arguments not listed below are those of ``run``. To compare
+        supplier lead times use the same seeded draws per period and SKU.
+        Seeded delivery outcomes follow each branch's own deliveries.
+        Arguments not listed below are those of ``run``. To compare
         policies with different ``allow_backorders``, leave the inventory's
         ``allow_backorders`` unset.
 

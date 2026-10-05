@@ -93,8 +93,8 @@ events.loc[events["decision_flag"], ["date", "target_level", "order_quantity"]].
 ```
 
 Each review now uses its own target. The run manifest logs every update in
-`run_settings["policy_update_log"]`, with the target metadata of each
-snapshot.
+`run_settings["policy_update_log"]`, with the target metadata, the target
+fingerprint, and the fitted levels of each snapshot.
 
 ## What Stockcast checks
 

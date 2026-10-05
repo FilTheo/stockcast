@@ -420,6 +420,10 @@ class OrderUpToPolicy(BasePolicy):
 
         return self.target_levels_.copy()
 
+    def _fitted_levels(self) -> pd.DataFrame:
+        """The fitted ``S`` per SKU, for the run manifest."""
+        return self.target_levels_
+
     def get_target_metadata(self) -> dict:
         """Return how the target was made.
 

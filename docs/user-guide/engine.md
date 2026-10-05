@@ -138,7 +138,7 @@ list(result.run_manifest)
 | `run_id`, `created_at_utc` | A unique id and timestamp |
 | `demand_source` | Name, fingerprint, row count, seed, and generator settings of the demand |
 | `package`, `dependencies` | Stockcast version (and source commit when available); Python, NumPy, pandas, and Matplotlib versions |
-| `policy` | Policy class, configuration, and target metadata |
+| `policy` | Policy class, configuration, target metadata, a fingerprint of the target table, and the fitted levels (`fitted_levels`: plain values when one value applies to every SKU, otherwise a fingerprint of the per-SKU table) |
 | `opening_inventory` | A fingerprint of the opening state and open orders |
 | `run_settings` | Frequency, windows, schedule, constraints, callbacks, supply, processes, timing convention, and `demand_period_offset`: the shift removed from a demand table's own period numbers (0 when none) |
 
@@ -173,8 +173,9 @@ without `labels` to use the policies' names.
 - The demand is built once and shared by every branch.
 - Each branch starts from its own copy of the opening state.
 - Constraints, callbacks, suppliers, and processes apply to every branch;
-  callbacks and processes are reset between branches, and random supplier
-  lead times are drawn once and shared.
+  callbacks and processes are reset between branches. Random supplier lead
+  times use the same seeded draws per period and SKU. Seeded delivery
+  outcomes follow each branch's own deliveries.
 - `policy_schedules` gives each branch its own refits: one per policy in
   list order, or `{label: schedule}` with a dict of policies.
 

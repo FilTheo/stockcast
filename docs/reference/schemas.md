@@ -154,7 +154,7 @@ are listed in `stockcast.core.RUN_MANIFEST_REQUIRED_SECTIONS`:
 | `run_id`, `created_at_utc` | unique id and creation time |
 | `demand_source` | name, type, SHA-256 fingerprint, row count, seed, generator settings |
 | `package` | Stockcast version and, when available, the source commit |
-| `policy` | class, configuration, schedule, target metadata, target fingerprint |
+| `policy` | class, configuration, schedule, target metadata, target fingerprint, `fitted_levels` (values such as `{"reorder_point": 2.0, "order_quantity": 5.0}`, or the SHA-256, row count and columns of the per-SKU level table; `None` for policies that do not report them) |
 | `opening_inventory` | fingerprint of the opening state; open orders when declared |
 | `run_settings` | frequency, windows, timing convention, schedule, policy updates, constraints, callbacks; `supply` and `processes` when used |
 | `dependencies` | Python, NumPy, pandas, and Matplotlib versions |

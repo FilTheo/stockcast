@@ -52,7 +52,12 @@ columns:
 
 `context` is a `DeliveryContext` with a copy of the state, the SKU column,
 `period`, `date`, `supplier_id`, and `rng`: a NumPy generator seeded from the
-supply model's `random_seed`, one stream per supplier.
+supply model's `random_seed`, one stream per supplier. The stream is used in
+the order deliveries fall due. With the same seed and sequence of calls,
+its draws repeat. Policies that place different orders can use those draws
+for different deliveries: unlike
+[random lead times](suppliers.md), which are drawn per period and SKU,
+outcomes are not paired delivery by delivery across `run_comparison` branches.
 
 ??? example "Setup: the tea shop from the Walkthrough"
 

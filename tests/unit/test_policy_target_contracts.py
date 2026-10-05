@@ -1,10 +1,12 @@
 import math
 from statistics import NormalDist
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from stockcast import PeriodicSchedule
+from stockcast.core import InventoryStateDataFrame, SimulationEngine
 from stockcast.policies import (
     OrderUpToPolicy,
     ReorderPointPolicy,
@@ -1118,3 +1120,187 @@ def test_per_step_rows_given_as_a_target_get_a_hint():
             pd.DataFrame({"unique_id": ["A", "A"], "S": [1.0, 2.0]}), target_column="S",
             forecast_origin=ORIGIN,
         )
+
+
+def test_manifest_records_the_levels_each_policy_decides_with():
+    record = SimulationEngine._policy_levels_record
+
+    def sq(**fit):
+        return ReorderPointPolicy(
+            lead_time=1, review_period=1, freq="D", order_quantity=5.0,
+            allow_backorders=False,
+        ).fit(**fit)
+
+    # One value for every SKU is written out.
+    assert record(sq(reorder_point=2.0)) == {
+        "values": {"reorder_point": 2.0, "order_quantity": 5.0}
+    }
+    # Per-SKU levels are fingerprinted, and the fingerprint follows the values.
+    first = record(sq(reorder_point={"A": 2.0, "B": 3.0}))
+    assert first["rows"] == 2
+    assert first["columns"] == ["unique_id", "reorder_point", "order_quantity"]
+    assert record(sq(reorder_point={"A": 2.0, "B": 4.0}))["sha256"] != first["sha256"]
+    rates = pd.DataFrame({"unique_id": ["A", "B"], "rate": [4.0, 1.0]})
+    provided = [
+        record(ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=False).fit(
+            frame, target_provider=_ScaledProvider(),
+        ))
+        for frame in (rates, rates.assign(rate=[4.0, 2.0]))
+    ]
+    assert provided[0]["columns"] == ["unique_id", "reorder_point", "order_up_to_level"]
+    assert provided[0]["sha256"] != provided[1]["sha256"]
+
+    # Order-up-to: the fitted S table, and the forecast it came from.
+    def order_up_to(std):
+        return OrderUpToPolicy(
+            lead_time=1, review_period=1, freq="D", service_level=0.95,
+            allow_backorders=False, date_column="date",
+        ).fit(
+            _normal_forecast().assign(std=std), mean_column="mean", std_column="std",
+            target_probability=0.95, protection_horizon=2, **_calendar_args(),
+        )
+
+    narrow, wide = order_up_to([2.0, 3.0]), order_up_to([4.0, 6.0])
+    assert record(narrow)["columns"] == ["unique_id", "target_level"]
+    assert record(narrow)["sha256"] != record(wide)["sha256"]
+    assert SimulationEngine._policy_target_fingerprint(narrow)["rows"] == 2
+
+    # A run records the levels of its policy and of every update.
+    stock = pd.DataFrame({"unique_id": ["A"], "on_hand": [10.0], "date": [ORIGIN]})
+    demand = pd.DataFrame({
+        "unique_id": "A", "date": pd.date_range("2025-01-02", periods=3), "y": 3.0,
+    })
+    result = SimulationEngine().run(
+        sq(reorder_point=2.0),
+        demand,
+        InventoryStateDataFrame.from_observed(stock, max_lead_time=1, allow_backorders=False),
+        policy_schedule={2: sq(reorder_point=8.0)},
+    )
+    assert result.run_manifest["policy"]["fitted_levels"]["values"]["reorder_point"] == 2.0
+    update = result.run_settings["policy_update_log"][0]
+    assert update["fitted_levels"]["values"]["reorder_point"] == 8.0
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        [1.0, 2.0, 3.0], {"model": "ets", "alpha": 0.2}, np.array([1.0, 2.0]), {2, 1},
+        np.array(3.0),
+    ],
+)
+def test_manifest_fingerprints_targets_with_structured_cells(extra):
+    def run(value):
+        target = pd.DataFrame({
+            "unique_id": ["A"], "date": [pd.Timestamp("2025-01-03")], "S": [5.0],
+            "samples": [value],
+        })
+        policy = OrderUpToPolicy(
+            lead_time=1, review_period=1, freq="D", service_level=0.9,
+            allow_backorders=False,
+        ).fit(target, target_column="S", protection_horizon=2)
+        stock = pd.DataFrame({"unique_id": ["A"], "on_hand": [3.0], "date": [ORIGIN]})
+        demand = pd.DataFrame({"unique_id": ["A"], "date": [pd.Timestamp("2025-01-02")], "y": [1.0]})
+        return SimulationEngine().run(
+            policy, demand,
+            InventoryStateDataFrame.from_observed(stock, max_lead_time=1, allow_backorders=False),
+        ).run_manifest["policy"]["target_data"]
+
+    first = run(extra)
+    assert first["columns"] == ["unique_id", "date", "S", "samples"]
+    assert run(extra)["sha256"] == first["sha256"]
+    assert run([9.0])["sha256"] != first["sha256"]
+
+
+def test_structured_cells_are_hashed_in_any_row_order():
+    rates = pd.DataFrame({
+        "unique_id": ["A", "B"], "rate": [4.0, 1.0], "notes": [{"b": 1, "a": 2}, {"c": 3}],
+    })
+    policy = ReorderPointPolicy(lead_time=1, review_period=1, allow_backorders=False).fit(
+        rates, target_provider=_ScaledProvider(),
+    )
+    assert SimulationEngine._policy_target_fingerprint(policy)["rows"] == 2
+    # Without the usual sort columns the table is sorted by every column.
+    checksum = SimulationEngine._dataframe_checksum
+    shuffled = rates.iloc[::-1].assign(notes=[{"c": 3}, {"a": 2, "b": 1}])
+    assert checksum(rates, list(rates.columns)) == checksum(shuffled, list(rates.columns))
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        ({1: 10, "1": 20}, {1: 999, "1": 20}),  # keys keep their type
+        ([1, 2], "[1,2]"),  # a list is not the text of its JSON
+        (np.array(3.0), 3.0),
+        (np.array([1, 2]), np.array([1.0, 2.0])),
+        ([1], (1,)),
+    ],
+)
+def test_structured_cells_that_differ_get_different_fingerprints(first, second):
+    checksum = SimulationEngine._dataframe_checksum
+    one = pd.DataFrame({"unique_id": ["A", "B"], "x": [first, [0]]})
+    other = pd.DataFrame({"unique_id": ["A", "B"], "x": [second, [0]]})
+    assert checksum(one, ["unique_id"]) != checksum(other, ["unique_id"])
+    # An encoded column never matches a text column holding the same encoding.
+    encoded = one.assign(x=one["x"].map(SimulationEngine._canonical_cell))
+    assert checksum(one, ["unique_id"]) != checksum(encoded, ["unique_id"])
+
+
+@pytest.mark.skipif(
+    np.dtype(np.longdouble).itemsize <= 8, reason="long double is float64 here"
+)
+def test_extended_precision_targets_are_fingerprinted_at_full_precision():
+    third = np.longdouble(1) / 3
+    near = np.longdouble(np.float64(1 / 3))  # equal to `third` as float64 only
+
+    def run(S, extra):
+        target = pd.DataFrame({
+            "unique_id": ["A"], "date": [pd.Timestamp("2025-01-03")], "S": S,
+            "extra": [extra],
+        })
+        policy = OrderUpToPolicy(
+            lead_time=1, review_period=1, freq="D", service_level=0.9,
+            allow_backorders=False,
+        ).fit(target, target_column="S", protection_horizon=2)
+        stock = pd.DataFrame({"unique_id": ["A"], "on_hand": [3.0], "date": [ORIGIN]})
+        demand = pd.DataFrame({"unique_id": ["A"], "date": [pd.Timestamp("2025-01-02")], "y": [1.0]})
+        result = SimulationEngine().run(
+            policy, demand,
+            InventoryStateDataFrame.from_observed(stock, max_lead_time=1, allow_backorders=False),
+        )
+        assert result.to_event_frame()["order_quantity"].sum() == 12.0
+        return result.run_manifest["policy"]["target_data"]["sha256"]
+
+    column = np.array([15.0], dtype=np.longdouble)
+    assert run(column, 0) != run(column + np.longdouble(1e-18), 0)
+    assert run([15.0], [third]) != run([15.0], [near])
+    assert run([15.0], np.array([third, third])) != run([15.0], np.array([near, near]))
+    assert run([15.0], [np.clongdouble(third + 1j)]) != run([15.0], [np.clongdouble(near + 1j)])
+
+
+def test_checksum_never_fails_and_keeps_mixed_values_apart():
+    import datetime
+    import decimal
+
+    checksum = SimulationEngine._dataframe_checksum
+    loop = [1]
+    loop.append(loop)
+    cells = [
+        [None, np.nan], [1, "1"], [decimal.Decimal("1.10"), decimal.Decimal("1.1")],
+        [b"a", "a"], [datetime.date(2025, 1, 1), datetime.timedelta(days=1)],
+        [pd.Timestamp("2025-01-01", tz="UTC"), pd.Timestamp("2025-01-01")],
+        [loop, [1]], [pd.Series([1.0]), pd.DataFrame({"a": [1]})],
+        pd.array([1, None], dtype="Int64"), pd.Categorical([("a", 1), ("b", 2)]),
+        np.array([1, 2], dtype="float16"),
+    ]
+    for values in cells:
+        frame = pd.DataFrame({"unique_id": ["B", "A"], "x": values})
+        for sort in (["unique_id"], list(frame.columns)):  # all columns: unorderable keys
+            assert checksum(frame, sort) == checksum(frame.iloc[::-1], sort)
+    duplicated = pd.concat([frame, frame[["x"]]], axis=1)
+    assert len(checksum(duplicated, ["unique_id"])) == 64
+    # pandas hashes mixed objects through their text; the checksum does not.
+    for first, second in [([1, "a"], ["1", "a"]), ([(1, 2), "a"], ["(1, 2)", "a"])]:
+        one = pd.DataFrame({"unique_id": ["A", "B"], "x": first})
+        other = pd.DataFrame({"unique_id": ["A", "B"], "x": second})
+        assert checksum(one, ["unique_id"]) != checksum(other, ["unique_id"])
+

@@ -69,6 +69,9 @@ import pandas as pd
 def target_from_paths(paths_by_sku, *, probability, origin, horizon, freq="D"):
     """One cumulative target per SKU from arrays of shape (n_paths, horizon)."""
     offset = pd.tseries.frequencies.to_offset(freq)
+    for sku, p in paths_by_sku.items():
+        if p.ndim != 2 or p.shape[1] < horizon:
+            raise ValueError(f"{sku}: paths need shape (n_paths, {horizon}), got {p.shape}")
     return pd.DataFrame({
         "unique_id": list(paths_by_sku),
         "target": [float(np.quantile(p[:, :horizon].sum(axis=1), probability))
@@ -129,5 +132,6 @@ policy.get_target_levels()
   marginal: combine them through paths or a cumulative forecast, not by
   adding them ([why](../user-guide/forecast-targets.md#quantiles-of-sums)).
 - **Record how the target was made.** Keep the model, its settings, and the
-  seed next to the target table; the run manifest stores the target itself
-  and its metadata.
+  seed next to the target table. The run manifest holds the target's metadata
+  and a fingerprint that identifies the table, not a copy of it, so keep the
+  table too.

@@ -148,6 +148,14 @@ class BasePolicy:
         """
         raise NotImplementedError("Subclasses must implement predict()")
 
+    def _fitted_levels(self) -> Union[None, dict, pd.DataFrame]:
+        """The levels the policy decides with, for the run manifest.
+
+        A table with one row per SKU, a dict of values that apply to every
+        SKU, or ``None`` when the policy does not say (the default).
+        """
+        return None
+
     def __repr__(self) -> str:
         status = "fitted" if self.fitted_ else "not fitted"
         return (f"{self.policy_name}(L={self.lead_time}, R={self.review_period}, "
