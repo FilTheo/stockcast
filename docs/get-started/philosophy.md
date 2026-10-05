@@ -6,62 +6,29 @@
 
 A forecast is not a decision.
 
-Its real value depends on the downstream choices it improves, and ultimately on the operational performance those choices deliver.
-Stockcast brings this idea to inventory management: it is the layer
-between the forecast and the replenishment decision. It maps forecasts from
-**any model** into orders, simulates their execution against realised demand,
-and evaluates the resulting impact against business metrics such as cost,
-service, and waste. Its purpose is to make that chain explicit, executable, and
-measurable.
+Its real value depends on the downstream choices it improves, and ultimately on the operational performance those choices deliver. Stockcast brings this idea to inventory management: it is the layer between the forecast and the replenishment decision. It maps forecasts from **any model** into orders, simulates their execution against realised demand, and evaluates the resulting impact against business metrics such as cost, service, and waste. Its purpose is to make that chain explicit, executable, and measurable.
 
-This small article explains the choices behind the library: what we built, and why we
-built it this way. Every other page of
-these docs, and every experiment you run, rests on these decisions.
+This small article explains the choices behind the library: what we built, and why we built it this way. Every other page of these docs, and every experiment you run, rests on these decisions.
 
 ## The gap we are building into
 
-Forecasting and inventory control grew up as neighbouring fields that rarely
-share a codebase. Forecasting research tends to treat the forecast as the end
-product and judges it by accuracy. Inventory theory tends to assume that the
-demand distribution is known and asks what to order. In a recent EJOR review,
-Goltsos, Syntetos, Glock and Ioannou call this a high degree of segregation
-between the two literatures, and ask for the stages in between (turning a
-forecast into a replenishment decision) to be studied in their own right
-(Goltsos et al., 2022; see also Syntetos et al., 2016).
+Forecasting and inventory control grew up as neighbouring fields that rarely share a codebase. Forecasting research tends to treat the forecast as the end product and judges it by accuracy. Inventory theory tends to assume that the demand distribution is known and asks what to order. In a recent EJOR review, Goltsos, Syntetos, Glock and Ioannou call this a high degree of segregation between the two literatures, and ask for the stages in between (turning a forecast into a replenishment decision) to be studied in their own right (Goltsos et al., 2022; see also Syntetos et al., 2016).
 
-The evidence that the in-between matters is old and keeps getting stronger.
-Gardner (1990) compared forecasting methods by the inventory investment each
-needed for a given service level, and the ranking differed from an accuracy
-ranking. Petropoulos, Wang and Disney (2019) evaluated M3 forecasting methods
-inside a rolling order-up-to simulation and found that inventory performance
-separates methods in ways accuracy alone does not. Kourentzes, Trapero and
-Barrow (2020) showed that models fitted to minimise in-sample error are not
-the ones that minimise inventory cost, and tuned forecasting models directly on
-inventory metrics through simulation. On M5 data, Theodorou, Spiliotis and
-Assimakopoulos (2025) found that when lost sales cost more than holding stock,
-the most accurate forecast is often not the best one to order with, especially
-for short review periods, short lead times and intermittent demand.
+The evidence that the in-between matters is old and keeps getting stronger. Gardner (1990) compared forecasting methods by the inventory investment each needed for a given service level, and the ranking differed from an accuracy ranking. Petropoulos, Wang and Disney (2019) evaluated M3 forecasting methods inside a rolling order-up-to simulation and found that inventory performance separates methods in ways accuracy alone does not. Kourentzes, Trapero and Barrow (2020) showed that models fitted to minimise in-sample error are not the ones that minimise inventory cost, and tuned forecasting models directly on inventory metrics through simulation. On M5 data, Theodorou, Spiliotis and Assimakopoulos (2025) found that when lost sales cost more than holding stock, the most accurate forecast is often not the best one to order with, especially for short review periods, short lead times and intermittent demand.
 
-The common thread is a **simulation loop that connects a forecast to a
-decision rule and plays it against demand**. Every one of those studies built
-its own. Stockcast is that loop as a library: explicit, tested, composable,
-and fast enough to run on any case study.
+The common thread is a **simulation loop that connects a forecast to a decision rule and plays it against demand**. Every one of those studies built its own. Stockcast is that loop as a library: explicit, tested, composable, and fast enough to run on any case study.
 
 ## Principle 1: the interface between forecasting and inventory is the target
 
 Stockcast does not fit forecasting models. This was an explicit decision from the start. The right forecasting model depends on the data, the domain, and the team's expertise. Fortunately, the forecasting ecosystem already offers excellent choices: statistical, machine learning, deep learning, foundation models, anything you fancy.
 
-Instead, Stockcast accepts these forecasts as inputs and turns them into decisions. Consequently, we needed to define this handoff precisely, and we started from the decision.
-A replenishment decision at period $t$ must protect the inventory position until the next order can arrive, a window of $H$ periods ($H = L + R$ for periodic review, as Principle 2 explains). 
-What the decision needs from a forecast is the distribution of total demand over that window, summarised as a quantile:
+Instead, Stockcast accepts these forecasts as inputs and turns them into decisions. Consequently, we needed to define this handoff precisely, and we started from the decision. A replenishment decision at period $t$ must protect the inventory position until the next order can arrive, a window of $H$ periods ($H = L + R$ for periodic review, as Principle 2 explains). What the decision needs from a forecast is the distribution of total demand over that window, summarised as a quantile:
 
 $$
 S_t = Q_\alpha\!\left(\sum_{h=0}^{H-1} D_{t+h} \,\middle|\, \mathcal{I}_{t-1}\right).
 $$
 
-That single, dated number, together with its context (probability, window,
-forecast origin, frequency), is the whole interface. It has three
-consequences that shape the library.
+That single, dated number, together with its context (probability, window, forecast origin, frequency), is the whole interface. It has three consequences that shape the library.
 
 **Any model, any uncertainty method.** If a method can produce the quantity above, Stockcast can use it. A sample path, a cumulative forecast, a quantile regression, a conformal interval, a Bayesian posterior, or even a planner's number: all work. The next two points explain why we ask for exactly this quantity, and how each family of models can produce it. In our examples we use [smooth](https://openforecast.org/smooth-py/) (Svetunkov, 2023), because it forecasts cumulative demand directly, not because anything depends on it. (Also because we think it is the most principled package for statistical forecasting out there, and of course this has nothing to do with our small contribution to it :sweat_smile:)
 
@@ -80,7 +47,6 @@ If you ask us, every family can produce the total:
 - The same is true for foundation models: those that sample paths, such as Chronos, add them up (Ansari et al., 2024), and those that return separate quantiles for each step can forecast the aggregated series.
 
 So Stockcast asks for the total. [Notebook 04e](../notebooks/04e_cumulative_target_methods.ipynb) builds it three ways from one forecast. When independent, normal periods are a reasonable assumption, Stockcast can still add up per-period means and standard deviations for you, as an explicit, labelled mode.
-
 
 **Uncertainty comes from the forecaster too.** A point forecast is not enough to make a decision. Why? Because a good decision is impossible without understanding the uncertainty around that forecast. If this is not clear, we recommend giving (among others) Kolassa, Rostami-Tabar and Siemsen (2023) a good read.
 
@@ -103,48 +69,23 @@ So we fixed one sequence and use it everywhere: **receive, decide, then meet dem
 
 The main alternative is to meet demand first and order at the end of the period. It is just as consistent, but the window an order must cover becomes $L + R - 1$. We chose to decide before demand because it gives three things at once:
 
-1. **The textbook window.** The next decision is at $t + R$ and its order
-   lands at $t + R + L$, so the position at $t$ protects periods
-   $t, \dots, t + R + L - 1$:
+1. **The textbook window.** The next decision is at $t + R$ and its order lands at $t + R + L$, so the position at $t$ protects periods $t, \dots, t + R + L - 1$:
 
     $$
     H = L + R ,
     $$
 
-    the familiar "lead time plus review period" of periodic review (Silver,
-    Pyke and Thomas, 2017). The same argument covers irregular schedules and
-    reorder points.
+    the familiar "lead time plus review period" of periodic review (Silver, Pyke and Thomas, 2017). The same argument covers irregular schedules and reorder points.
 
-2. **Zero lead time as a first-class case.** Goods ordered in the morning are
-   on the shelf before opening. That is a well-studied model (Dubois, Allaert
-   and Witlox, 2013), and it is what bakeries, kiosks and next-morning
-   deliveries look like.
+2. **Zero lead time as a first-class case.** Goods ordered in the morning are on the shelf before opening. That is a well-studied model (Dubois, Allaert and Witlox, 2013), and it is what bakeries, kiosks and next-morning deliveries look like.
 
-3. **A clean information set.** The decision happens before the period's
-   demand, so it can only use data up to the previous period. The forecast
-   origin of a decision at $t$ is therefore $t - 1$, and the engine checks it.
+3. **A clean information set.** The decision happens before the period's demand, so it can only use data up to the previous period. The forecast origin of a decision at $t$ is therefore $t - 1$, and the engine checks it.
 
-Other conventions still translate exactly: an order placed at the end of period
-$t$ is our order at the start of period $t + 1$.
-[Work with any timing convention](../how-to/timing-conventions.md) shows how
-to set Stockcast for the conventions you will meet in papers and other tools.
+Other conventions still translate exactly: an order placed at the end of period $t$ is our order at the start of period $t + 1$. [Work with any timing convention](../how-to/timing-conventions.md) shows how to set Stockcast for the conventions you will meet in papers and other tools.
 
-With that clock in place, the rest follows naturally. **When** a policy may
-order is a separate object (a `DecisionSchedule`) from **how much** it orders
-(the policy). A seasonal buy is a one-time schedule with a target for the
-whole season, and the classical newsvendor fractile $\alpha = (p - c)/(p - v)$
-(Arrow, Harris and Marschak, 1951; Qin et al., 2011) is one way to choose its
-quantile. A weekly buyer, a daily base-stock rule, and a supplier's irregular
-calendar are all the same engine with different schedules.
+With that clock in place, the rest follows naturally. **When** a policy may order is a separate object (a `DecisionSchedule`) from **how much** it orders (the policy). A seasonal buy is a one-time schedule with a target for the whole season, and the classical newsvendor fractile $\alpha = (p - c)/(p - v)$ (Arrow, Harris and Marschak, 1951; Qin et al., 2011) is one way to choose its quantile. A weekly buyer, a daily base-stock rule, and a supplier's irregular calendar are all the same engine with different schedules.
 
-**Why discrete periods?** Forecasts arrive in buckets: days, weeks, months.
-Ordering decisions are usually taken on the same grain. A discrete-period clock
-keeps the simulation aligned with the forecast that drives it, and lets us
-check the accounting of every period exactly. Continuous review is approached
-by shortening the period, not by a second simulation paradigm.
-[Notebook 05b](../notebooks/05b_reorder_points_and_review_frequency.ipynb)
-shows reorder-point behaviour approaching it as reviews go from daily to
-three-hourly.
+**Why discrete periods?** Forecasts arrive in buckets: days, weeks, months. Ordering decisions are usually taken on the same grain. A discrete-period clock keeps the simulation aligned with the forecast that drives it, and lets us check the accounting of every period exactly. Continuous review is approached by shortening the period, not by a second simulation paradigm. [Notebook 05b](../notebooks/05b_reorder_points_and_review_frequency.ipynb) shows reorder-point behaviour approaching it as reviews go from daily to three-hourly.
 
 The deep dive: [Timing: receive, decide, demand](../user-guide/concepts/timing.md).
 

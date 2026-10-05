@@ -23,8 +23,8 @@
   <a href="https://filtheo.github.io/stockcast/reference/">API</a>
 </p>
 
-A forecast is not a decision. Its value comes from the downstream decisions it
-improves, and ultimately from the operational performance those decisions
+A forecast is not a decision. Its real value depends on the downstream choices
+it improves, and ultimately on the operational performance those choices
 deliver.
 
 Stockcast brings this idea to inventory management: it is the layer
@@ -33,7 +33,7 @@ between the forecast and the replenishment decision. It maps forecasts from
 and evaluates the resulting impact against business metrics such as cost,
 service, and waste. It is built for **researchers**
 who judge forecasts by the decisions they drive, and for **engineers** who run
-those decisions every day, with the same objects.
+those decisions in production, with the same objects.
 
 Inspired by PyTorch-style libraries, it is built like Lego: policies,
 schedules, constraints, callbacks, suppliers, physical processes, and metrics
@@ -136,8 +136,9 @@ shows how.
 
 ## Research and production
 
-The same objects run a backtest and a daily job, so the policy you evaluated is
-the policy you run:
+Stockcast is built for research and production. Everything you research goes to
+production as it is: the same stock, the same policy with its forecast target,
+and the same supplier rules, run each period by your scheduler or event stream.
 
 ![How Stockcast works: your data and choices go in, Stockcast plays out each day, you get service, stock and cost](https://raw.githubusercontent.com/FilTheo/stockcast/main/docs/assets/diagrams/how-it-works.svg)
 
@@ -145,7 +146,7 @@ the policy you run:
 
 ![Candidates A and B run on the same demand and starting stock, then you compare the results](https://raw.githubusercontent.com/FilTheo/stockcast/main/docs/assets/diagrams/compare.svg)
 
-**Production: run the chosen policy every day.**
+**Production: run the chosen policy each period.**
 
 ![The daily loop: sales and deliveries, update the stock, fresh forecast, your policy, orders to send](https://raw.githubusercontent.com/FilTheo/stockcast/main/docs/assets/diagrams/production-loop.svg)
 
@@ -170,16 +171,21 @@ cumulative intervals, or means and standard deviations.
 
 ## Why Stockcast
 
-- **One clean interface to forecasting.** A policy needs the distribution of
-  *total* demand over the window its order must cover; Stockcast asks for
-  exactly that, from whatever model you use.
+- **One clean interface to forecasting.** An order needs the distribution of
+  *total* demand over the window it must cover. Stockcast asks for exactly
+  that, from whatever model you use.
 - **One explicit clock.** Every period is receive → decide → meet demand, so
   lead time and the protection window `H = L + R` mean the same thing in every
   experiment.
-- **Every unit accounted for.** Only the engine changes stock, and every event table
-  row satisfies the stock, pipeline, and backorder balances.
-- **Fair, fast, reproducible.** Comparisons share demand and random draws, the
-  inner loop runs on NumPy, and every result carries a manifest of its inputs.
+- **Every unit accounted for.** Only the engine changes stock, and every event
+  table row satisfies the stock, pipeline, and backorder balances.
+- **Comparisons in one call.** Any forecasts, policies or suppliers, on the
+  same demand and random draws, with every result carrying a manifest of its
+  inputs.
+- **Fast inside, readable outside.** DataFrames for everything you touch, NumPy
+  arrays inside the engine.
+- **From research to production.** The parts you test are the parts that place
+  real orders.
 
 The reasoning behind each choice, with the literature it rests on, is in our
 [Philosophy](https://filtheo.github.io/stockcast/get-started/philosophy/).
@@ -202,9 +208,10 @@ The reasoning behind each choice, with the literature it rests on, is in our
 ## Scope
 
 Stockcast does not fit forecasting models, is not a black-box optimiser, and is
-not an ERP. It executes and evaluates the decisions you configure, with every
-input explicit. Version 0.1 models one stocking point with any number of SKUs
-and suppliers, in discrete periods.
+not an ERP. It gives you the building blocks for all three: any forecasting
+model can feed it, any optimiser can wrap it, and its orders and records go
+straight into your systems. Version 0.1 models one stocking point with any
+number of SKUs and suppliers, in discrete periods.
 
 ## Citation
 
