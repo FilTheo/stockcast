@@ -17,6 +17,7 @@ pip-wheel-metadata/
 venv/
 env/
 .env
+.aws/
 .python-version
 
 # Tests, coverage, and tooling
