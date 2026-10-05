@@ -35,7 +35,17 @@ release line and a migration note.
 - **Inventory processes.** Add physical stock flows such as damage or
   inspection loss at defined phases, with FIFO shelf life built in. See
   [shelf life and inventory processes](user-guide/processes.md).
-- **Evidence you can check.** Every run produces a validated event table, a
+- **Comparisons in one call.** `run_comparison` runs every option on the same
+  demand, from its own copy of the same opening stock, with the same random
+  supplier lead times. Every result carries a run manifest. See
+  [compare forecasts and policies](how-to/compare-policies.md).
+- **Operational rules.** Ordering constraints (minimum, multiple, maximum,
+  shelf space) and callbacks for planned interventions, each with an audit
+  table.
+- **From backtest to production.** The same state, policy and constraint
+  objects run a periodic plan-and-close job. See
+  [use Stockcast in production](how-to/production.md).
+- **Evidence you can check.** Every run produces a checked event table, a
   run manifest, callback audits, order and process-flow frames, and service
   and cost metrics.
 - **Documentation.** A Quickstart, a nine-step *Walkthrough*, a Guide to
