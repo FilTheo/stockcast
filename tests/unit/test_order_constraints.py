@@ -357,3 +357,37 @@ def test_constraint_hooks_see_a_copy_and_cannot_change_the_stock():
     columns = ["starting_on_hand", "ending_on_hand", "order_quantity"]
     pd.testing.assert_frame_equal(events[columns], baseline[columns])
     assert (events.loc[events["period"] == 1, "starting_on_hand"] == 0.0).all()
+
+
+def test_constraint_hooks_see_a_copy_and_cannot_change_the_policy():
+    class ChangesPolicy(OrderingConstraint):
+        name = "changes_policy"
+
+        def reset(self, context):
+            context.policy.service_level = 0.5
+
+        def apply(self, order, context):
+            context.policy.quantities = {"A": 0.0, "B": 0.0}
+            frame = order.get_dataframe()
+            return ConstraintResult(order, _unchanged_audit(frame, self.name))
+
+    policy = PerSkuOrderPolicy(
+        {"A": 5.0, "B": 10.0}, lead_time=1, review_period=1,
+        service_level=None, allow_backorders=True,
+    )
+    demand = pd.DataFrame({
+        "unique_id": ["A", "B", "A", "B"],
+        "period": [0, 0, 1, 1],
+        "date": [pd.Timestamp("2025-01-02")] * 2 + [pd.Timestamp("2025-01-03")] * 2,
+        "y": [1.0] * 4,
+    })
+    result = SimulationEngine().run(
+        policy, demand, _inventory(("A", "B")), freq="D",
+        order_constraints=[ChangesPolicy()],
+    )
+
+    assert policy.service_level is None
+    assert policy.quantities == {"A": 5.0, "B": 10.0}
+    assert result.run_manifest["policy"]["service_level"] is None
+    events = result.to_event_frame()
+    assert events.loc[events["period"] == 2, "order_quantity"].tolist() == [5.0, 10.0]

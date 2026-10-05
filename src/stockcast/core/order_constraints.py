@@ -26,7 +26,7 @@ class ConstraintContext:
     Attributes:
         inventory: The ``InventoryStateDataFrame`` before demand. In an engine
             run it is a copy: a constraint changes the order, never the stock.
-        policy: The policy that proposed the order.
+        policy: The policy that proposed the order (a copy in an engine run).
         decision_period: The state period of the decision.
     """
 
@@ -480,11 +480,10 @@ class OrderingConstraints(OrderingConstraint):
         self.validate(current, context)
 
         # A constraint may return its rows in any order: match them by SKU.
-        final_quantity = (
-            current.get_dataframe()
-            .set_index(order.sku_column)["order_quantity"]
-            .reindex(original[order.sku_column])
-            .reset_index(drop=True)
+        final = current.get_dataframe()
+        final_by_sku = dict(zip(final[order.sku_column], final["order_quantity"]))
+        final_quantity = pd.Series(
+            [final_by_sku[sku] for sku in original[order.sku_column]], dtype=float
         )
         binding_by_sku = {sku: [] for sku in original[order.sku_column]}
         capacity_by_sku = {sku: False for sku in binding_by_sku}
