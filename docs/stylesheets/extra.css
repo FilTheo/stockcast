@@ -81,22 +81,38 @@ div.arithmatex {
   }
 }
 
-/* Author byline under a page subtitle (Philosophy page). */
-.md-typeset .sc-byline {
-  font-size: 0.72rem;
-  letter-spacing: 0.02em;
-  color: var(--md-default-fg-color--light);
-  margin: -0.4rem 0 1.6rem;
-  padding-bottom: 0.8rem;
+/* Article header (Philosophy page): title, subtitle, byline, a rule, then
+   the opening line set as a lede. */
+.md-typeset .sc-article-meta {
+  margin: -0.6rem 0 2.2rem;
+  padding-bottom: 1.4rem;
   border-bottom: 1px solid var(--md-default-fg-color--lightest);
 }
-
-/* Page subtitle (Philosophy page). */
-.md-typeset .sc-subtitle {
-  font-size: 1.05rem;
-  font-style: italic;
+.md-typeset .sc-article-meta .sc-subtitle {
+  font-size: 1.15rem;
+  line-height: 1.5;
   color: var(--md-default-fg-color--light);
-  margin: -0.6rem 0 0.4rem;
+  margin: 0 0 1.2rem;
+}
+.md-typeset .sc-article-meta .sc-byline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  color: var(--md-default-fg-color--light);
+  margin: 0;
+}
+.md-typeset .sc-byline .sc-author {
+  font-weight: 700;
+  color: var(--md-default-fg-color);
+}
+.md-typeset .sc-lede {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0 0 1rem;
 }
 
 /* Pipeline diagrams from docs/scripts/make_diagrams.py, inlined so their

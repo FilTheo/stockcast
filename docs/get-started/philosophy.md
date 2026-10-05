@@ -1,10 +1,16 @@
 # Philosophy
 
-<p class="sc-subtitle">Why Stockcast is built the way it is.</p>
-
-<p class="sc-byline">by Filotas Theodosiou</p>
+<div class="sc-article-meta">
+  <p class="sc-subtitle">Why Stockcast is built the way it is.</p>
+  <p class="sc-byline">
+    <span>by <span class="sc-author">Filotas Theodosiou</span></span>
+    <span class="sc-dot" aria-hidden="true">·</span>
+    <time datetime="2026-10-05">5 October 2026</time>
+  </p>
+</div>
 
 A forecast is not a decision.
+{ .sc-lede }
 
 Its real value depends on the downstream choices it improves, and ultimately on the operational performance those choices deliver. Stockcast brings this idea to inventory management: it is the layer between the forecast and the replenishment decision. It maps forecasts from **any model** into orders, simulates their execution against realised demand, and evaluates the resulting impact against business metrics such as cost, service, and waste. Its purpose is to make that chain explicit, executable, and measurable.
 
