@@ -468,6 +468,29 @@ def test_grouping_by_one_column_is_warning_free():
     assert by_two[["unique_id", "run_window"]].values.tolist() == [["A", "scoring"], ["B", "scoring"]]
 
 
+def test_grouping_by_one_column_keeps_tuple_sku_ids():
+    skus = [("tea", "shop1"), ("tea", "shop2")]
+    inventory = InventoryStateDataFrame(skus, max_lead_time=1).initialize_zero(
+        opening_date=pd.Timestamp("2025-01-01")
+    )
+    inventory.data["on_hand"] = 10.0
+    policy = FixedOrderPolicy(
+        order_quantity=1.0, lead_time=1, review_period=1, allow_backorders=False,
+    )
+    dates = pd.date_range("2025-01-02", periods=3, freq="D")
+    demand = pd.DataFrame({
+        "unique_id": [sku for sku in skus for _ in dates],
+        "date": list(dates) * 2,
+        "y": [2.0, 2.0, 2.0, 4.0, 4.0, 4.0],
+    })
+    result = SimulationEngine().run(
+        policy=policy, demand_source=demand, inventory=inventory, freq="D",
+    )
+    by_sku = InventoryEvaluator().fit(result).evaluate([demand_units], groupby=["unique_id"])
+    assert by_sku["unique_id"].tolist() == skus
+    assert by_sku["demand_units"].tolist() == [6.0, 12.0]
+
+
 def _turns_run(frequency, n_periods=6):
     # The opening date is a period date of the frequency (the first of the month for MS).
     opening = pd.tseries.frequencies.to_offset(frequency).rollback(pd.Timestamp("2025-01-06"))

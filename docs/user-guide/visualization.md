@@ -32,7 +32,8 @@ of small stockouts.)
 | `plot_demand_vs_orders(result, sku=None, ax=None)` | demand and order quantities |
 | `plot_simulation_dashboard(result, sku=None, show_target=True)` | the four-panel dashboard above |
 
-`sku` selects one SKU or a list; `None` adds all SKUs together.
+`sku` selects one SKU, or a list of SKUs added together per period; `None`
+adds all SKUs together. A tuple such as `("tea", "shop1")` is one SKU id.
 
 ## Several runs
 

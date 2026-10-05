@@ -369,6 +369,7 @@ def test_policy_schedule_updates_targets_only_at_declared_decisions():
         "policy_name": "FixedOrderPolicy",
         "target_metadata": {},
         "target_data": None,
+        "fitted_levels": None,
     }]
 
 

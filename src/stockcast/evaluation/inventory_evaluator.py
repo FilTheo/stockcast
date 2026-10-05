@@ -139,7 +139,8 @@ class InventoryEvaluator:
     def _group_key_to_row(group_columns: List[str], keys) -> dict:
         if not group_columns:
             return {}
-        if len(group_columns) == 1 and not isinstance(keys, tuple):
+        if len(group_columns) == 1:
+            # The key is one value, even when it is a tuple such as ('tea', 'shop1').
             keys = (keys,)
         return dict(zip(group_columns, keys))
 

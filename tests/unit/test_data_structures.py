@@ -481,6 +481,29 @@ def test_plot_inventory_accepts_numeric_sku_scalar():
     assert plot_inventory(result, sku=101) is not None
 
 
+def test_plots_sum_a_list_of_skus_and_read_a_tuple_as_one_sku():
+    skus = [("tea", "shop1"), ("tea", "shop2"), ("coffee", "shop1")]
+    inventory = InventoryStateDataFrame(skus, max_lead_time=1).initialize_zero(
+        opening_date=pd.Timestamp("2025-01-01")
+    )
+    inventory.data["on_hand"] = [10.0, 20.0, 40.0]
+    policy = NoOrderPolicy(lead_time=1, review_period=1, allow_backorders=False)
+    dates = pd.date_range("2025-01-02", periods=3, freq="D")
+    demand = pd.DataFrame({
+        "unique_id": [sku for sku in skus for _ in dates],
+        "date": list(dates) * 3,
+        "y": [1.0] * 9,
+    })
+    result = SimulationEngine().run(
+        policy=policy, demand_source=demand, inventory=inventory, freq="D",
+    )
+
+    pair = plot_inventory(result, sku=skus[:2]).lines[0].get_ydata()
+    assert list(pair) == [28.0, 26.0, 24.0]
+    one = plot_inventory(result, sku=("tea", "shop1")).lines[0].get_ydata()
+    assert list(one) == [9.0, 8.0, 7.0]
+
+
 @pytest.mark.parametrize("data", [[], pd.DataFrame({"unique_id": []})])
 def test_empty_inventory_sku_universe_is_rejected(data):
     with pytest.raises(ValueError, match="SKU universe must be non-empty"):

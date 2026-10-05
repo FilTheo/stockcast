@@ -27,12 +27,12 @@ def _prepare_event_frame(result, sku=None) -> pd.DataFrame:
             }
         )
     if sku is not None:
-        if pd.api.types.is_scalar(sku):
-            sku = [sku]
-        h = h[h['unique_id'].isin(sku)]
+        # A list names several SKUs; anything else, a tuple included, is one id.
+        skus = list(sku) if isinstance(sku, list) else [sku]
+        h = h[h['unique_id'].isin(skus)]
 
     n_skus = h['unique_id'].nunique()
-    if n_skus > 1 and sku is None:
+    if n_skus > 1:
         # Aggregate across SKUs per period
         numeric_cols = [
             'ending_on_hand',
@@ -64,7 +64,7 @@ def plot_inventory(
 
     Args:
         result: SimulationResult
-        sku: Optional SKU id or list of SKU ids to filter. None = aggregate all.
+        sku: One SKU id, or a list of SKU ids summed per period. None sums all SKUs.
         ax: Optional matplotlib Axes.
         figsize: Figure size if creating new figure.
 
@@ -101,7 +101,7 @@ def plot_demand_vs_orders(
 
     Args:
         result: SimulationResult
-        sku: Optional SKU id or list of SKU ids to filter. None = aggregate all.
+        sku: One SKU id, or a list of SKU ids summed per period. None sums all SKUs.
         ax: Optional matplotlib Axes.
         figsize: Figure size if creating new figure.
 
@@ -135,7 +135,7 @@ def plot_comparison(
     Args:
         comparison_result: ComparisonResult
         metric: Column name from history to plot (default: 'on_hand').
-        sku: Optional SKU id or list of SKU ids to filter. None = aggregate all.
+        sku: One SKU id, or a list of SKU ids summed per period. None sums all SKUs.
         ax: Optional matplotlib Axes.
         figsize: Figure size if creating new figure.
 
@@ -220,7 +220,7 @@ def plot_simulation_dashboard(
 
     Args:
         result: SimulationResult
-        sku: Optional SKU id or list to filter. None = aggregate all.
+        sku: One SKU id, or a list of SKU ids summed per period. None sums all SKUs.
         figsize: Overall figure size.
         show_target: Show target inventory level (S) as horizontal reference.
 
@@ -326,7 +326,7 @@ def plot_comparison_dashboard(
 
     Args:
         comparison_result: ComparisonResult
-        sku: Optional SKU id or list to filter. None = aggregate all.
+        sku: One SKU id, or a list of SKU ids summed per period. None sums all SKUs.
         figsize: Overall figure size.
 
     Returns:
