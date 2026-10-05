@@ -12,4 +12,4 @@ Each one assumes you know the basics from the
 | [Compare forecasts and policies](compare-policies.md) | run a fair, multi-SKU comparison and pick a winner on cost |
 | [Put costs on a run](costs.md) | set cost rates, per-SKU prices, and the right accounting window |
 | [Run your own simulation loop](manual-loop.md) | step the state yourself, period by period |
-| [Use Stockcast in a daily job](production.md) | compute today's orders from today's stock and forecast |
+| [Use Stockcast in production](production.md) | compute the period's orders from the current stock and forecast |

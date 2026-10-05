@@ -200,6 +200,6 @@ changing any parameter, backtest the change with the engine on recent history.
 - Both use the same objects, so the backtest describes what runs in
   production.
 
-**See also:** [Use Stockcast in a daily job](../how-to/production.md) ·
+**See also:** [Use Stockcast in production](../how-to/production.md) ·
 [Refresh targets as forecasts roll](../how-to/rolling-targets.md) ·
 [Notebook 10: production daily close](../notebooks/10_production_daily_close.ipynb)

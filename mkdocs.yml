@@ -201,7 +201,7 @@ nav:
           - Compare forecasts and policies: how-to/compare-policies.md
           - Put costs on a run: how-to/costs.md
           - Run your own simulation loop: how-to/manual-loop.md
-          - Use Stockcast in a daily job: how-to/production.md
+          - Use Stockcast in production: how-to/production.md
   - Examples:
       - tutorials/index.md
       - Foundations:

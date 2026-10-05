@@ -46,7 +46,7 @@ notebook that uses it.
 | model products that expire, inspections, returns | `ShelfLife`, `InventoryProcess` | [Shelf life and processes](processes.md) | [05e](../notebooks/05e_inventory_processes.ipynb), [07](../notebooks/07_m5_fifo_perishable_scenario.ipynb) |
 | refresh targets as new forecasts arrive | `policy_schedule` | [Refresh targets as forecasts roll](../how-to/rolling-targets.md) | [04a](../notebooks/04a_forecasting_from_sales.ipynb), [04d](../notebooks/04d_rolling_cumulative_targets.ipynb), [09](../notebooks/09_full_operational_experiment.ipynb) |
 | compare forecasts or policies fairly | `run_comparison` | [Compare forecasts and policies](../how-to/compare-policies.md) | [06](../notebooks/06_fair_forecast_and_policy_comparisons.ipynb), [09](../notebooks/09_full_operational_experiment.ipynb) |
-| compute real orders every day | `advance_period` → `predict` → constraints → `fulfill_demand` | [Use Stockcast in a daily job](../how-to/production.md), [Walkthrough step 9](../learn/09-production.md) | [10](../notebooks/10_production_daily_close.ipynb) |
+| compute real orders every period | `advance_period` → `predict` → constraints → `fulfill_demand` | [Use Stockcast in production](../how-to/production.md), [Walkthrough step 9](../learn/09-production.md) | [10](../notebooks/10_production_daily_close.ipynb) |
 
 ## All together
 

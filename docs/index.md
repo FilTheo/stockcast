@@ -51,8 +51,8 @@ lead times, suppliers, and shelf-life rules on identical demand.
 
 [:octicons-arrow-right-24: Compare scenarios](learn/08-compare.md)
 
-**Production: run the chosen policy every day.** For engineers who put the
-chosen policy behind a daily job: load stock, refresh the forecast, compute
+**Production: run the chosen policy every period.** For engineers who put the
+chosen policy behind a periodic job: load stock, refresh the forecast, compute
 orders with the supplier's rules, and save the state.
 
 <figure class="sc-diagram">
@@ -146,7 +146,7 @@ The [Quickstart](get-started/quickstart.md) walks through each of these lines.
 - **Small parts you combine.** Policies, schedules, constraints, suppliers,
   callbacks, and shelf-life processes each do one job. Use the built-in ones
   or subclass a base class.
-- **Every unit is accounted for.** Each simulated period is an event table row, and
+- **Every unit is accounted for.** Each SKU and period is one row of the event table, and
   the engine checks that stock, backorders, and pipeline balance on every row.
 - **Timing you can read.** Receive, decide, then meet demand, in that order.
   Other conventions map onto it:

@@ -18,10 +18,10 @@ opens with 30 packs on the shelf, and sales it cannot serve are lost.
 | [6. The event table](06-event-table.md) | Reading the record of every unit | `SimulationResult` |
 | [7. Evaluate a run](07-evaluate.md) | Service, stock, and cost metrics | `InventoryEvaluator` |
 | [8. Compare scenarios](08-compare.md) | Fair comparisons on identical demand | `run_comparison` |
-| [9. From backtest to production](09-production.md) | Running the chosen policy every day, and why it matches the backtest | `plan` / `close` with the same objects |
+| [9. From backtest to production](09-production.md) | Running the chosen policy every period, and why it matches the backtest | `plan` / `close` with the same objects |
 
 Steps 1 to 8 build the **research pipeline**: simulate, evaluate, and compare.
-Step 9 takes the chosen policy into the **production pipeline**: a daily job
+Step 9 takes the chosen policy into the **production pipeline**: a periodic job
 on live stock and fresh forecasts.
 
 The code blocks run as they are, in order, and reproduce the numbers shown.

@@ -20,7 +20,7 @@ it first appears.
 - [Quickstart](quickstart.md): a forecast → order → simulate → evaluate
   workflow for one product.
 - [Walkthrough](../learn/index.md): nine short pages, from inventory
-  state to a production daily job.
+  state to a production job.
 - [Philosophy](philosophy.md): why Stockcast is built the way it is, and the
   research behind it.
 

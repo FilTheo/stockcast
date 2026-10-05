@@ -1,31 +1,31 @@
-# Use Stockcast in a daily job
+# Use Stockcast in production
 
 !!! tip "New to production with Stockcast?"
 
     [Walkthrough step 9: From backtest to production](../learn/09-production.md)
-    walks through the whole daily cycle and compares the daily job with its
-    backtest. This page is the short reference.
+    walks through the whole cycle and compares the job with its backtest. This page is the short reference.
 
-The same objects you simulate with can compute today's real orders. A daily
-job has two phases: **plan** in the morning, before sales, and **close** in
-the evening, once the day's sales are known. Stockcast provides the state,
-policy, and constraint objects; your application keeps the data, calls the
-forecasting model, and sends the orders.
+The same objects you simulate with can compute real orders. A production
+job has two steps each period: **plan** at the start, before sales, and
+**close** at the end, once the period's sales are known. A scheduler or an
+event can trigger each step. Stockcast provides the state, policy, and
+constraint objects. Your application keeps the data, calls the forecasting
+model, and sends the orders.
 
 ```mermaid
 flowchart LR
-    A["Yesterday's closed state<br/>(from your database)"] --> B["Plan<br/>advance_period → fit → predict → constraints"]
+    A["Last period's closed state<br/>(from your database)"] --> B["Plan<br/>advance_period → fit → predict → constraints"]
     B --> C["Send orders<br/>(ERP, supplier portal)"]
     B --> D["Save planned state"]
-    D --> E["Close<br/>fulfill_demand with today's sales"]
+    D --> E["Close<br/>fulfill_demand with the period's sales"]
     E --> F["Save closed state"]
     F --> A
 ```
 
-## Plan: this morning's order
+## Plan: the period's order
 
-Start from the state you saved last night, fit today's target from a forecast
-made with data up to yesterday, and ask the policy:
+Start from the state you saved at the last close, fit the target from a
+forecast made with data up to the previous period, and ask the policy:
 
 ```python
 import numpy as np
@@ -87,8 +87,8 @@ accepted.audit[["unique_id", "requested_order_quantity", "constrained_order_quan
 1  coffee_1kg                      11.0                        12.0      order_multiple
 ```
 
-This morning 12 packs of tea arrived, lifting the shelf to 21; the policy asks
-for $46 - 21 = 25$ and the case rule rounds it to 30.
+At the start of the period 12 packs of tea arrived, lifting the shelf to 21.
+The policy asks for $46 - 21 = 25$ and the case rule rounds it to 30.
 `accepted.order` is the `OrderDecision` to send, and `accepted.audit` explains
 every change the rules made. Record both, then place the order on the state:
 
@@ -96,10 +96,10 @@ every change the rules made. Record both, then place the order on the state:
 planned_state = update_inventory_with_orders(today_state, accepted.order, policy=policy)
 ```
 
-## Close: tonight's sales
+## Close: the period's sales
 
-When the day's sales arrive, serve them from the planned state and save the
-result for tomorrow:
+When the period's sales arrive, serve them from the planned state and save
+the result for the next period:
 
 ```python
 sales = pd.DataFrame({
@@ -118,12 +118,12 @@ closed_state.get_dataframe()[["unique_id", "on_hand", "in_transit",
 1  coffee_1kg     10.0  [0.0, 12.0]               4.0              0.0
 ```
 
-`closed_state.get_dataframe()` is what you store; tomorrow's job starts from
-it.
+`closed_state.get_dataframe()` is what you store. The next period's job
+starts from it.
 
 ## Recommended practice
 
-- **Plan before sales.** Fit forecasts on data up to the previous closed day,
+- **Plan before sales.** Fit forecasts on data up to the previous closed period,
   as the engine does in simulation. Keep the plan and the close as separate,
   saved steps, each with its own idempotency key, so a retry never orders or
   sells twice.
@@ -134,9 +134,9 @@ it.
 - **Keep the evidence.** Store the targets with their metadata, the proposal,
   the constraint audit, and the accepted order. Together they explain each
   order the job places.
-- **The engine for replays, primitives for live days.** The engine adds
+- **The engine for replays, primitives for live periods.** The engine adds
   validation, callbacks, the event table, and the manifest, which suit
-  backtests. A live daily job uses the primitives shown here.
+  backtests. A live job uses the primitives shown here.
 
 [Notebook 10](../notebooks/10_production_daily_close.ipynb) builds this job up
 for five M5 items: one day step by step, the plan and close functions, a store
