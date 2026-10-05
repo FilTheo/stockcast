@@ -27,18 +27,15 @@ A forecast is not a decision. Its real value depends on the downstream choices
 it improves, and ultimately on the operational performance those choices
 deliver.
 
-Stockcast brings this idea to inventory management: it is the layer
-between the forecast and the replenishment decision. It maps forecasts from
-**any model** into orders, simulates their execution against realised demand,
-and evaluates the resulting impact against business metrics such as cost,
-service, and waste. It is built for **researchers**
-who judge forecasts by the decisions they drive, and for **engineers** who run
-those decisions in production, with the same objects.
+Stockcast brings this idea to inventory management: it is the layer between
+the forecast and the replenishment decision. It maps forecasts from **any
+model** into orders, simulates their execution against historical or simulated
+demand, and evaluates the resulting impact against business metrics such as
+cost, service, and waste. Happy with a policy? Put it into production with the
+same objects.
 
-Inspired by PyTorch-style libraries, it is built like Lego: policies,
-schedules, constraints, callbacks, suppliers, physical processes, and metrics
-are small parts that snap onto one engine with explicit timing and checked
-accounting. Each part is a class you can subclass and adjust.
+Inspired by PyTorch-style libraries, it is built from Lego-like pieces that
+snap onto one engine. Each piece is a class you can subclass and adjust.
 
 Stockcast is developed and maintained by
 [Filotas Theodosiou](https://filtheo.github.io/) at the Predictive AI and
@@ -54,9 +51,8 @@ Stockcast needs Python 3.10+ and only NumPy, pandas, and Matplotlib.
 
 ## Quickstart
 
-A tea shop sells about six packs a day and orders every morning; deliveries
-arrive before it opens. Forecast tomorrow's demand, turn the forecast into
-orders, and simulate eight weeks:
+A tea shop sells about six packs a day and orders every morning. Turn its
+forecast into orders and play out eight weeks:
 
 ```python
 import numpy as np
@@ -66,134 +62,107 @@ from stockcast.core import InventoryStateDataFrame, SimulationEngine
 from stockcast.evaluation import InventoryEvaluator, avg_on_hand, fill_rate
 from stockcast.policies import OrderUpToPolicy
 
-sku, today = "tea_250g", pd.Timestamp("2026-02-01")
-
-# Twelve weeks of daily tea sales, about six packs a day.
-days = pd.date_range("2026-01-05", periods=84, freq="D")
-sales = pd.DataFrame({
-    "unique_id": sku,
+# Eight weeks of daily tea sales.
+days = pd.date_range("2026-02-02", periods=56, freq="D")
+demand = pd.DataFrame({
+    "unique_id": "tea",
     "date": days,
     "y": np.random.default_rng(3).poisson(6, len(days)),
 })
-past, future = sales[sales["date"] <= today], sales[sales["date"] > today]
 
-# Forecast tomorrow from the last four weeks. Any model works; here, two
-# common ways to state the uncertainty.
-last_4_weeks = past["y"].tail(28)
+# The forecast, from any model: a day's demand is 10 packs or fewer, with
+# 95% probability.
 forecast = pd.DataFrame({
-    "unique_id": [sku],
-    "date": [today + pd.Timedelta(days=1)],   # the day it forecasts
-    "fh": [1],                                # one step ahead
-    "mean": [last_4_weeks.mean()],            # a moving average ...
-    "std": [last_4_weeks.std()],              # ... and its spread
-    "q95": [last_4_weeks.quantile(0.95)],     # or a 95% quantile forecast
+    "unique_id": ["tea"],
+    "date": [days[0]],   # the day it forecasts
+    "q95": [10],         # the 95% quantile
 })
 
-# Today's stock and the ordering policy.
+# The shelf today.
 shelf = InventoryStateDataFrame.from_observed(pd.DataFrame({
-    "unique_id": [sku],
-    "date": [today],     # the day the shelf was counted
-    "on_hand": [30],     # packs on the shelf
+    "unique_id": ["tea"],
+    "date": [pd.Timestamp("2026-02-01")],
+    "on_hand": [30],
 }))
+
 policy = OrderUpToPolicy(
     lead_time=0,             # delivered before the shop opens
     review_period=1,         # order every morning
     freq="D",                # one period is one day
-    service_level=0.95,      # cover tomorrow's demand on 95% of days
+    service_level=0.95,      # the probability the forecast quantile stands for
     allow_backorders=False,  # a missed sale is lost
 )
-
-engine = SimulationEngine()
-
-# From a mean and a spread, the policy computes the quantile...
-policy.fit(forecast, mean_column="mean", std_column="std")
-from_mean_std = engine.run(policy=policy, demand_source=future, inventory=shelf)
-
-# ...or it takes a quantile forecast as it is.
 policy.fit(forecast, target_column="q95")
-from_quantile = engine.run(policy=policy, demand_source=future, inventory=shelf)
 
-# Score the next eight weeks of each.
-metrics = [fill_rate, avg_on_hand]
-pd.concat({
-    "mean + std": InventoryEvaluator().fit(from_mean_std).evaluate(metrics),
-    "quantile": InventoryEvaluator().fit(from_quantile).evaluate(metrics),
-}).droplevel(1).round(2)
+result = SimulationEngine().run(policy=policy, demand_source=demand, inventory=shelf)
+InventoryEvaluator().fit(result).evaluate([fill_rate, avg_on_hand]).round(2)
 ```
 
 ```text
-            fill_rate  avg_on_hand
-mean + std       0.99         5.30
-quantile         0.99         5.69
+   fill_rate  avg_on_hand
+0       0.99         4.75
 ```
 
-The same policy takes a mean and a spread or a quantile forecast, from any
-model. `from_mean_std.to_event_frame()` holds the full record: one balanced
-row per SKU and day with every receipt, order, sale, and shortage. With a lead
-time, an order must cover the lead time plus the review period;
+`result.to_event_frame()` holds the full record: one checked row per SKU and
+day, with every receipt, order, sale, and shortage. The
+[Quickstart](https://filtheo.github.io/stockcast/get-started/quickstart/)
+builds the forecast from past sales, and
 [Walkthrough step 3](https://filtheo.github.io/stockcast/learn/03-forecast-targets/)
-shows how.
+shows orders that must cover a lead time.
+
+## Core principles
+
+Stockcast is built on seven principles. Our
+[Philosophy](https://filtheo.github.io/stockcast/get-started/philosophy/)
+explains each one, with the research behind it.
+
+1. **The interface between forecasting and inventory is the target.** An
+   order needs the distribution of total demand over the window it covers.
+   Stockcast asks for exactly that, from any model, and adds no hidden safety
+   stock.
+2. **One explicit clock.** Every period runs in the same order: receive,
+   decide, then meet demand. So lead time and the window `H = L + R` mean the
+   same thing in every experiment.
+3. **Accounting before optimisation.** Only the engine changes the stock, and
+   every row of the event table adds up. A missing input stops the run before
+   the first period.
+4. **Small parts, one base class each.** Policies, schedules, constraints,
+   suppliers, callbacks, and physical processes each have one base class. The
+   built-in parts use it, and so can yours.
+5. **Easy, scalable evaluation.** A comparison is one call: every option runs
+   on the same demand, opening stock, and random draws. Every result carries a
+   manifest, so anyone can rerun it.
+6. **Fast inside, readable outside.** DataFrames in and out, NumPy arrays
+   inside. A year of daily order-up-to decisions for 1,000 SKUs takes about 10
+   to 12 seconds on a laptop.
+7. **From research to production.** The parts you backtest are the parts that
+   place real orders, run each period by your scheduler or event stream.
 
 ## Research and production
 
-Stockcast is built for research and production. Everything you research goes to
-production as it is: the same stock, the same policy with its forecast target,
-and the same supplier rules, run each period by your scheduler or event stream.
-
-![How Stockcast works: your data and choices go in, Stockcast plays out each day, you get service, stock and cost](https://raw.githubusercontent.com/FilTheo/stockcast/main/docs/assets/diagrams/how-it-works.svg)
-
-**Research: compare candidates on identical demand.**
+**Research: backtest and compare.** For researchers and analysts who measure
+forecasts by the decisions they lead to. Compare policies, forecasting models,
+lead times, suppliers, and shelf-life rules on identical demand.
+[Compare scenarios](https://filtheo.github.io/stockcast/learn/08-compare/).
 
 ![Candidates A and B run on the same demand and starting stock, then you compare the results](https://raw.githubusercontent.com/FilTheo/stockcast/main/docs/assets/diagrams/compare.svg)
 
-**Production: run the chosen policy each period.**
+**Production: run the chosen policy every period.** For engineers who put the
+chosen policy behind a periodic job: load stock, refresh the forecast, compute
+orders with the supplier's rules, and save the state.
+[From backtest to production](https://filtheo.github.io/stockcast/learn/09-production/).
 
-![The daily loop: sales and deliveries, update the stock, fresh forecast, your policy, orders to send](https://raw.githubusercontent.com/FilTheo/stockcast/main/docs/assets/diagrams/production-loop.svg)
+![The production loop: sales and deliveries update the stock, a fresh forecast and your policy give the orders to send](https://raw.githubusercontent.com/FilTheo/stockcast/main/docs/assets/diagrams/production-loop.svg)
 
-## Building blocks
-
-Every part is a small object with one job. Use the built-ins, or subclass the
-base class and plug in your own.
-
-| Part | What it decides | Built-ins | Base class |
-|---|---|---|---|
-| Policy | how much to order | order-up-to, reorder point (s,Q)/(s,S), (R,s,S), single order (newsvendor) | `BasePolicy` |
-| Schedule | when ordering is allowed | periodic, one-time, explicit calendar | `DecisionSchedule` |
-| Constraints | what can actually be ordered | minimum, case multiple, maximum, shelf space | `OrderingConstraint` |
-| Callbacks | planned interventions, with an audit trail | order override, multiplier, hold, stock adjustment | `SimulationCallback` |
-| Suppliers | who delivers, when, in how many parts | fixed or random lead times, split deliveries, shares | `SupplierAllocation`, `DeliveryOutcome` |
-| Processes | physical flows besides sales | FIFO shelf life | `InventoryProcess` |
-| Metrics | what success means | 39 service, stock, and cost metrics | any function |
-
-Forecasts enter as a dated target for the protection window, so any forecasting
-model and any uncertainty method works: sample paths, quantile forecasts,
-cumulative intervals, or means and standard deviations.
-
-## Why Stockcast
-
-- **One clean interface to forecasting.** An order needs the distribution of
-  *total* demand over the window it must cover. Stockcast asks for exactly
-  that, from whatever model you use.
-- **One explicit clock.** Every period is receive → decide → meet demand, so
-  lead time and the protection window `H = L + R` mean the same thing in every
-  experiment.
-- **Every unit accounted for.** Only the engine changes stock, and every event
-  table row satisfies the stock, pipeline, and backorder balances.
-- **Comparisons in one call.** Any forecasts, policies or suppliers, on the
-  same demand and random draws, with every result carrying a manifest of its
-  inputs.
-- **Fast inside, readable outside.** DataFrames for everything you touch, NumPy
-  arrays inside the engine.
-- **From research to production.** The parts you test are the parts that place
-  real orders.
-
-The reasoning behind each choice, with the literature it rests on, is in our
-[Philosophy](https://filtheo.github.io/stockcast/get-started/philosophy/).
+Stockcast does not forecast, and it does not search for the best policy for
+you. It gives you the building blocks to do both: any forecasting model can
+feed it, and any optimiser can wrap it. Version 0.1 models one stocking point
+with any number of SKUs and suppliers, in discrete periods.
 
 ## Learn more
 
 - [Walkthrough](https://filtheo.github.io/stockcast/learn/): nine short
-  steps, from inventory state to a production daily job.
+  steps, from inventory state to a production job.
 - [Guide](https://filtheo.github.io/stockcast/user-guide/): the theory and
   options of every building block, plus task recipes.
 - [Examples](https://filtheo.github.io/stockcast/tutorials/): 24 runnable
@@ -204,25 +173,26 @@ The reasoning behind each choice, with the literature it rests on, is in our
   [fair comparisons](https://github.com/FilTheo/stockcast/blob/main/examples/notebooks/06_fair_forecast_and_policy_comparisons.ipynb).
 - [API reference](https://filtheo.github.io/stockcast/reference/): every public
   class and function.
-
-## Scope
-
-Stockcast does not fit forecasting models, is not a black-box optimiser, and is
-not an ERP. It gives you the building blocks for all three: any forecasting
-model can feed it, any optimiser can wrap it, and its orders and records go
-straight into your systems. Version 0.1 models one stocking point with any
-number of SKUs and suppliers, in discrete periods.
+- [Release notes](https://filtheo.github.io/stockcast/release-notes/): what
+  changed in each version.
 
 ## Citation
 
-If Stockcast helps your research, please cite it using the
+If you use Stockcast in your work, please cite the version you used. The
 [`CITATION.cff`](https://github.com/FilTheo/stockcast/blob/main/CITATION.cff)
-file (GitHub's "Cite this repository" button).
+file has the details, and GitHub's *Cite this repository* button formats them:
+
+```text
+Theodosiou, F. Stockcast: forecast-driven inventory decisions, simulation, and
+evaluation in Python. Version 0.1.0. https://github.com/FilTheo/stockcast
+```
 
 ## Contributing and support
 
 Questions, bugs, and ideas are welcome on
-[GitHub Issues](https://github.com/FilTheo/stockcast/issues). See the
+[GitHub Issues](https://github.com/FilTheo/stockcast/issues). For a bug,
+include a small example and the run manifest (`result.run_manifest`), which
+records the versions and settings behind a result. See the
 [contributing guide](https://filtheo.github.io/stockcast/contributing/) for
 the development setup.
 
