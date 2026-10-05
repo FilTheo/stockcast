@@ -8,9 +8,9 @@ here is the executed notebook; use the download button to run it yourself.
 !!! tip "Running the notebooks"
 
     Clone the repository, install Stockcast, then
-    `pip install jupyterlab "smooth>=1.0.7"` and open `examples/notebooks`. Notebooks
-    04e and 09 use smooth's simulated intervals, so their simulated targets can
-    differ slightly between runs.
+    `pip install jupyterlab "smooth>=1.0.7"` and open `examples/notebooks`. Notebook
+    04e uses smooth's simulated intervals, so its simulated targets can differ
+    slightly between runs.
 
 ## Foundations
 

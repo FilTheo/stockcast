@@ -1,6 +1,6 @@
 # Release notes
 
-## 0.1.0
+## 0.1.0 (2026-10-05)
 
 The first public release of Stockcast: DataFrame-first inventory decisions,
 simulation, and evaluation for many SKUs at once.

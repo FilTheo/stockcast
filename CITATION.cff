@@ -8,6 +8,7 @@ authors:
     affiliation: "Predictive AI and Digital Shift (PADS) research group, VIVES University of Applied Sciences"
     website: "https://filtheo.github.io/"
 version: 0.1.0
+date-released: 2026-10-05
 license: Apache-2.0
 repository-code: "https://github.com/FilTheo/stockcast"
 url: "https://filtheo.github.io/stockcast/"

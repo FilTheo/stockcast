@@ -131,7 +131,7 @@ explains each one, with the research behind it.
    built-in parts use it, and so can yours.
 5. **Easy, scalable evaluation.** A comparison is one call: every option runs
    on the same demand, opening stock, and random draws. Every result carries a
-   manifest, so anyone can rerun it.
+   manifest, so anyone with the same inputs can rerun it.
 6. **Fast inside, readable outside.** DataFrames in and out, NumPy arrays
    inside. A year of daily order-up-to decisions for 1,000 SKUs takes about 10
    to 12 seconds on a laptop.

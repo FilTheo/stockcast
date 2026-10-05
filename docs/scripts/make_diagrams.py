@@ -119,7 +119,7 @@ def how_it_works():
     d = Diagram("how-it-works", 920, 290,
                 "How Stockcast works: your forecast feeds your policy; with your "
                 "optional rules, demand and starting stock, Stockcast plays out "
-                "each day and reports service, stock and cost.")
+                "each period and reports service, stock and cost.")
     cols = {"data": (20, 170), "choice": (240, 210), "engine": (510, 160), "result": (720, 180)}
     rows = [44, 124, 204]
     h = 64
@@ -133,7 +133,7 @@ def how_it_works():
     d.box(x2, rows[0], w2, h, "choice", "Policy", "when and how much to order")
     d.box(x2, rows[1], w2, h, "choice", "Rules (optional)",
           "suppliers · packs · shelf life", optional=True)
-    d.box(x3, rows[0], w3, rows[2] + h - rows[0], "engine", ["Plays out", "each day"],
+    d.box(x3, rows[0], w3, rows[2] + h - rows[0], "engine", ["Plays out", "each period"],
           ["", "1  deliveries arrive", "2  orders go out", "3  demand is met"])
     d.box(x4, rows[1], w4, h, "result", "Service, stock, cost", "and the event table")
 
@@ -160,7 +160,7 @@ def compare():
     d.box(x1, rows[1], w1, h, "choice", "Candidate B", "another forecast, policy or rule")
     d.box(x1, rows[1] + h + 14, w1, 34, "choice", [], "+ as many as you like", optional=True)
     d.box(x2, rows[0], w2, rows[1] + h - rows[0], "engine",
-          ["Same demand,", "same starting stock"], "each candidate played out day by day")
+          ["Same demand,", "same starting stock"], "each candidate, period by period")
     # Illustrative numbers with a trade-off: more service costs more stock.
     d.box(x3, rows[0], w3, h, "result", "A: 98% served", "avg. 14 packs on the shelf")
     d.box(x3, rows[1], w3, h, "result", "B: 93% served", "avg. 8 packs on the shelf")
@@ -174,12 +174,12 @@ def compare():
 
 def production_loop():
     d = Diagram("production-loop", 938, 180,
-                "The daily production loop: today's sales and deliveries update "
+                "The production loop: the latest sales and deliveries update "
                 "the stock; a fresh forecast and your policy give the orders to "
-                "send; tomorrow it starts again.")
+                "send; the next period it starts again.")
     w, h, y, step = 158, 70, 44, 190
     steps = [
-        ("data", "Your data", "Today's sales", "and deliveries"),
+        ("data", "Your data", "Latest sales", "and deliveries"),
         ("engine", "Stockcast", "Update the stock", "on hand, on order"),
         ("data", "Your data", "Fresh forecast", "from any library"),
         ("choice", "Your choice", "Your policy", "and supplier rules"),
@@ -197,7 +197,7 @@ def production_loop():
     mid = (xs[0] + xs[-1] + w) / 2
     d.raw(f'<rect class="sc-label-bg" x="{mid - 48}" y="{low - 10}" width="96" height="20"/>'
           f'<text class="sc-note" x="{mid}" y="{low + 4}" text-anchor="middle">'
-          'next day</text>')
+          'next period</text>')
     d.write()
 
 

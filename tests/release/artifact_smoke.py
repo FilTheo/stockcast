@@ -13,58 +13,48 @@ import stockcast.policies  # noqa: F401
 import stockcast.utils  # noqa: F401
 import stockcast.visualization  # noqa: F401
 
+import numpy as np
 import pandas as pd
 
 from stockcast.core import InventoryStateDataFrame, SimulationEngine
 from stockcast.evaluation import InventoryEvaluator, avg_on_hand, fill_rate
 from stockcast.policies import OrderUpToPolicy
-from stockcast.utils import DemandGenerator
 
+# Eight weeks of daily tea sales.
+days = pd.date_range("2026-02-02", periods=56, freq="D")
+demand = pd.DataFrame({
+    "unique_id": "tea",
+    "date": days,
+    "y": np.random.default_rng(3).poisson(6, len(days)),
+})
 
-# Weekly sales of two products over 20 weeks: Poisson demand, 20 units a week.
-def poisson(rng, periods):
-    return rng.poisson(20, periods.size)
+# The forecast, from any model: a day's demand is 10 packs or fewer, with
+# 95% probability.
+forecast = pd.DataFrame({
+    "unique_id": ["tea"],
+    "date": [days[0]],   # the day it forecasts
+    "q95": [10],         # the 95% quantile
+})
 
+# The shelf today.
+shelf = InventoryStateDataFrame.from_observed(pd.DataFrame({
+    "unique_id": ["tea"],
+    "date": [pd.Timestamp("2026-02-01")],
+    "on_hand": [30],
+}))
 
-generator = DemandGenerator(
-    ["coffee", "tea"], first_date="2026-01-05", freq="W-MON", random_seed=0,
-)
-sales = generator.sample(20, poisson)
-sales.head(3)
-#   unique_id     y  period       date
-# 0    coffee  22.0       0 2026-01-05
-# 1       tea  24.0       0 2026-01-05
-# 2    coffee   9.0       1 2026-01-12
-
-# Today is week 12: we know the past, the future is still to come.
-today = pd.Timestamp("2026-03-23")
-past = sales[sales["date"] <= today]
-future = sales[sales["date"] > today]
-
-# Forecast: the 95% quantile of next week's demand, for each product.
-# Here from the last 12 weeks; any quantile forecasting model works.
-forecast = past.groupby("unique_id", as_index=False)["y"].quantile(0.95)
-forecast["date"] = today + pd.Timedelta(weeks=1)   # the week it forecasts
-
-# The policy: order every Monday, delivered the same morning, so each order
-# covers one week. It orders up to the forecast.
 policy = OrderUpToPolicy(
-    lead_time=0, review_period=1, freq="W-MON", service_level=0.95, allow_backorders=False,
+    lead_time=0,             # delivered before the shop opens
+    review_period=1,         # order every morning
+    freq="D",                # one period is one day
+    service_level=0.95,      # the probability the forecast quantile stands for
+    allow_backorders=False,  # a missed sale is lost
 )
-policy.fit(forecast, target_column="y")
+policy.fit(forecast, target_column="q95")
 
-# The shelf today: 30 units of each product.
-stock = pd.DataFrame({"unique_id": ["coffee", "tea"], "date": today, "on_hand": [30, 30]})
-shelf = InventoryStateDataFrame.from_observed(stock)
-
-# Simulate the next 8 weeks and score the decisions.
-engine = SimulationEngine()
-result = engine.run(policy, future, shelf)
-
-evaluator = InventoryEvaluator()
-evaluator.fit(result)
-scores = evaluator.evaluate([fill_rate, avg_on_hand]).round(2)
+result = SimulationEngine().run(policy=policy, demand_source=demand, inventory=shelf)
+scores = InventoryEvaluator().fit(result).evaluate([fill_rate, avg_on_hand]).round(2)
 assert scores.loc[0, "fill_rate"] == 0.99
-assert scores.loc[0, "avg_on_hand"] == 5.71
+assert scores.loc[0, "avg_on_hand"] == 4.75
 print(scores)
 assert stockcast.__version__ == importlib.metadata.version("stockcast")

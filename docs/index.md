@@ -25,7 +25,7 @@ evaluates the resulting impact against business metrics such as cost, service,
 and waste. Happy with a policy?
 [Put it into production](how-to/production.md) with the same objects.
 
-Inspired by PyTorch-style libraries, it is built like Lego: small parts that
+Inspired by PyTorch-style libraries, it is built from Lego-like parts that
 snap onto one engine. Each part is a class you can subclass and adjust. Swap
 the policy, the demand, the supplier, or the shelf-life rule, and everything
 else stays the same.
