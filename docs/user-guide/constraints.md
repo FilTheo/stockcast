@@ -80,8 +80,8 @@ the last column.
 ## Custom constraints
 
 Subclass `OrderingConstraint`, give it a unique `name`, and implement `apply`.
-It receives the current `OrderDecision` and a `ConstraintContext` (the state
-before demand, the policy, and the decision period), and returns a
+It receives the current `OrderDecision` and a `ConstraintContext` (a copy of
+the state before demand, the policy, and the decision period), and returns a
 `ConstraintResult` with the new decision and one audit row per SKU:
 
 ??? example "Setup: the tea shop from the Walkthrough"

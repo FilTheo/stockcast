@@ -1592,8 +1592,9 @@ class SimulationEngine:
             )
         self._active_order_constraints = copy.deepcopy(order_constraints)
         if self._active_order_constraints is not None:
+            # Constraints see a copy: only the engine changes the stock.
             self._active_order_constraints.reset(ConstraintContext(
-                inventory=inventory,
+                inventory=copy.deepcopy(inventory),
                 policy=policy,
                 decision_period=opening_period,
             ))
@@ -2497,7 +2498,7 @@ class SimulationEngine:
             result = self._active_order_constraints.apply(
                 orders,
                 ConstraintContext(
-                    inventory=inventory,
+                    inventory=copy.deepcopy(inventory),
                     policy=policy,
                     decision_period=decision_period,
                 ),

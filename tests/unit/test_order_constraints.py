@@ -253,3 +253,107 @@ def test_engine_preserves_sparse_order_decisions_with_constraints():
     events = result.to_event_frame().set_index("unique_id")
     assert events.loc["A", "order_quantity"] == 5.0
     assert events.loc["B", "order_quantity"] == 0.0
+
+
+def _unchanged_audit(frame, name):
+    quantity = frame["order_quantity"].to_numpy(dtype=float)
+    return pd.DataFrame({
+        "unique_id": frame["unique_id"],
+        "requested_order_quantity": quantity,
+        "constrained_order_quantity": quantity,
+        "constraint_adjustment_units": 0.0,
+        "constraint_binding_flag": False,
+        "capacity_violation_flag": False,
+        "binding_constraints": "",
+    })
+
+
+class ReversedRows(OrderingConstraint):
+    """Changes no quantity; returns the rows in reverse order."""
+
+    name = "reversed_rows"
+
+    def apply(self, order, context):
+        frame = order.get_dataframe()
+        reversed_frame = frame.iloc[::-1].reset_index(drop=True)
+        return ConstraintResult(
+            OrderDecision(reversed_frame, lead_time=order.lead_time),
+            _unchanged_audit(frame, self.name),
+        )
+
+
+class PerSkuOrderPolicy(FixedOrderPolicy):
+    def __init__(self, quantities, **kwargs):
+        super().__init__(0.0, **kwargs)
+        self.quantities = quantities
+
+    def predict(self, inventory_state_df, current_period=0, **kwargs):
+        decision = super().predict(inventory_state_df, current_period, **kwargs)
+        frame = decision.get_dataframe()
+        frame["order_quantity"] = frame["unique_id"].map(self.quantities)
+        frame["target_level"] = frame["inventory_position"] + frame["order_quantity"]
+        return OrderDecision(frame, sku_column=decision.sku_column,
+                             lead_time=decision.lead_time)
+
+
+def _two_sku_run(constraint, quantities=None):
+    demand = pd.DataFrame({
+        "unique_id": ["A", "B"],
+        "period": [0, 0],
+        "date": [pd.Timestamp("2025-01-02")] * 2,
+        "y": [1.0, 1.0],
+    })
+    return SimulationEngine().run(
+        PerSkuOrderPolicy(
+            quantities or {"A": 5.0, "B": 10.0}, lead_time=1, review_period=1,
+            service_level=0.95, allow_backorders=True,
+        ),
+        demand,
+        _inventory(("A", "B")),
+        freq="D",
+        order_constraints=[constraint],
+    )
+
+
+def test_composition_audit_matches_skus_when_a_constraint_reorders_rows():
+    result = OrderingConstraints([ReversedRows()]).apply(
+        _decision(["A", "B"], [5.0, 10.0]), _context(_inventory(("A", "B")))
+    )
+
+    audit = result.audit.set_index("unique_id")
+    assert audit.loc["A", "constrained_order_quantity"] == 5.0
+    assert audit.loc["B", "constrained_order_quantity"] == 10.0
+    assert (audit["constraint_adjustment_units"] == 0.0).all()
+    assert not audit["constraint_binding_flag"].any()
+
+
+def test_engine_event_table_stays_valid_when_a_constraint_reorders_rows():
+    from stockcast.evaluation import validate_event_frame
+
+    events = _two_sku_run(ReversedRows()).to_event_frame()
+
+    validate_event_frame(events)
+    first = events[events["period"] == 1].set_index("unique_id")
+    assert first.loc["A", "order_quantity"] == 5.0
+    assert first.loc["B", "order_quantity"] == 10.0
+    assert (first["constraint_adjustment_units"] == 0.0).all()
+
+
+def test_constraint_hooks_see_a_copy_and_cannot_change_the_stock():
+    class AddsStock(OrderingConstraint):
+        name = "adds_stock"
+
+        def reset(self, context):
+            context.inventory.data["on_hand"] += 100.0
+
+        def apply(self, order, context):
+            context.inventory.data["on_hand"] += 100.0
+            frame = order.get_dataframe()
+            return ConstraintResult(order, _unchanged_audit(frame, self.name))
+
+    baseline = _two_sku_run(ReversedRows()).to_event_frame()
+    events = _two_sku_run(AddsStock()).to_event_frame()
+
+    columns = ["starting_on_hand", "ending_on_hand", "order_quantity"]
+    pd.testing.assert_frame_equal(events[columns], baseline[columns])
+    assert (events.loc[events["period"] == 1, "starting_on_hand"] == 0.0).all()

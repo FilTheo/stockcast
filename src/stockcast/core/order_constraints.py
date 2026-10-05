@@ -24,7 +24,8 @@ class ConstraintContext:
     """Information given to a constraint at one decision.
 
     Attributes:
-        inventory: The ``InventoryStateDataFrame`` before demand.
+        inventory: The ``InventoryStateDataFrame`` before demand. In an engine
+            run it is a copy: a constraint changes the order, never the stock.
         policy: The policy that proposed the order.
         decision_period: The state period of the decision.
     """
@@ -478,7 +479,13 @@ class OrderingConstraints(OrderingConstraint):
 
         self.validate(current, context)
 
-        final = current.get_dataframe()
+        # A constraint may return its rows in any order: match them by SKU.
+        final_quantity = (
+            current.get_dataframe()
+            .set_index(order.sku_column)["order_quantity"]
+            .reindex(original[order.sku_column])
+            .reset_index(drop=True)
+        )
         binding_by_sku = {sku: [] for sku in original[order.sku_column]}
         capacity_by_sku = {sku: False for sku in binding_by_sku}
         for audit in audits:
@@ -492,7 +499,7 @@ class OrderingConstraints(OrderingConstraint):
         aggregate = _audit(
             original[order.sku_column],
             original["order_quantity"],
-            final["order_quantity"],
+            final_quantity,
             name=self.name,
             capacity=False,
         )
