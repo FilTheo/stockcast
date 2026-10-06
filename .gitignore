@@ -46,3 +46,6 @@ site/
 *.swp
 .DS_Store
 Thumbs.db
+
+# Local notes for the next release (not published)
+/NEXT_RELEASE.md
