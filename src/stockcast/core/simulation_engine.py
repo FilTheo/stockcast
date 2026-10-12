@@ -3375,7 +3375,9 @@ class SimulationEngine:
         """Select the fitted snapshot for a decision and record its provenance."""
         if period not in policy_schedule:
             return active_policy
-        snapshot = copy.deepcopy(policy_schedule[period])
+        # Validated snapshots are already the run's private copies, and each
+        # period's snapshot becomes the active policy only once.
+        snapshot = policy_schedule[period]
         metadata = {}
         get_metadata = getattr(snapshot, "get_target_metadata", None)
         if callable(get_metadata):

@@ -224,3 +224,28 @@ def test_learning_from_sales_differs_after_a_stockout():
     # Identical until the first stockout is observed, different afterwards.
     assert orders["demand"][: first_stockout + 1] == orders["sales"][: first_stockout + 1]
     assert orders["demand"] != orders["sales"]
+
+
+def test_scheduled_snapshots_that_change_in_predict_leave_the_callers_schedule_alone():
+    class CountingOrderUpTo(OrderUpToPolicy):
+        def predict(self, inventory_state_df, *, current_period, **kwargs):
+            self.calls.append(current_period)
+            return super().predict(inventory_state_df, current_period=current_period, **kwargs)
+
+    def snapshot(period):
+        policy = CountingOrderUpTo(lead_time=0, review_period=1, freq="D", allow_backorders=False)
+        policy.fit(
+            pd.DataFrame({"unique_id": [SKU], "target": [8.0 + period]}),
+            target_column="target",
+            forecast_origin=OPENING_DATE + pd.Timedelta(days=period),
+        )
+        policy.calls = []
+        return policy
+
+    schedule = {period: snapshot(period) for period in range(len(DEMAND))}
+    first = _run(schedule[0], policy_schedule=schedule)
+    # The run decides with its own copies: the caller's snapshots never see a call,
+    # and a second run from the same schedule repeats the first exactly.
+    assert all(policy.calls == [] for policy in schedule.values())
+    pd.testing.assert_frame_equal(_run(schedule[0], policy_schedule=schedule), first)
+    assert first["target_level"].tolist() == [8.0 + period for period in range(len(DEMAND))]
