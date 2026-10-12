@@ -166,3 +166,37 @@ def test_checked_order_tables_still_reject_invalid_quantities():
     with pytest.raises(ValueError) as reference:
         OrderDecision(frame, lead_time=1)
     assert str(fast.value) == str(reference.value)
+
+
+@pytest.mark.parametrize(
+    ("ids", "quantities"),
+    [
+        (["tea", "coffee", "milk"], [3.5, 0.0, 1e-3]),
+        ([("tea", "s1"), ("tea", "s2"), ("milk", "s1")], [0.0, 7.0, 2.0]),
+        (list(pd.date_range("2026-01-01", periods=3)), [1.0, 0.0, 3.0]),
+        ([3, 1, 2], np.array([4, 0, 6], dtype="int64")),
+    ],
+)
+def test_order_line_counts_equal_row_iteration(ids, quantities):
+    orders = OrderDecision(pd.DataFrame({"unique_id": ids, "order_quantity": quantities}),
+                           lead_time=1)
+    engine = SimulationEngine()
+    engine._active_order_constraints = None
+    engine._active_supply = None
+    engine._begin_order_capture()
+    engine._constrain_and_count(None, orders)
+
+    # The row loop the counting replaced.
+    frame = orders.data
+    positive = frame["order_quantity"].fillna(0.0) > 0
+    counts, squared_sums = {}, {}
+    for sku, quantity in frame.loc[positive, ["unique_id", "order_quantity"]].itertuples(
+        index=False, name=None
+    ):
+        quantity = float(quantity)
+        counts[sku] = counts.get(sku, 0) + 1
+        squared_sums[sku] = squared_sums.get(sku, 0.0) + quantity ** 2
+    assert engine._captured_sku_order_line_counts == counts
+    assert engine._captured_order_line_quantity_squared_sums == squared_sums
+    assert [type(key) for key in engine._captured_sku_order_line_counts] == [type(key) for key in counts]
+    assert engine._captured_order_event_count == 1

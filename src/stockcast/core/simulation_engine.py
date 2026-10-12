@@ -2725,20 +2725,15 @@ class SimulationEngine:
                 # Supplier order lines are counted when the supply stage
                 # places them (``_place_with_supply``).
                 return orders
-            sku_column = orders.sku_column
-            positive_lines = order_frame.loc[
-                positive,
-                [sku_column, 'order_quantity'],
-            ]
-            for sku, quantity in positive_lines.itertuples(index=False, name=None):
+            # Series.tolist() gives the same scalars as row iteration.
+            skus = order_frame[orders.sku_column][positive].tolist()
+            quantities = order_frame['order_quantity'][positive].tolist()
+            counts = self._captured_sku_order_line_counts
+            squared_sums = self._captured_order_line_quantity_squared_sums
+            for sku, quantity in zip(skus, quantities):
                 quantity = float(quantity)
-                self._captured_sku_order_line_counts[sku] = (
-                    self._captured_sku_order_line_counts.get(sku, 0) + 1
-                )
-                self._captured_order_line_quantity_squared_sums[sku] = (
-                    self._captured_order_line_quantity_squared_sums.get(sku, 0.0)
-                    + quantity ** 2
-                )
+                counts[sku] = counts.get(sku, 0) + 1
+                squared_sums[sku] = squared_sums.get(sku, 0.0) + quantity ** 2
         return orders
 
     @staticmethod
