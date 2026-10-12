@@ -2952,32 +2952,41 @@ class SimulationEngine:
     def _already_sorted(frame: pd.DataFrame, sort_columns: List[str]) -> bool:
         """Whether ``frame.sort_values(sort_columns, kind="stable")`` keeps the row order.
 
-        True only when that sort certainly succeeds (each key is one column;
-        later keys are plain NumPy columns) and the first key is strictly
-        increasing without missing values, so later keys never break a tie.
+        True only when that sort certainly succeeds and the first key is
+        strictly increasing, so later keys never break a tie. Every key must be
+        one column of a plain NumPy int, uint, bool, float32/float64, datetime64
+        or timedelta64 dtype; the first key may also be text (an all-string
+        object column or a pandas string dtype). Anything else, such as a
+        float16 key (pandas cannot sort it with other keys), keeps the sort and
+        its fallback.
         """
-        if not sort_columns or any(
+        if not sort_columns or len(set(sort_columns)) != len(sort_columns) or any(
             int((frame.columns == name).sum()) != 1 for name in sort_columns
         ):
             return False
-        for name in sort_columns[1:]:
-            dtype = frame[name].dtype
-            if not (isinstance(dtype, np.dtype) and dtype.kind in "biufmM"):
-                return False
+        if not all(SimulationEngine._plain_sort_key(frame[name].dtype) for name in sort_columns[1:]):
+            return False
         first = frame[sort_columns[0]]
-        dtype = first.dtype
-        if not (
-            isinstance(dtype, pd.StringDtype)
-            or (isinstance(dtype, np.dtype) and dtype.kind in "biufmMO")
-        ):
+        text = isinstance(first.dtype, pd.StringDtype) or (
+            pd.api.types.is_object_dtype(first.dtype)
+            and pd.api.types.infer_dtype(first, skipna=False) == "string"
+        )
+        if not (text or SimulationEngine._plain_sort_key(first.dtype)):
             return False
         values = first.to_numpy()
         try:
             # Strictly increasing implies no missing value (NaN, NaT and NA
             # never compare as less) and no tie.
             return bool(np.all(values[:-1] < values[1:]))
-        except Exception:  # unorderable values (mixed types, NA, arrays): sort as before
+        except Exception:  # NA in a string column: sort as before
             return False
+
+    @staticmethod
+    def _plain_sort_key(dtype) -> bool:
+        """A NumPy int, uint, bool, float32/float64, datetime64 or timedelta64 dtype."""
+        return isinstance(dtype, np.dtype) and (
+            dtype.kind in "biumM" or (dtype.kind == "f" and dtype.itemsize in (4, 8))
+        )
 
     @staticmethod
     def _canonical_cell(value) -> str:
