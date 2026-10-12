@@ -130,6 +130,17 @@ def test_unsorted_table_gives_the_same_schedule():
     pd.testing.assert_frame_equal(left, right, check_exact=True)
 
 
+@pytest.mark.parametrize("unit", ["s", "ms", "us"])
+def test_origins_at_another_timestamp_resolution_give_the_same_run(unit):
+    # Parquet tables often hold datetime64[us] (pandas 2 and 3 keep the unit).
+    targets = weekly_targets()
+    coarse = targets.astype({"cutoff": f"datetime64[{unit}]", "date": f"datetime64[{unit}]"})
+    demand = weekly_demand(SKUS, 5)
+    expected = events(run(rolling_schedule(order_up_to(), targets, state(), target_column="q_90"), demand))
+    actual = events(run(rolling_schedule(order_up_to(), coarse, state(), target_column="q_90"), demand))
+    pd.testing.assert_frame_equal(actual, expected, check_exact=True)
+
+
 def test_levels_in_run_comparison_equal_separate_runs():
     targets = weekly_targets()
     demand = weekly_demand(SKUS, 5)
