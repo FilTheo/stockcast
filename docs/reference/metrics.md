@@ -74,6 +74,10 @@ Every metric has the signature `metric(event_frame, context=None) -> float` and 
     options:
       heading_level: 3
 
+::: stockcast.evaluation.order_variance
+    options:
+      heading_level: 3
+
 ::: stockcast.evaluation.capacity_violation_count
     options:
       heading_level: 3

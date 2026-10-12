@@ -71,7 +71,8 @@ backorders served later are recorded separately in `backorders_fulfilled`.
 | `terminal_backlog_units`, `terminal_pipeline_units` | $B$ and $P$ in each SKU's last row |
 | `order_event_count` | decisions with a positive order, counted once per decision for the whole portfolio (for a fee per decision; to count orders per SKU, use `sku_order_line_count`) |
 | `sku_order_line_count` | positive SKU order lines (supplier lines with a supply model) |
-| `sku_order_quantity_variance` | variance of positive order-line sizes |
+| `sku_order_quantity_variance` | variance of positive order-line sizes (orders of 30, 0 and 0 give 0) |
+| `order_variance` | per SKU, the variance of $q$ over its decision rows, zero orders included (orders of 30, 0 and 0 give 200); the mean over SKUs. The order variance of [Zhou, Arik and Wang (2023)](https://arxiv.org/abs/2308.13118), Sec. 3.2.1 |
 | `capacity_violation_count`, `capacity_violation_rate` | order lines cut by a capacity constraint; as a count and as a share of positive requested lines |
 
 ## Stock
@@ -116,6 +117,11 @@ those two components. Its arguments are `holding`, `shortage`,
 `terminal_backlog`, `terminal_pipeline`, and `salvage_on_hand` with
 `salvage_pipeline`. For per-row rates, or to use the component metrics
 alongside, use `total_cost` with `context`.
+
+There is no order-variance component: Zhou, Arik and Wang (2023) average
+holding and shortage per period before adding `c_v` times the order
+variance, while `total_cost` sums event table rows, so the two do not share
+a scale.
 
 `cost_components` names the parts of `total_cost`: any of `"holding"`,
 `"shortage"`, `"backlog"`, `"ordering"`, `"purchase"`, `"waste"`,
