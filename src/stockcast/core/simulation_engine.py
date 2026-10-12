@@ -2517,7 +2517,26 @@ class SimulationEngine:
 
     def _capture_callback_order_trail(self, raw, adjusted, inventory) -> None:
         # Read-only access to the engine-owned frames; nothing here mutates them.
-        state_ids = inventory.data[inventory.sku_column].tolist()
+        state_column = inventory.data[inventory.sku_column]
+        state_ids = state_column.tolist()
+        raw_ids = raw.data[raw.sku_column]
+        raw_quantity = raw.data["order_quantity"]
+        if (
+            adjusted is raw
+            and raw_quantity.dtype == np.dtype("float64")
+            and raw_ids.dtype == state_column.dtype
+            and raw_ids.tolist() == state_ids
+        ):
+            # The orders list the state's SKUs in its order: the lookup below
+            # would return the (finite) quantities unchanged.
+            requested = pd.Series(raw_quantity.to_numpy(copy=True))
+            self._captured_callback_order_audits.append(pd.DataFrame({
+                "unique_id": state_ids,
+                "requested_order_quantity": requested,
+                "callback_adjusted_order_quantity": requested.copy(),
+                "callback_adjustment_units": requested - requested,
+            }))
+            return
         ids = pd.Series(state_ids)
         raw_map = raw.data.set_index(raw.sku_column)["order_quantity"]
         requested = ids.map(raw_map).fillna(0.0)

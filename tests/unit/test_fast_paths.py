@@ -200,3 +200,35 @@ def test_order_line_counts_equal_row_iteration(ids, quantities):
     assert engine._captured_order_line_quantity_squared_sums == squared_sums
     assert [type(key) for key in engine._captured_sku_order_line_counts] == [type(key) for key in counts]
     assert engine._captured_order_event_count == 1
+
+
+@pytest.mark.parametrize("rows", ["state order", "other order", "one sku left out"])
+def test_callback_trail_equals_the_lookup(rows):
+    state = _state(["tea", "coffee", "milk"], [1.0, 2.0, 3.0])
+    ids, quantities = ["tea", "coffee", "milk"], [4.0, -0.0, 2.5]
+    if rows == "other order":
+        ids, quantities = ids[::-1], quantities[::-1]
+    elif rows == "one sku left out":
+        ids, quantities = ids[:2], quantities[:2]
+    raw = OrderDecision(pd.DataFrame({"unique_id": ids, "order_quantity": quantities}),
+                        lead_time=1)
+    engine = SimulationEngine()
+    engine._begin_order_capture()
+    engine._capture_callback_order_trail(raw, raw, state)
+
+    # The lookup the fast path replaces.
+    state_ids = state.data["unique_id"].tolist()
+    requested = pd.Series(state_ids).map(raw.data.set_index("unique_id")["order_quantity"]).fillna(0.0)
+    adjusted = requested.copy()
+    expected = pd.DataFrame({
+        "unique_id": state_ids,
+        "requested_order_quantity": requested,
+        "callback_adjusted_order_quantity": adjusted,
+        "callback_adjustment_units": adjusted - requested,
+    })
+    (trail,) = engine._captured_callback_order_audits
+    _assert_same_frame(trail, expected)
+    # -0.0 stays -0.0, as the lookup keeps it.
+    assert np.signbit(trail["requested_order_quantity"].to_numpy()).tolist() == (
+        np.signbit(expected["requested_order_quantity"].to_numpy()).tolist()
+    )
