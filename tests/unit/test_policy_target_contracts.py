@@ -1331,3 +1331,42 @@ def test_plain_columns_skip_the_encoding_test_hash(values, monkeypatch):
 
     monkeypatch.setattr(pd.util, "hash_pandas_object", no_hash)
     assert SimulationEngine._needs_encoding(column) is False
+
+
+@pytest.mark.parametrize(
+    ("frame", "sort_columns"),
+    [
+        (pd.DataFrame({"unique_id": ["a", "b", "c"], "date": pd.to_datetime(["2025-01-03", "2025-01-01", "2025-01-02"])}), ["unique_id", "date"]),
+        (pd.DataFrame({"unique_id": ["b", "a", "c"], "x": [1.0, 2.0, 3.0]}), ["unique_id"]),
+        (pd.DataFrame({"unique_id": ["a", "a", "b"], "fh": [2, 1, 1]}), ["unique_id", "fh"]),
+        (pd.DataFrame({"unique_id": [("a", 1), ("a", 2), ("b", 0)], "x": [3, 2, 1]}), ["unique_id"]),
+        (pd.DataFrame({"unique_id": [1.0, np.nan, 3.0]}), ["unique_id"]),
+        (pd.DataFrame({"unique_id": [-0.0, 0.0, 1.0]}), ["unique_id"]),
+        (pd.DataFrame({"unique_id": [1, "a", 2]}), ["unique_id"]),
+        (pd.DataFrame({"unique_id": ["a", "b"], "notes": [[1], "x"]}), ["unique_id", "notes"]),
+        (pd.DataFrame({"unique_id": [10, 9, 100]}).set_axis([5, 6, 7]), ["unique_id"]),
+        (pd.DataFrame({"unique_id": ["a", "b"], "date": ["x", "y"]}), ["unique_id", "missing"]),
+    ],
+)
+def test_rows_already_in_order_are_kept_exactly_as_sorting_would(frame, sort_columns):
+    def reference(frame, sort_columns):
+        # The ordering without the shortcut.
+        original = SimulationEngine._already_sorted
+        try:
+            SimulationEngine._already_sorted = staticmethod(lambda *args: False)
+            return SimulationEngine._sorted_rows(frame, sort_columns)
+        finally:
+            SimulationEngine._already_sorted = original
+
+    expected = reference(frame, sort_columns)
+    pd.testing.assert_frame_equal(
+        SimulationEngine._sorted_rows(frame, sort_columns), expected, check_exact=True,
+    )
+
+
+def test_the_sort_shortcut_applies_to_tables_listed_by_sku():
+    already = SimulationEngine._already_sorted
+    table = pd.DataFrame({"unique_id": ["a", "b"], "date": pd.to_datetime(["2025-01-02", "2025-01-01"])})
+    assert already(table, ["unique_id", "date"])
+    assert not already(table.iloc[::-1], ["unique_id", "date"])
+    assert not already(table.assign(date=["x", "y"]), ["unique_id", "date"])  # object later key

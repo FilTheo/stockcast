@@ -2919,6 +2919,9 @@ class SimulationEngine:
     @staticmethod
     def _sorted_rows(frame: pd.DataFrame, sort_columns: List[str]) -> pd.DataFrame:
         """Rows in a deterministic order, even when pandas cannot sort the keys."""
+        if SimulationEngine._already_sorted(frame, sort_columns):
+            # A stable sort would keep every row in place.
+            return frame.reset_index(drop=True)
         try:
             return frame.sort_values(sort_columns, kind="stable").reset_index(drop=True)
         except Exception:  # mixed types, float16 keys, duplicate column names
@@ -2937,6 +2940,36 @@ class SimulationEngine:
         })
         order = keys.sort_values(list(keys.columns), kind="stable").index
         return frame.iloc[order].reset_index(drop=True)
+
+    @staticmethod
+    def _already_sorted(frame: pd.DataFrame, sort_columns: List[str]) -> bool:
+        """Whether ``frame.sort_values(sort_columns, kind="stable")`` keeps the row order.
+
+        True only when that sort certainly succeeds (each key is one column;
+        later keys are plain NumPy columns) and the first key is strictly
+        increasing without missing values, so later keys never break a tie.
+        """
+        if not sort_columns or any(
+            int((frame.columns == name).sum()) != 1 for name in sort_columns
+        ):
+            return False
+        for name in sort_columns[1:]:
+            dtype = frame[name].dtype
+            if not (isinstance(dtype, np.dtype) and dtype.kind in "biufmM"):
+                return False
+        first = frame[sort_columns[0]]
+        dtype = first.dtype
+        if not (
+            isinstance(dtype, pd.StringDtype)
+            or (isinstance(dtype, np.dtype) and dtype.kind in "biufmMO")
+        ):
+            return False
+        try:
+            return bool(
+                first.notna().all() and first.is_unique and first.is_monotonic_increasing
+            )
+        except Exception:  # unorderable or unhashable values: sort as before
+            return False
 
     @staticmethod
     def _canonical_cell(value) -> str:
