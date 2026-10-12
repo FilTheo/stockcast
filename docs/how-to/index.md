@@ -10,6 +10,7 @@ Each one assumes you know the basics from the
 | [Build a target from sample paths](targets-from-sample-paths.md) | compute cumulative targets from simulated or bootstrapped futures |
 | [Refresh targets as forecasts roll](rolling-targets.md) | refit targets at each review, using only past data |
 | [Compare forecasts and policies](compare-policies.md) | run a fair, multi-SKU comparison and pick a winner on cost |
+| [Run large panels](large-runs.md) | run many SKUs in chunks and get exactly the results of one big run |
 | [Put costs on a run](costs.md) | set cost rates, per-SKU prices, and the right accounting window |
 | [Run your own simulation loop](manual-loop.md) | step the state yourself, period by period |
 | [Use Stockcast in production](production.md) | compute the period's orders from the current stock and forecast |

@@ -199,6 +199,7 @@ nav:
           - Build a target from sample paths: how-to/targets-from-sample-paths.md
           - Refresh targets as forecasts roll: how-to/rolling-targets.md
           - Compare forecasts and policies: how-to/compare-policies.md
+          - Run large panels: how-to/large-runs.md
           - Put costs on a run: how-to/costs.md
           - Run your own simulation loop: how-to/manual-loop.md
           - Use Stockcast in production: how-to/production.md
