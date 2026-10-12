@@ -2868,6 +2868,12 @@ class SimulationEngine:
         ``"1"`` would match; only all-text object columns are hashed directly.
         """
         dtype = column.dtype
+        # Plain NumPy numbers, flags, dates and durations hash faithfully on
+        # every supported pandas; skip the test hash (the result is the same).
+        if isinstance(dtype, np.dtype) and (
+            dtype.kind in "biumM" or (dtype.kind == "f" and dtype.itemsize <= 8)
+        ):
+            return False
         if isinstance(dtype, pd.CategoricalDtype):
             return SimulationEngine._needs_encoding(pd.Series(dtype.categories))
         if pd.api.types.is_object_dtype(dtype):

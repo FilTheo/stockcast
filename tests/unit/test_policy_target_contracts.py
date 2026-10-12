@@ -1304,3 +1304,30 @@ def test_checksum_never_fails_and_keeps_mixed_values_apart():
         other = pd.DataFrame({"unique_id": ["A", "B"], "x": second})
         assert checksum(one, ["unique_id"]) != checksum(other, ["unique_id"])
 
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        np.array([True, False]),
+        np.array([1, 2], dtype="int8"),
+        np.array([1, 2], dtype="int64"),
+        np.array([1, 2], dtype="uint32"),
+        np.array([0.5, 1.5], dtype="float16"),
+        np.array([0.5, 1.5], dtype="float32"),
+        np.array([0.5, np.nan], dtype="float64"),
+        pd.to_datetime(["2025-01-01", "2025-01-02"]).to_numpy(),
+        pd.to_timedelta([1, 2], unit="D").to_numpy(),
+    ],
+)
+def test_plain_columns_skip_the_encoding_test_hash(values, monkeypatch):
+    # The full test returns False exactly when pandas hashes the column, so
+    # skipping it for these dtypes leaves every fingerprint unchanged.
+    column = pd.Series(values)
+    pd.util.hash_pandas_object(column, index=False)
+
+    def no_hash(*args, **kwargs):
+        raise AssertionError("plain columns must not be test-hashed")
+
+    monkeypatch.setattr(pd.util, "hash_pandas_object", no_hash)
+    assert SimulationEngine._needs_encoding(column) is False
