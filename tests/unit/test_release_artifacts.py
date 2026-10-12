@@ -18,12 +18,12 @@ check_artifacts = runpy.run_path(
 
 
 def test_artifact_check_rejects_foreign_distribution_metadata(tmp_path):
-    with zipfile.ZipFile(tmp_path / "stockcast-0.1.0-py3-none-any.whl", "w") as wheel:
-        wheel.writestr("stockcast-0.1.0.dist-info/METADATA", "Name: stockcast\n")
-        wheel.writestr("stockcast-0.1.0.dist-info/licenses/LICENSE", "test fixture")
-    with tarfile.open(tmp_path / "stockcast-0.1.0.tar.gz", "w:gz") as sdist:
+    with zipfile.ZipFile(tmp_path / "stockcast-0.2.0-py3-none-any.whl", "w") as wheel:
+        wheel.writestr("stockcast-0.2.0.dist-info/METADATA", "Name: stockcast\n")
+        wheel.writestr("stockcast-0.2.0.dist-info/licenses/LICENSE", "test fixture")
+    with tarfile.open(tmp_path / "stockcast-0.2.0.tar.gz", "w:gz") as sdist:
         for name in ["PKG-INFO", "LICENSE", "src/otherpkg.egg-info/PKG-INFO"]:
-            info = tarfile.TarInfo(f"stockcast-0.1.0/{name}")
+            info = tarfile.TarInfo(f"stockcast-0.2.0/{name}")
             data = b"fixture"
             info.size = len(data)
             sdist.addfile(info, io.BytesIO(data))

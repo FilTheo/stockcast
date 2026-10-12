@@ -1,5 +1,50 @@
 # Release notes
 
+## 0.2.0 (2026-10-12)
+
+Rolling forecast targets from one table, a decision-level order-variance
+metric, and faster, leaner runs. No breaking change: every 0.1.0 call gives
+the same result.
+
+**What's new**
+
+- **Rolling targets from one table.** `rolling_schedule(policy, targets,
+  inventory, ...)` fits one copy of the policy per forecast origin and
+  returns the `policy_schedule` a run needs. It checks that every origin
+  falls on a decision and that every product has its target there. See
+  [refresh targets as forecasts roll](how-to/rolling-targets.md).
+- **One target per decision, when you ask for it.** With
+  `allow_target_reuse=False`, `run` and `run_comparison` require a fitted
+  target for every decision and name the first one without its own. By
+  default a policy keeps its target until the schedule replaces it, as
+  before.
+- **Gaps in the targets.** With `missing_targets="no_order"`, a product
+  without a target at a decision places no order there, and the event table
+  marks that row in the new `target_missing_flag` column. A constraint or
+  callback that would order such a product stops the run. The default,
+  `"raise"`, stops the run before it starts, as before.
+- **Order variance.** `order_variance` is the variance of order quantities
+  over the decisions, zero orders included, per SKU and then averaged over
+  SKUs: the order variance of
+  [Zhou, Arik and Wang (2023)](https://arxiv.org/abs/2308.13118). See
+  [evaluation and metrics](user-guide/metrics.md).
+- **Group by one column name.** `InventoryEvaluator.evaluate(...,
+  groupby="unique_id")` now works like `groupby=["unique_id"]`.
+- **Large panels.** A new recipe, [run large panels](how-to/large-runs.md),
+  runs SKUs in chunks and checks that the results equal one big run.
+- **Faster and leaner runs.** Runs that refit their targets at every
+  decision are faster, and runs hold less memory. Event tables,
+  histories, order frames and every fingerprint in the run manifest are
+  unchanged; the manifest records the new package version.
+
+**Compatibility**
+
+Every 0.1.0 call gives the same result. The new event column
+`target_missing_flag` appears only in runs with `missing_targets="no_order"`,
+and the new `run_settings` keys appear only when used:
+`allow_target_reuse` when it is `False`, and `missing_targets` with
+`"no_order"`.
+
 ## 0.1.0 (2026-10-05)
 
 The first public release of Stockcast: DataFrame-first inventory decisions,

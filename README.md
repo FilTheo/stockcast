@@ -184,7 +184,7 @@ file has the details, and GitHub's *Cite this repository* button formats them:
 
 ```text
 Theodosiou, F. Stockcast: forecast-driven inventory decisions, simulation, and
-evaluation in Python. Version 0.1.0. https://github.com/FilTheo/stockcast
+evaluation in Python. Version 0.2.0. https://github.com/FilTheo/stockcast
 ```
 
 ## Contributing and support
