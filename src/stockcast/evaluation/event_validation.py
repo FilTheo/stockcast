@@ -50,6 +50,10 @@ SUPPLY_EVENT_COLUMNS = ("supplier_shortfall_units",)
 # order arrived in this row. Used by cycle_service_level.
 ARRIVAL_EVENT_COLUMN = "order_arrival_flag"
 
+# Optional column: present only in event tables from runs with
+# missing_targets="no_order". A decision row of a SKU that had no target.
+MISSING_TARGET_EVENT_COLUMN = "target_missing_flag"
+
 _BOOLEAN_COLUMNS = (
     "allow_backorders", "is_review_period", "decision_flag", "stockout_flag",
     "backorder_flag", "constraint_binding_flag", "capacity_violation_flag",
@@ -86,7 +90,9 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
     delivery outcomes carry ``supplier_shortfall_units``; when present it is
     validated as a nonnegative flow and leaves the pipeline balance. When
     ``order_arrival_flag`` is present it must be boolean and set only on
-    period rows that received stock.
+    period rows that received stock. When ``target_missing_flag`` is present
+    it must be boolean and set only on decision rows with no order and no
+    target (``order_quantity == 0``, ``target_level`` missing).
     """
     if not isinstance(event_frame, pd.DataFrame) or event_frame.empty:
         raise ValueError("event_frame must be a non-empty pandas DataFrame")
@@ -163,7 +169,10 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
         if not np.equal(frame[column], np.floor(frame[column])).all():
             raise ValueError(f"event_frame.{column} must contain integers")
     arrival_columns = (ARRIVAL_EVENT_COLUMN,) if ARRIVAL_EVENT_COLUMN in frame else ()
-    for column in _BOOLEAN_COLUMNS + arrival_columns:
+    missing_target_columns = (
+        (MISSING_TARGET_EVENT_COLUMN,) if MISSING_TARGET_EVENT_COLUMN in frame else ()
+    )
+    for column in _BOOLEAN_COLUMNS + arrival_columns + missing_target_columns:
         if not frame[column].map(lambda value: isinstance(value, (bool, np.bool_))).all():
             raise ValueError(f"event_frame.{column} must contain boolean values")
     if not frame["binding_constraints"].map(lambda value: isinstance(value, str)).all():
@@ -308,6 +317,17 @@ def validate_event_frame(event_frame: pd.DataFrame) -> pd.DataFrame:
                 "that received stock"
             )
         frame[ARRIVAL_EVENT_COLUMN] = arrivals
+    if missing_target_columns:
+        missing = frame[MISSING_TARGET_EVENT_COLUMN].astype(bool)
+        allowed = (
+            frame["decision_flag"] & frame["order_quantity"].eq(0.0) & frame["target_level"].isna()
+        )
+        if (missing & ~allowed).any():
+            raise ValueError(
+                f"event_frame.{MISSING_TARGET_EVENT_COLUMN} may be set only on decision rows "
+                "with order_quantity 0 and no target_level"
+            )
+        frame[MISSING_TARGET_EVENT_COLUMN] = missing
     return frame.drop(columns="_flow_magnitude")
 
 

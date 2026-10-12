@@ -557,6 +557,23 @@ class ArrayState:
             book=self.book,
         )
 
+    def with_target(self, target: np.ndarray) -> "ArrayState":
+        return ArrayState(
+            schema=self.schema,
+            on_hand=self.on_hand,
+            backorders=self.backorders,
+            latest=self.latest,
+            target=target,
+            pipeline=self.pipeline,
+            period=self.period,
+            date=self.date,
+            is_review=self.is_review,
+            has_stockout=self.has_stockout,
+            has_backorder=self.has_backorder,
+            source=self.source,
+            book=self.book,
+        )
+
     def on_order(self) -> np.ndarray:
         if self._on_order is None:
             self._on_order = self.pipeline.sum(axis=1).astype(_FLOAT64, copy=False)

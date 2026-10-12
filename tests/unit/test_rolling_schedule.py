@@ -463,3 +463,253 @@ def test_run_comparison_forwards_the_guard_to_every_branch():
         demand_source=demand, inventory=state(),
     )
     assert "allow_target_reuse" not in plain["rolling"].run_settings
+
+
+# ---------------------------------------------------------------------------
+# missing_targets="no_order" (S6)
+# ---------------------------------------------------------------------------
+
+AUDIT = [
+    "decision_inventory_position", "requested_order_quantity",
+    "callback_adjusted_order_quantity", "callback_adjustment_units",
+]
+
+
+def gap_schedule(gap_period=2, gap_sku="b", **policy_kwargs):
+    """A full rolling schedule, and the same one without ``gap_sku`` at ``gap_period``."""
+    targets = weekly_targets()
+    full = rolling_schedule(order_up_to(**policy_kwargs), targets, state(on_hand=5.0),
+                            target_column="q_90")
+    gappy = targets.copy()
+    gappy.loc[(gappy["unique_id"] == gap_sku)
+              & (gappy["cutoff"] == ORIGIN + gap_period * WEEK), "q_90"] = np.nan
+    with_gap = rolling_schedule(order_up_to(**policy_kwargs), gappy, state(on_hand=5.0),
+                                target_column="q_90", missing_targets="no_order")
+    return full, with_gap
+
+
+def test_default_raises_exactly_as_in_0_1():
+    _, with_gap = gap_schedule()
+    with pytest.raises(ValueError) as caught:
+        run(with_gap, weekly_demand(SKUS, 5), state(on_hand=5.0))
+    assert str(caught.value) == (
+        "policy_schedule period 2 has no fitted level for 1 inventory SKU(s): ['b']; "
+        "fit it on every SKU of the inventory"
+    )
+    with pytest.raises(ValueError, match="missing_targets must be 'raise' or 'no_order'"):
+        run(with_gap, weekly_demand(SKUS, 5), state(on_hand=5.0), missing_targets="skip")
+
+
+def test_one_gap_equals_an_override_to_zero_except_target_and_audit():
+    from stockcast import ScheduledOrderOverride
+
+    full, with_gap = gap_schedule()
+    demand = weekly_demand(SKUS, 5)
+    gap = run(with_gap, demand, state(on_hand=5.0), missing_targets="no_order")
+    override = run(full, demand, state(on_hand=5.0), callbacks=[ScheduledOrderOverride(
+        pd.DataFrame({"unique_id": ["b"], "date": [ORIGIN + 3 * WEEK], "order_quantity": [0.0]}),
+    )])
+    assert len(override.to_callback_audit_frame()) == 1
+    assert override.to_callback_audit_frame()["before_value"].iloc[0] > 0  # the override bites
+    gap_events, override_events = gap.to_event_frame(), override.to_event_frame()
+    assert list(gap_events.columns) == (
+        list(override_events.columns[:list(override_events.columns).index("order_arrival_flag") + 1])
+        + ["target_missing_flag"]
+    )
+    same = [c for c in override_events.columns if c not in AUDIT + ["target_level"]]
+    pd.testing.assert_frame_equal(gap_events[same], override_events[same], check_exact=True)
+    pd.testing.assert_frame_equal(gap.to_order_frame(), override.to_order_frame(), check_exact=True)
+    differ = gap_events["target_level"].ne(override_events["target_level"])
+    assert gap_events.loc[differ, ["unique_id", "demand_period"]].values.tolist() == [["b", 2]]
+    assert np.isnan(gap_events.loc[differ, "target_level"]).all()
+    assert gap_events["target_missing_flag"].tolist() == [
+        sku == "b" and period == 2
+        for period, sku in zip(gap_events["demand_period"], gap_events["unique_id"])
+    ]
+    assert gap.run_settings["missing_targets"] == {
+        "mode": "no_order", "decisions_without_target": 1,
+        "skus": [{"unique_id": "b", "decisions": 1}],
+    }
+    assert gap.run_manifest["run_settings"]["missing_targets"] == gap.run_settings["missing_targets"]
+    assert "missing_targets" not in override.run_settings
+    assert "target_missing_flag" not in override_events
+
+
+def test_target_stays_missing_until_the_next_decision_with_a_target():
+    # Review every 2 weeks: the gap decision is followed by a period without one.
+    policy = order_up_to(review_period=2)
+    rows = []
+    for t in (0, 2, 4):
+        for i, sku in enumerate(SKUS):
+            rows.append({"unique_id": sku, "cutoff": ORIGIN + t * WEEK,
+                         "date": ORIGIN + (t + 4) * WEEK,
+                         "q_90": np.nan if (sku, t) == ("a", 2) else 40.0 + t + i})
+    schedule = rolling_schedule(policy, pd.DataFrame(rows), state(), target_column="q_90",
+                                missing_targets="no_order")
+    result = run(schedule, weekly_demand(SKUS, 6), missing_targets="no_order")
+    a = result.to_event_frame().query("unique_id == 'a'")
+    assert a["target_level"].isna().tolist() == [False, False, True, True, False, False]
+    assert a["target_missing_flag"].tolist() == [False, False, True, False, False, False]
+    assert (a.loc[a["target_missing_flag"], "order_quantity"] == 0).all()
+
+
+def test_no_order_without_any_gap_records_zero_and_changes_nothing_else():
+    full, _ = gap_schedule()
+    demand = weekly_demand(SKUS, 5)
+    plain = run(full, demand, state(on_hand=5.0))
+    checked = run(full, demand, state(on_hand=5.0), missing_targets="no_order")
+    events_checked = checked.to_event_frame()
+    assert not events_checked.pop("target_missing_flag").any()
+    pd.testing.assert_frame_equal(events_checked, plain.to_event_frame(), check_exact=True)
+    assert checked.run_settings["missing_targets"] == {
+        "mode": "no_order", "decisions_without_target": 0, "skus": [],
+    }
+
+
+def test_a_reused_snapshot_carries_its_gaps():
+    base = s1_policy(["a"], [30.0])  # no level for 'b', reused at periods 0 and 1
+    result = SimulationEngine().run(
+        policy=base, policy_schedule={2: s1_policy(SKUS, [32.0, 22.0], ORIGIN + 2 * WEEK)},
+        demand_source=s1_demand(SKUS, [10.0] * 4), inventory=state(),
+        missing_targets="no_order",
+    )
+    events_b = result.to_event_frame().query("unique_id == 'b'")
+    assert events_b["target_missing_flag"].tolist() == [True, True, False, False]
+    assert events_b["target_level"].tolist()[2:] == [22.0, 22.0]
+    assert result.run_settings["missing_targets"]["decisions_without_target"] == 2
+    # ... while 'a' still orders on its own (reused) target.
+    assert result.to_event_frame().query("unique_id == 'a'")["order_quantity"].sum() > 0
+
+
+def test_unusable_no_order_runs_raise():
+    demand = s1_demand(SKUS, [10.0] * 3)
+    base = s1_policy(["a"], [30.0])
+    # 'b' has a target at no decision of the run.
+    with pytest.raises(ValueError, match=r"1 inventory SKU\(s\) have no target at any decision "
+                                         r"of the run: \['b'\]"):
+        SimulationEngine().run(policy=base, policy_schedule={1: s1_policy(["a"], [31.0], ORIGIN + WEEK)},
+                               demand_source=demand, inventory=state(), missing_targets="no_order")
+    # A decision without a target for any SKU.
+    with pytest.raises(ValueError, match=r"decision period 1 \(information date 2024-01-08\) "
+                                         r"has no target for any inventory SKU"):
+        SimulationEngine().run(policy=s1_policy(SKUS, [30.0, 20.0]),
+                               policy_schedule={1: s1_policy(["zz"], [31.0], ORIGIN + WEEK)},
+                               demand_source=demand, inventory=state(), missing_targets="no_order")
+    # A custom policy: Stockcast does not know its fitted SKUs.
+    from stockcast import BasePolicy, OrderDecision
+
+    class Custom(BasePolicy):
+        def fit(self):
+            self.fitted_ = True
+            return self
+
+        def predict(self, inventory_state_df, *, current_period, **kwargs):
+            ids = inventory_state_df.get_dataframe()["unique_id"]
+            return OrderDecision(pd.DataFrame({"unique_id": ids, "order_quantity": 0.0}),
+                                 lead_time=self.lead_time)
+
+    custom = Custom(lead_time=1, review_period=1, allow_backorders=False).fit()
+    with pytest.raises(ValueError, match="needs to know which SKUs the policy has a target for.*Custom"):
+        SimulationEngine().run(policy=custom, demand_source=demand, inventory=state(),
+                               freq="W-MON", missing_targets="no_order")
+    # One reorder point for every SKU covers any inventory: no gap, no error.
+    uniform = ReorderPointPolicy(lead_time=1, review_period=1, order_quantity=5.0,
+                                 allow_backorders=False).fit(reorder_point=3.0)
+    result = SimulationEngine().run(policy=uniform, demand_source=demand, inventory=state(),
+                                    freq="W-MON", missing_targets="no_order")
+    assert result.run_settings["missing_targets"]["decisions_without_target"] == 0
+
+
+def test_a_callback_cannot_adjust_a_sku_at_its_gap_decision():
+    from stockcast import CallbackError, ScheduledOrderOverride
+
+    _, with_gap = gap_schedule()
+    override = ScheduledOrderOverride(pd.DataFrame(
+        {"unique_id": ["b"], "date": [ORIGIN + 3 * WEEK], "order_quantity": [4.0]},
+    ))
+    with pytest.raises(CallbackError, match="absent from the predicted decision"):
+        run(with_gap, weekly_demand(SKUS, 5), state(on_hand=5.0), missing_targets="no_order",
+            callbacks=[override])
+
+
+def test_run_comparison_forwards_missing_targets():
+    full, with_gap = gap_schedule()
+    demand = weekly_demand(SKUS, 5)
+    comparison = SimulationEngine().run_comparison(
+        {"full": full[0], "gap": with_gap[0]},
+        policy_schedules={"full": full, "gap": with_gap},
+        demand_source=demand, inventory=state(on_hand=5.0), missing_targets="no_order",
+    )
+    alone = run(with_gap, demand, state(on_hand=5.0), missing_targets="no_order")
+    pd.testing.assert_frame_equal(comparison["gap"].to_event_frame(), alone.to_event_frame(),
+                                  check_exact=True)
+    assert comparison["full"].run_settings["missing_targets"]["decisions_without_target"] == 0
+
+
+@pytest.mark.parametrize("setting", ["plain", "constraint", "supply", "int_target"])
+def test_array_path_equals_dataframe_path(monkeypatch, setting):
+    from stockcast import MinimumOrderQuantity, Supplier, SupplyModel
+
+    _, with_gap = gap_schedule()
+    demand = weekly_demand(SKUS, 5)
+    inventory = state(on_hand=5.0)
+    options = {}
+    if setting == "constraint":
+        options["order_constraints"] = [MinimumOrderQuantity(6.0, mode="adjust")]
+    if setting == "supply":
+        options["supply"] = SupplyModel([Supplier("only", lead_time=2)])
+    if setting == "int_target":
+        # A target column the arrays cannot hold: the gap is cleared on the frame.
+        inventory.data["target_level"] = np.int64(0)
+
+    def outputs():
+        result = run(copy.deepcopy(with_gap), demand, copy.deepcopy(inventory),
+                     missing_targets="no_order", **options)
+        return result, _manifest(result)
+
+    fast, fast_manifest = outputs()
+    with monkeypatch.context() as patch:
+        patch.setattr(SimulationEngine, "_array_hooks_supported", lambda self: False)
+        reference, reference_manifest = outputs()
+    pd.testing.assert_frame_equal(fast.to_event_frame(), reference.to_event_frame(), check_exact=True)
+    pd.testing.assert_frame_equal(fast.history, reference.history, check_exact=True)
+    pd.testing.assert_frame_equal(fast.to_order_frame(), reference.to_order_frame(), check_exact=True)
+    assert fast_manifest == reference_manifest
+    row = fast.to_event_frame().query("unique_id == 'b' and demand_period == 2").iloc[0]
+    assert row["target_missing_flag"] and np.isnan(row["target_level"]) and row["order_quantity"] == 0
+
+
+def test_validator_accepts_and_rejects_the_flag():
+    from stockcast.evaluation import validate_event_frame
+
+    _, with_gap = gap_schedule()
+    valid = run(with_gap, weekly_demand(SKUS, 5), state(on_hand=5.0),
+                missing_targets="no_order").to_event_frame()
+    assert validate_event_frame(valid)["target_missing_flag"].sum() == 1
+    flagged = valid.index[valid["target_missing_flag"]][0]
+    other = valid.index[(valid["unique_id"] == "a") & (valid["demand_period"] == 2)][0]
+
+    def broken(change):
+        frame = valid.copy()
+        change(frame)
+        return frame
+
+    def flag_other(frame):
+        frame.loc[other, "target_missing_flag"] = True   # 'a' had a target and ordered
+
+    def flag_with_target(frame):
+        frame.loc[other, ["target_missing_flag", "target_level"]] = [True, np.nan]  # but ordered
+
+    def not_a_decision(frame):
+        frame.loc[flagged, "decision_flag"] = False
+
+    def with_level(frame):
+        frame.loc[flagged, "target_level"] = 30.0
+
+    for change in (flag_other, flag_with_target, not_a_decision, with_level):
+        with pytest.raises(ValueError, match="target_missing_flag may be set only on decision rows"):
+            validate_event_frame(broken(change))
+    as_numbers = broken(lambda frame: frame.__setitem__(
+        "target_missing_flag", frame["target_missing_flag"].astype(int)))
+    with pytest.raises(ValueError, match="target_missing_flag must contain boolean values"):
+        validate_event_frame(as_numbers)

@@ -390,6 +390,28 @@ def _order_arrival_flags(event_frame: pd.DataFrame, order_frame: pd.DataFrame) -
     return ledger.isin(arrivals) & period_rows & received
 
 
+def _target_missing_flags(event_frame: pd.DataFrame, target_gaps: Mapping) -> np.ndarray:
+    """Flag the decision rows of SKUs that had no target (``missing_targets="no_order"``).
+
+    ``target_gaps`` maps each decision period to the SKUs without a target
+    there. Only decision rows of those periods are looked at.
+    """
+    flags = np.zeros(len(event_frame), dtype=bool)
+    if not target_gaps or event_frame.empty:
+        return flags
+    periods = event_frame['demand_period'].to_numpy(dtype=np.int64)
+    candidates = np.flatnonzero(
+        event_frame['decision_flag'].to_numpy(dtype=bool)
+        & np.isin(periods, np.fromiter(target_gaps, dtype=np.int64))
+    )
+    skus = event_frame['unique_id'].to_numpy(dtype=object)[candidates]
+    flags[candidates] = np.fromiter(
+        (sku in target_gaps[period] for sku, period in zip(skus, periods[candidates])),
+        dtype=bool, count=len(candidates),
+    )
+    return flags
+
+
 def _build_period_event_frame(
     inventory_before: InventoryStateDataFrame,
     inventory_after_demand: InventoryStateDataFrame,
@@ -694,7 +716,7 @@ class _PeriodRun:
 
     def __init__(self, *, engine, demand_fn, period_offset, decision_periods,
                  allow_backorders, max_lead_time, policy_schedule, update_log,
-                 use_arrays, processes=None):
+                 use_arrays, processes=None, target_gaps=None):
         self.engine = engine
         self.demand_fn = demand_fn
         self.period_offset = period_offset
@@ -707,6 +729,9 @@ class _PeriodRun:
         # ProcessRunner, or None: a run without processes executes no
         # process code at all.
         self.processes: Optional[ProcessRunner] = processes
+        # {decision period: SKUs without a target there}; empty unless
+        # missing_targets="no_order".
+        self.target_gaps: Mapping[int, frozenset] = target_gaps or {}
         self.demand: Optional[DemandPath] = None
         self.inventory_callbacks = False
         self.log = RunLog()
@@ -882,6 +907,12 @@ class _PeriodRun:
     def _decide(self, state, period, sim_period, run_window, active_policy):
         """One order decision; the order is applied on arrays when exact."""
         engine = self.engine
+        gaps = self.target_gaps.get(period)
+        if gaps:
+            # The order update keeps the previous target of a SKU absent from
+            # the decision, so a SKU without a target here is cleared first:
+            # its target_level stays NaN until its next decision with a target.
+            state = self._clear_targets(state, gaps)
         arrays = isinstance(state, ArrayState) and state.ready(self.allow_backorders)
         history = self.log.history_view(period)
         before = self.frame(state, history)
@@ -892,6 +923,7 @@ class _PeriodRun:
         orders = engine._decide_order(
             before, active_policy, sim_period,
             run_window=run_window,
+            skus_without_target=gaps,
         )
         supply = engine._active_supply
         # Constraints receive the live state in their context, so with
@@ -916,6 +948,33 @@ class _PeriodRun:
             self.processes.order_receipt(before, after)
         self.record_placements(after._open_orders)
         return self.absorb(after, state)
+
+    def _clear_targets(self, state, skus: frozenset):
+        """``state`` with ``target_level`` NaN for ``skus``, in the same form when exact."""
+        if isinstance(state, ArrayState) and state.schema.target_dtype == np.dtype("float64"):
+            clear = np.fromiter(
+                (sku in skus for sku in state.schema.sku_list()),
+                dtype=bool, count=state.schema.n,
+            )
+            return state.with_target(np.where(clear, np.nan, state.target))
+        frame = self.frame(state, [])
+        data = frame.data.copy()
+        clear = np.fromiter(
+            (sku in skus for sku in data[frame.sku_column]), dtype=bool, count=len(data),
+        )
+        data['target_level'] = data['target_level'].where(~clear)
+        cleared = InventoryStateDataFrame._from_trusted(
+            data,
+            sku_column=frame.sku_column,
+            max_lead_time=frame.max_lead_time,
+            allow_backorders=frame.allow_backorders,
+            history=frame._history,
+            start_date=frame._inferred_start_date,
+            has_stockout=frame.has_stockout,
+            has_backorder=frame.has_backorder,
+            open_orders=frame._open_orders,
+        )
+        return self.absorb(cleared, state) if isinstance(state, ArrayState) else cleared
 
     def resolve_deliveries(self, state):
         """Apply supplier delivery outcomes to the deliveries due next.
@@ -1306,6 +1365,7 @@ class SimulationEngine:
         supply: Optional[SupplyModel] = None,
         processes: Optional[Sequence[InventoryProcess]] = None,
         allow_target_reuse: bool = True,
+        missing_targets: str = "raise",
     ) -> SimulationResult:
         """Simulate a policy against a demand path.
 
@@ -1363,6 +1423,16 @@ class SimulationEngine:
                 key of ``policy_schedule``, and a dated policy used at the first
                 decision has that decision's information date as its forecast
                 origin. Checked before the run.
+            missing_targets: What a decision does for an inventory SKU its policy
+                has no fitted level for. ``"raise"`` (default): the run fails
+                before it starts. ``"no_order"``: no order for that SKU at that
+                decision; its stock still moves, its ``target_level`` is NaN until
+                its next decision with a target, and the event table flags the
+                row in ``target_missing_flag``. ``run_settings["missing_targets"]``
+                counts these decisions per SKU. Needs built-in policies (their
+                fitted SKUs are known); a SKU without a target at any decision
+                raises. The SKU is not in the decision callbacks see, so a
+                callback cannot adjust its order there.
 
         Returns:
             A ``SimulationResult``.
@@ -1409,6 +1479,10 @@ class SimulationEngine:
             raise ValueError("order_during_settlement must be boolean")
         if not isinstance(allow_target_reuse, bool):
             raise ValueError("allow_target_reuse must be True or False")
+        if missing_targets not in ("raise", "no_order"):
+            raise ValueError(
+                f"missing_targets must be 'raise' or 'no_order', got {missing_targets!r}"
+            )
         if demand_source_name is not None and (
             not isinstance(demand_source_name, str) or not demand_source_name.strip()
         ):
@@ -1560,10 +1634,21 @@ class SimulationEngine:
                 opening_date=opening_date,
                 period_offset=period_offset,
             )
-        inventory_skus = set(inventory.get_dataframe()[inventory.sku_column].tolist())
-        self._require_fitted_skus(policy, "the policy", inventory_skus)
-        for period, snapshot in sorted(policy_schedule.items()):
-            self._require_fitted_skus(snapshot, f"policy_schedule period {period}", inventory_skus)
+        target_gaps, gap_counts = {}, {}
+        if missing_targets == "raise":
+            inventory_skus = set(inventory.get_dataframe()[inventory.sku_column].tolist())
+            self._require_fitted_skus(policy, "the policy", inventory_skus)
+            for period, snapshot in sorted(policy_schedule.items()):
+                self._require_fitted_skus(snapshot, f"policy_schedule period {period}", inventory_skus)
+        else:
+            target_gaps, gap_counts = self._target_gaps(
+                policy,
+                policy_schedule,
+                decision_periods=decision_periods,
+                inventory_skus=inventory.get_dataframe()[inventory.sku_column].tolist(),
+                opening_date=opening_date,
+                period_offset=period_offset,
+            )
         # Validate target coverage at every actual opportunity before callbacks
         # reset or demand callables are materialized.
         coverage_policy = policy
@@ -1647,6 +1732,7 @@ class SimulationEngine:
             active_policy=active_policy,
             policy_schedule=policy_schedule,
             update_log=update_log,
+            target_gaps=target_gaps,
         )
         # Event table periods are whole numbers (the state holds one integer period),
         # whatever dtype the opening state stored them in.
@@ -1676,6 +1762,15 @@ class SimulationEngine:
             run_settings['processes'] = copy.deepcopy(process_manifests)
         if not allow_target_reuse:
             run_settings['allow_target_reuse'] = False
+        if missing_targets == "no_order":
+            run_settings['missing_targets'] = {
+                'mode': 'no_order',
+                'decisions_without_target': sum(gap_counts.values()),
+                'skus': [
+                    {'unique_id': sku, 'decisions': count}
+                    for sku, count in gap_counts.items() if count
+                ],
+            }
         run_manifest = self._build_run_manifest(
             demand_data=demand_data,
             demand_source_name=(
@@ -1711,6 +1806,12 @@ class SimulationEngine:
             'order_arrival_flag',
             _order_arrival_flags(event_frame, order_frame),
         )
+        if missing_targets == "no_order":
+            event_frame.insert(
+                event_frame.columns.get_loc('order_arrival_flag') + 1,
+                'target_missing_flag',
+                _target_missing_flags(event_frame, target_gaps),
+            )
         result = SimulationResult(
             history=history,
             inventory=inventory,
@@ -1785,6 +1886,7 @@ class SimulationEngine:
         active_policy: BasePolicy,
         policy_schedule: Mapping[int, BasePolicy],
         update_log: list,
+        target_gaps: Optional[Mapping[int, frozenset]] = None,
     ) -> tuple:
         """Execute every period; return final state, history, event table
         and the order-level deliveries placed at each decision.
@@ -1807,6 +1909,7 @@ class SimulationEngine:
             update_log=update_log,
             use_arrays=self._array_hooks_supported(),
             processes=self._process_runner,
+            target_gaps=target_gaps,
         )
         current = inventory
         if run.use_arrays:
@@ -2206,10 +2309,18 @@ class SimulationEngine:
         )["inventory_position"].to_dict()
 
     def _decide_order(
-        self, inventory, policy, period, *, run_window
+        self, inventory, policy, period, *, run_window, skus_without_target=None,
     ) -> OrderDecision:
-        """Predict, apply order callbacks and constraints; return the final order."""
-        raw = policy.predict(copy.deepcopy(inventory), current_period=period)
+        """Predict, apply order callbacks and constraints; return the final order.
+
+        SKUs in ``skus_without_target`` (``missing_targets="no_order"``) are left
+        out of the state the policy sees, so they are absent from the decision:
+        no order, and callbacks cannot adjust them.
+        """
+        view = copy.deepcopy(inventory)
+        if skus_without_target:
+            view = self._without_skus(view, skus_without_target)
+        raw = policy.predict(view, current_period=period)
         if not isinstance(raw, OrderDecision):
             raise TypeError("policy.predict must return an OrderDecision")
         if raw.lead_time != policy.lead_time:
@@ -2247,6 +2358,36 @@ class SimulationEngine:
             self._callback_audit_rows.extend(audit)
         self._capture_callback_order_trail(raw, adjusted, inventory)
         return self._constrain_and_count(inventory, adjusted, policy=policy)
+
+    @staticmethod
+    def _without_skus(state: InventoryStateDataFrame, skus: frozenset) -> InventoryStateDataFrame:
+        """``state`` without the rows (and open orders) of ``skus``.
+
+        Its history stays complete: it is the record of completed periods.
+        """
+        keep = np.fromiter(
+            (sku not in skus for sku in state.data[state.sku_column]),
+            dtype=bool, count=len(state.data),
+        )
+        book = state._open_orders
+        if book is not None:
+            def kept(deliveries):
+                return deliveries.select(np.fromiter(
+                    (sku not in skus for sku in deliveries.sku),
+                    dtype=bool, count=len(deliveries),
+                ))
+            book = book._with(kept(book.open), kept(book.placed), book.next_id)
+        return InventoryStateDataFrame._from_trusted(
+            state.data.loc[keep].copy(),
+            sku_column=state.sku_column,
+            max_lead_time=state.max_lead_time,
+            allow_backorders=state.allow_backorders,
+            history=state._history,
+            start_date=state._inferred_start_date,
+            has_stockout=state.has_stockout,
+            has_backorder=state.has_backorder,
+            open_orders=book,
+        )
 
     def _apply_order_adjustment_result(
         self, decision, result, inventory, callback, position, context
@@ -3023,6 +3164,81 @@ class SimulationEngine:
                 f"{_identifier_sample(missing)}; fit it on every SKU of the inventory"
             )
 
+    @classmethod
+    def _target_gaps(
+        cls,
+        policy: BasePolicy,
+        policy_schedule: Mapping[int, BasePolicy],
+        *,
+        decision_periods,
+        inventory_skus: list,
+        opening_date: pd.Timestamp,
+        period_offset,
+    ) -> tuple:
+        """``missing_targets="no_order"``: the inventory SKUs each decision has no level for.
+
+        Returns ``({decision_period: SKUs}, {sku: decisions without a target})``;
+        the first holds only decisions with a gap, the second every inventory
+        SKU in inventory order. A policy whose fitted SKUs are unknown (a
+        custom policy), a decision with no target for any SKU, and a SKU with
+        no target at any decision raise.
+        """
+        # Deferred import to avoid circular dependency (core ↔ policies)
+        from stockcast.policies.reorder_point import ReorderPointPolicy
+
+        fitted = {}
+        for label, candidate in [("the policy", policy)] + [
+            (f"policy_schedule period {period}", snapshot)
+            for period, snapshot in sorted(policy_schedule.items())
+        ]:
+            skus = cls._fitted_skus(candidate)
+            if skus is None and not (
+                isinstance(candidate, ReorderPointPolicy) and candidate._uniform_levels is not None
+            ):
+                raise ValueError(
+                    f"missing_targets='no_order' needs to know which SKUs {label} has a "
+                    "target for, which Stockcast knows for OrderUpToPolicy, "
+                    f"ReorderPointPolicy and SingleOrderPolicy, not {type(candidate).__name__}; "
+                    "a custom policy places no order for a SKU by leaving it out of its "
+                    "decision"
+                )
+            fitted[id(candidate)] = skus  # None: one level for every SKU
+        gaps = {}
+        counts = dict.fromkeys(inventory_skus, 0)
+        missing_by_policy = {}
+        active = policy
+        for period in sorted(decision_periods):
+            active = policy_schedule.get(period, active)
+            skus = fitted[id(active)]
+            if skus is None:
+                continue
+            if id(active) not in missing_by_policy:
+                missing_by_policy[id(active)] = frozenset(
+                    sku for sku in inventory_skus if sku not in skus
+                )
+            missing = missing_by_policy[id(active)]
+            if not missing:
+                continue
+            if len(missing) == len(counts):
+                raise ValueError(
+                    f"decision period {period} (information date "
+                    f"{_date_text(opening_date + period * period_offset)}) has no target for "
+                    "any inventory SKU, so missing_targets='no_order' would leave the whole "
+                    "decision without a target; fit its policy on the inventory's SKUs"
+                )
+            gaps[period] = missing
+            for sku in missing:
+                counts[sku] += 1
+        never = [sku for sku, count in counts.items() if count == len(decision_periods)]
+        if never:
+            raise ValueError(
+                f"{len(never)} inventory SKU(s) have no target at any decision of the run: "
+                f"{_identifier_sample(never)}; with missing_targets='no_order' they would "
+                "never be ordered, so there is nothing to simulate for them. Fit them a "
+                "target, or leave them out of the inventory"
+            )
+        return gaps, counts
+
     @staticmethod
     def _policy_origin(policy: BasePolicy) -> Optional[pd.Timestamp]:
         """The forecast origin a fitted policy records, or None when it is undated."""
@@ -3376,6 +3592,7 @@ class SimulationEngine:
         supply: Optional[SupplyModel] = None,
         processes: Optional[Sequence[InventoryProcess]] = None,
         allow_target_reuse: bool = True,
+        missing_targets: str = "raise",
     ) -> 'ComparisonResult':
         """Simulate several policies on the same experiment.
 
@@ -3428,6 +3645,7 @@ class SimulationEngine:
                 "supply": supply,
                 "processes": processes,
                 "allow_target_reuse": allow_target_reuse,
+                "missing_targets": missing_targets,
             },
         )
 
