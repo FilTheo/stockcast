@@ -60,7 +60,9 @@ def test_public_export_sets_are_frozen_for_0_1():
         "cost_per_demand_unit", "cost_per_fulfilled_unit", "cycle_service_level",
         "demand_period_service_level", "demand_units", "ending_on_hand_variance",
         "fill_rate", "fulfilled_units", "holding_cost", "inventory_turns",
-        "lost_sales_units", "order_event_count", "order_units", "ordering_cost",
+        "lost_sales_units", "order_event_count", "order_units",
+        "order_variance",  # 0.2.0
+        "ordering_cost",
         "peak_ending_on_hand", "purchase_cost", "salvage_credit",
         "sku_order_line_count", "sku_order_quantity_variance",
         "sku_period_stockout_rate", "shortage_cost", "shortage_units",

@@ -293,7 +293,9 @@ def sku_order_quantity_variance(
     """Population variance of positive order-line sizes.
 
     Computed from ``order_quantity``, ``order_line_quantity_squared_sum`` and
-    ``sku_order_line_count``; NaN when there is no order line.
+    ``sku_order_line_count``; NaN when there is no order line. Decisions that
+    order nothing are not lines, so orders of 30, 0 and 0 give 0.0; for the
+    variance over decisions with zero orders included, use ``order_variance``.
 
     Args:
         event_frame: Event table, or a slice of it (for example one window or group).
@@ -309,6 +311,46 @@ def sku_order_quantity_variance(
     squared_sum = _sum(event_frame, "order_line_quantity_squared_sum")
     variance = squared_sum / count - (quantity_sum / count) ** 2
     return float(max(0.0, variance))
+
+
+def order_variance(event_frame: pd.DataFrame, context: Optional[dict] = None) -> float:
+    """Variance of order quantities over decisions, zero orders included.
+
+    Per SKU: the population variance (``ddof=0``) of ``order_quantity`` over the
+    SKU's rows with ``decision_flag`` True, so a decision that ordered nothing
+    counts as a zero order. With several SKUs: the mean of the per-SKU
+    variances; SKUs without a decision row are left out. With
+    ``review_period=1`` every period is a decision.
+
+    This is the order variance of Zhou, Arik and Wang (2023), "Business
+    Metric-Aware Forecasting for Inventory Management", arXiv:2308.13118,
+    Sec. 3.2.1: ``C_v = c_v * Var_t(o_t)``, taken over all time points and,
+    as their Appendix A.5 computes it, per series as the mean squared
+    deviation from the series' mean order. When every SKU has the same number
+    of decisions, the mean over SKUs equals that mean over all series and time
+    points. Orders of 30, 0 and 0 give 200.0, while
+    ``sku_order_quantity_variance`` (positive order lines only) gives 0.0.
+
+    Args:
+        event_frame: Event table, or a slice of it (for example one window or group).
+        context: Not used by this metric; accepted for a uniform signature.
+
+    Returns:
+        The variance, or NaN when the slice has no decision row.
+    """
+    period_events = _period_events(event_frame)
+    _require_columns(period_events, ["unique_id"])
+    decided = _boolean_series(period_events, "decision_flag").to_numpy()
+    decisions = period_events[decided]
+    if decisions.empty:
+        return np.nan
+    quantity = _numeric_series(decisions, "order_quantity")
+    sku = decisions["unique_id"]
+    # Two passes, as a population variance is defined: deviations from each
+    # SKU's mean order, then the mean of their squares.
+    mean = quantity.groupby(sku, sort=False).transform("mean")
+    variances = ((quantity - mean) ** 2).groupby(sku, sort=False).mean()
+    return float(variances.mean())
 
 
 def capacity_violation_count(event_frame: pd.DataFrame, context: Optional[dict] = None) -> int:

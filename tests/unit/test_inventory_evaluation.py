@@ -23,10 +23,12 @@ from stockcast.evaluation import (
     inventory_turns,
     lost_sales_units,
     order_event_count,
+    order_variance,
     ordering_cost,
     peak_ending_on_hand,
     shortage_cost,
     sku_order_line_count,
+    sku_order_quantity_variance,
     stockout_period_rate,
     terminal_backlog_units,
     terminal_pipeline_units,
@@ -557,3 +559,100 @@ def test_a_full_ledger_is_scored_on_its_scoring_window_like_the_result():
     assert score == pytest.approx(result.summary()["fill_rate"])
     everything = InventoryEvaluator().fit(event_frame=ledger, window="all")
     assert len(everything.event_frame_) == len(ledger)
+
+
+class ScriptedPolicy(BasePolicy):
+    """Orders the next listed quantity of each SKU at every decision."""
+
+    def __init__(self, orders: dict, **kwargs):
+        super().__init__(**kwargs)
+        self.orders = orders
+        self.decisions = 0  # counts on the engine's own copy of the policy
+        self.fitted_ = True
+        self.policy_name = "ScriptedPolicy"
+
+    def fit(self, forecast_df=None, **kwargs):
+        return self
+
+    def predict(self, inventory_state_df, current_period=0, **kwargs):
+        skus = inventory_state_df.get_dataframe()[inventory_state_df.sku_column].tolist()
+        quantities = [self.orders[sku][self.decisions] for sku in skus]
+        self.decisions += 1
+        return OrderDecision(
+            pd.DataFrame({
+                "unique_id": skus, "order_quantity": quantities,
+                "order_period": current_period,
+                "expected_delivery_period": current_period + self.lead_time,
+            }),
+            lead_time=self.lead_time,
+        )
+
+
+def _scripted_events(orders: dict, review_period=1, **run_kwargs):
+    skus = list(orders)
+    n_periods = review_period * len(next(iter(orders.values())))
+    inventory = InventoryStateDataFrame(skus, max_lead_time=1).initialize_zero(
+        opening_date=pd.Timestamp("2025-01-01")
+    )
+    inventory.data["on_hand"] = 100.0
+    dates = pd.date_range("2025-01-02", periods=n_periods, freq="D")
+    demand = pd.DataFrame({
+        "unique_id": [sku for sku in skus for _ in dates],
+        "date": list(dates) * len(skus),
+        "y": 1.0,
+    })
+    policy = ScriptedPolicy(
+        orders, lead_time=1, review_period=review_period, allow_backorders=False,
+    )
+    result = SimulationEngine().run(
+        policy=policy, demand_source=demand, inventory=inventory, freq="D", **run_kwargs,
+    )
+    return result
+
+
+def test_order_variance_counts_decisions_that_order_nothing():
+    result = _scripted_events({"a": [30.0, 0.0, 0.0]})
+    values = InventoryEvaluator().fit(result).evaluate(
+        [order_variance, sku_order_quantity_variance],
+    )
+    # Zhou, Arik and Wang (2023): Var_t(o_t) over every decision; the
+    # positive-line variance sees one order of 30 only.
+    assert values.loc[0, "order_variance"] == 200.0
+    assert values.loc[0, "sku_order_quantity_variance"] == 0.0
+
+
+def test_order_variance_pools_skus_as_the_mean_of_their_variances():
+    result = _scripted_events({"a": [30.0, 0.0, 0.0], "b": [1.0, 2.0, 3.0]})
+    evaluator = InventoryEvaluator().fit(result)
+    pooled = evaluator.evaluate([order_variance]).loc[0, "order_variance"]
+    by_sku = evaluator.evaluate([order_variance], groupby=["unique_id"])
+    assert by_sku["order_variance"].tolist() == pytest.approx([200.0, np.var([1.0, 2.0, 3.0])])
+    assert pooled == pytest.approx(by_sku["order_variance"].mean())
+    # Not the variance of all orders stacked together.
+    assert pooled != pytest.approx(np.var([30.0, 0.0, 0.0, 1.0, 2.0, 3.0]))
+
+
+def test_order_variance_uses_decision_rows_only():
+    events = _scripted_events({"a": [6.0, 0.0, 9.0]}, review_period=3).to_event_frame()
+    assert events["decision_flag"].tolist() == [True, False, False] * 3
+    assert order_variance(events) == pytest.approx(np.var([6.0, 0.0, 9.0]))
+    assert order_variance(events) != pytest.approx(np.var(events["order_quantity"]))
+
+
+def test_order_variance_of_a_window_uses_that_window_only():
+    result = _scripted_events({"a": [30.0, 4.0, 0.0, 8.0]}, warmup_periods=1)
+    scoring = InventoryEvaluator().fit(result, window="scoring").evaluate([order_variance])
+    every = InventoryEvaluator().fit(result, window="all").evaluate([order_variance])
+    assert scoring.loc[0, "order_variance"] == pytest.approx(np.var([4.0, 0.0, 8.0]))
+    assert every.loc[0, "order_variance"] == pytest.approx(np.var([30.0, 4.0, 0.0, 8.0]))
+
+
+def test_order_variance_is_nan_without_a_decision():
+    events = _scripted_events({"a": [6.0, 0.0]}, review_period=3).to_event_frame()
+    no_decision = events[~events["decision_flag"]]
+    assert np.isnan(order_variance(no_decision))
+    # SKUs without a decision row in the slice are left out of the mean.
+    two = _scripted_events({"a": [6.0, 0.0], "b": [2.0, 2.0]}, review_period=3).to_event_frame()
+    only_a_decides = two[two["decision_flag"] | (two["unique_id"] == "b")]
+    only_a_decides = only_a_decides[(only_a_decides["unique_id"] == "a") | ~only_a_decides["decision_flag"]]
+    assert order_variance(only_a_decides) == pytest.approx(np.var([6.0, 0.0]))
