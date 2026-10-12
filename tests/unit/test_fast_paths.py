@@ -232,3 +232,30 @@ def test_callback_trail_equals_the_lookup(rows):
     assert np.signbit(trail["requested_order_quantity"].to_numpy()).tolist() == (
         np.signbit(expected["requested_order_quantity"].to_numpy()).tolist()
     )
+
+
+def test_the_run_log_keeps_arrays_only(monkeypatch):
+    from stockcast.core import _array_state
+
+    logged = []
+    original = _array_state.RunLog.event_frame
+
+    def inspecting(self):
+        logged.extend(self.records)
+        return original(self)
+
+    monkeypatch.setattr(_array_state.RunLog, "event_frame", inspecting)
+    policy = OrderUpToPolicy(lead_time=2, review_period=1, freq="D", allow_backorders=False)
+    policy.fit(pd.DataFrame({"unique_id": ["tea"], "S": [12.0]}), target_column="S",
+               forecast_origin=OPENING, protection_horizon=3)
+    events = _run(policy).to_event_frame()
+
+    # Logged states hold no open-order book (the live state keeps it), and
+    # each decision's order-line counts are arrays in state row order.
+    assert len(logged) == 4
+    assert all(record.start.book is None and record.final.book is None for record in logged)
+    ordered = [record for record in logged if record.line_counts is not None]
+    assert ordered and all(isinstance(record.line_counts, np.ndarray) for record in ordered)
+    assert events["sku_order_line_count"].tolist() == [
+        0 if record.line_counts is None else int(record.line_counts[0]) for record in logged
+    ]

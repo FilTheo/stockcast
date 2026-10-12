@@ -574,6 +574,22 @@ class ArrayState:
             book=self.book,
         )
 
+    def without_book(self) -> "ArrayState":
+        """This state without its open-order book, for the run log.
+
+        History and event rows read only the arrays, and the live state keeps
+        its own book, so logged states need not hold one book per period.
+        """
+        logged = ArrayState(
+            schema=self.schema, on_hand=self.on_hand, backorders=self.backorders,
+            latest=self.latest, target=self.target, pipeline=self.pipeline,
+            period=self.period, date=self.date, is_review=self.is_review,
+            has_stockout=self.has_stockout, has_backorder=self.has_backorder,
+            source=self.source, book=None,
+        )
+        logged._on_order = self._on_order
+        return logged
+
     def on_order(self) -> np.ndarray:
         if self._on_order is None:
             self._on_order = self.pipeline.sum(axis=1).astype(_FLOAT64, copy=False)
@@ -690,8 +706,31 @@ class DemandPath:
 # RUN LOG AND RESULT ASSEMBLY
 # ============================================================================
 
+def order_line_arrays(schema: "StateSchema", counts: Mapping, squared_sums: Mapping) -> tuple:
+    """One decision's order-line counts and squared sums in state row order.
+
+    Each is an array, or None when its dict is empty. Values are written
+    exactly as the event table assembly writes the dicts (SKUs outside the
+    state are skipped); the run log keeps these arrays instead of the dicts.
+    """
+    def written(values: Mapping, dtype):
+        if not values:
+            return None
+        array = np.zeros(schema.n, dtype=dtype)
+        positions = schema.sku_index().get_indexer(list(values))
+        for position, value in zip(positions, values.values()):
+            if position >= 0:
+                array[position] = value
+        return array
+
+    return written(counts, _LINE_COUNT_DTYPE), written(squared_sums, _FLOAT64)
+
+
 class FastRecord:
-    """One array-backed period: its opening and completed states plus events."""
+    """One array-backed period: its opening and completed states plus events.
+
+    ``line_counts`` and ``squared_sums`` are ``order_line_arrays`` results.
+    """
 
     __slots__ = (
         "demand_period", "run_window", "policy_name", "allow_backorders",
@@ -774,6 +813,10 @@ class RunLog:
                 pieces.append(_history_block(group, kind))
         if not pieces:
             return pd.DataFrame()
+        if len(pieces) == 1 and not isinstance(self.records[0], FrameRecord):
+            # One array block, numbered 0..n-1 and owned by no one else:
+            # concatenating it would only copy it.
+            return pieces[0]
         return pd.concat(pieces, ignore_index=True)
 
     # ---- events -----------------------------------------------------------
@@ -785,6 +828,8 @@ class RunLog:
                 pieces.extend(record.event for record in group)
             else:
                 pieces.append(_event_block(group))
+        if len(pieces) == 1 and not isinstance(self.records[0], FrameRecord):
+            return pieces[0]  # one array block: concatenating would only copy it
         return pd.concat(pieces, ignore_index=True)
 
     def _groups(self, key: Callable):
@@ -915,16 +960,10 @@ def _event_block(records: List[FastRecord]) -> pd.DataFrame:
     for block_position, record in enumerate(records):
         offset = block_position * n
         order_event_count[offset] = record.order_event_count
-        if record.line_counts:
-            positions = record.start.schema.sku_index().get_indexer(list(record.line_counts))
-            for position, count in zip(positions, record.line_counts.values()):
-                if position >= 0:
-                    line_counts[offset + position] = count
-        if record.squared_sums:
-            positions = record.start.schema.sku_index().get_indexer(list(record.squared_sums))
-            for position, value in zip(positions, record.squared_sums.values()):
-                if position >= 0:
-                    squared_sums[offset + position] = value
+        if record.line_counts is not None:
+            line_counts[offset:offset + n] = record.line_counts
+        if record.squared_sums is not None:
+            squared_sums[offset:offset + n] = record.squared_sums
 
     final_schema = finals[0].schema
     target_level = _concat_pieces(

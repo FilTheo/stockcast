@@ -42,6 +42,7 @@ from stockcast.core._array_state import (
     RunLog,
     assert_flow_balance,
     audit_default,
+    order_line_arrays,
 )
 from stockcast.core.base_policy import BasePolicy
 from stockcast.core.callbacks import (
@@ -1104,6 +1105,11 @@ class _PeriodRun:
                        shortfall=None) -> None:
         engine = self.engine
         uid = opening.schema.sku_event()
+        line_counts, squared_sums = order_line_arrays(
+            opening.schema,
+            engine._captured_sku_order_line_counts,
+            engine._captured_order_line_quantity_squared_sums,
+        )
         audit = None
         if review:
             audit = self._decision_audit(uid, state.latest['latest_order'])
@@ -1113,11 +1119,12 @@ class _PeriodRun:
             run_window=run_window,
             policy_name=active_policy.policy_name,
             allow_backorders=active_policy.allow_backorders,
-            start=opening,
-            final=state,
+            # The live state keeps the open-order book; the log needs only arrays.
+            start=opening.without_book(),
+            final=state.without_book(),
             order_event_count=engine._captured_order_event_count,
-            line_counts=engine._captured_sku_order_line_counts,
-            squared_sums=engine._captured_order_line_quantity_squared_sums,
+            line_counts=line_counts,
+            squared_sums=squared_sums,
             audit=audit,
             expired=uid.map(expired).fillna(0.0).to_numpy() if expired else None,
             adjustments=uid.map(adjustments).fillna(0.0).to_numpy() if adjustments else None,
