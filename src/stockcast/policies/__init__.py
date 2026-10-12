@@ -12,6 +12,7 @@ from stockcast.policies.single_order import (
 from .order_up_to import OrderUpToPolicy
 from .reorder_point import ReorderPointPolicy
 from .reorder_point_targets import ReorderPointTargetProvider, ReorderPointTargets
+from .rolling import rolling_schedule
 
 __all__ = [
     "OrderUpToPolicy",
@@ -20,4 +21,5 @@ __all__ = [
     "ReorderPointTargets",
     "SingleOrderPolicy",
     "newsvendor_critical_fractile",
+    "rolling_schedule",
 ]

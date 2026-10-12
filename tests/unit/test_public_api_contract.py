@@ -23,6 +23,8 @@ def test_public_export_sets_are_frozen_for_0_1():
         "SingleOrderPolicy", "newsvendor_critical_fractile",
         # Additive order-level API.
         "OrderLines", "Supplier", "SupplierAllocation", "SupplierShares", "SupplyModel",
+        # 0.2.0: rolling targets.
+        "rolling_schedule",
     ]
     assert core.__all__ == [
         "BasePolicy", "CALLBACK_AUDIT_COLUMNS", "CallbackContext", "CallbackError",
@@ -47,6 +49,8 @@ def test_public_export_sets_are_frozen_for_0_1():
         "OrderUpToPolicy", "ReorderPointPolicy",
         "ReorderPointTargetProvider", "ReorderPointTargets",
         "SingleOrderPolicy", "newsvendor_critical_fractile",
+        # 0.2.0: rolling targets.
+        "rolling_schedule",
     ]
     assert evaluation.__all__ == [
         "InventoryEvaluator", "CANONICAL_EVENT_COLUMNS", "validate_event_frame",

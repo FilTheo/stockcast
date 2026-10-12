@@ -45,6 +45,7 @@ from stockcast.policies import (
     ReorderPointTargets,
     SingleOrderPolicy,
     newsvendor_critical_fractile,
+    rolling_schedule,
 )
 
 __all__ = [
@@ -86,4 +87,5 @@ __all__ = [
     "SupplierAllocation",
     "SupplierShares",
     "SupplyModel",
+    "rolling_schedule",
 ]
