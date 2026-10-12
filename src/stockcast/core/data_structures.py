@@ -1486,6 +1486,21 @@ class OrderDecision:
 
         _require_finite_nonnegative(self.data, ['order_quantity'], 'orders')
 
+    @classmethod
+    def _from_checked(cls, data: pd.DataFrame, sku_column: str,
+                      lead_time: Optional[int]) -> "OrderDecision":
+        """An order table whose SKU ids were already validated by its caller.
+
+        ``data`` must hold every order decision column and is owned by the
+        new object (no copy). Order quantities are still checked.
+        """
+        decision = cls.__new__(cls)
+        decision.sku_column = sku_column
+        decision.lead_time = lead_time
+        decision.data = data
+        _require_finite_nonnegative(data, ['order_quantity'], 'orders')
+        return decision
+
     def get_dataframe(self) -> pd.DataFrame:
         """
         Get the underlying order DataFrame.

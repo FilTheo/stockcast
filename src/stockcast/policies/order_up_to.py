@@ -33,6 +33,15 @@ from stockcast.policies._target_validation import (
 )
 
 
+# pandas before 2.0 labels the rows of a left merge with an Int64Index, later
+# versions with a RangeIndex; the order lookup in predict copies whichever this
+# pandas gives.
+_MERGE_ROWS_AS_INT64 = not isinstance(
+    pd.DataFrame({"k": ["a"]}).merge(pd.DataFrame({"k": ["a"]}), on="k", how="left").index,
+    pd.RangeIndex,
+)
+
+
 class OrderUpToPolicy(BasePolicy):
     """Order-up-to ``(R, S)`` policy: restore the inventory position to ``S``.
 
@@ -361,11 +370,18 @@ class OrderUpToPolicy(BasePolicy):
             inventory_df = inventory_state_df.inventory_position()
         else:            # Plain DataFrame - calculate inventory position if needed
             inventory_df = inventory_state_df.copy()
-        inventory_df = prepare_inventory_positions(
-            inventory_df,
-            sku_column,
-            allow_components=True,
-        )
+        if not getattr(inventory_state_df, '_ready_checked', False):
+            # An engine-checked state already has unique, valid SKU ids and
+            # finite float64 positions, which is all this step would ensure.
+            inventory_df = prepare_inventory_positions(
+                inventory_df,
+                sku_column,
+                allow_components=True,
+            )
+
+        fast = self._orders_by_lookup(inventory_df, sku_column, current_period)
+        if fast is not None:
+            return fast
 
         # Merge target levels with current inventory positions
         orders = inventory_df[[sku_column, 'inventory_position']].merge(
@@ -405,6 +421,53 @@ class OrderUpToPolicy(BasePolicy):
             sku_column=sku_column,
             lead_time=self.lead_time,
         )
+
+    def _orders_by_lookup(
+        self, inventory_df: pd.DataFrame, sku_column: str, current_period: int,
+    ) -> Optional[OrderDecision]:
+        """``predict``'s orders by an index lookup of the fitted levels, or None.
+
+        Gives exactly the table of the left merge in ``predict`` when both SKU
+        columns share a dtype whose ids match by equality (object, string,
+        integer), the levels are float64 with one row per SKU, and the state
+        has rows. Otherwise ``predict`` runs the merge.
+        """
+        levels = self.target_levels_
+        if list(levels.columns) != [sku_column, 'target_level'] or inventory_df.empty:
+            return None
+        ids = inventory_df[sku_column]
+        dtype = ids.dtype
+        if levels[sku_column].dtype != dtype or levels['target_level'].dtype != np.float64:
+            return None
+        if not (
+            isinstance(dtype, pd.StringDtype)
+            or (isinstance(dtype, np.dtype) and dtype.kind in "iuO")
+        ):
+            return None
+        # tupleize_cols=False keeps tuple ids such as ('tea', 'shop1') as one key.
+        fitted = pd.Index(levels[sku_column], tupleize_cols=False)
+        if not fitted.is_unique:
+            return None
+        rows = fitted.get_indexer(pd.Index(ids, tupleize_cols=False))
+        target = np.where(rows >= 0, levels['target_level'].to_numpy()[rows], np.nan)
+        missing = np.isnan(target)
+        if missing.any():
+            raise ValueError(f"No target_level was fitted for SKUs: {ids[missing].tolist()[:5]}")
+        position = inventory_df['inventory_position'].to_numpy()
+        # The row labels a left merge gives: 0..n-1, as pandas numbers them.
+        rows = pd.Index(np.arange(len(ids))) if _MERGE_ROWS_AS_INT64 else pd.RangeIndex(len(ids))
+        orders = pd.DataFrame({
+            sku_column: ids.set_axis(rows),
+            # Q = max(0, S - IP), as in the merge path.
+            'order_quantity': np.maximum(0, target - position),
+            'target_level': target,
+            'inventory_position': position,
+            'reorder_point': np.nan,
+            'order_period': current_period,
+            'expected_delivery_period': current_period + self.lead_time,
+        }, index=rows)
+        # The ids were validated with the state (or by prepare_inventory_positions).
+        return OrderDecision._from_checked(orders, sku_column, self.lead_time)
 
     def get_target_levels(self) -> pd.DataFrame:
         """Return the fitted order-up-to level ``S`` per SKU.
