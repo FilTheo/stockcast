@@ -249,3 +249,44 @@ def test_scheduled_snapshots_that_change_in_predict_leave_the_callers_schedule_a
     assert all(policy.calls == [] for policy in schedule.values())
     pd.testing.assert_frame_equal(_run(schedule[0], policy_schedule=schedule), first)
     assert first["target_level"].tolist() == [8.0 + period for period in range(len(DEMAND))]
+
+
+@pytest.mark.parametrize("subclass", [False, True])
+def test_window_checks_copy_the_policy_only_when_the_check_may_change_it(subclass, monkeypatch):
+    class ChangingCheck(OrderUpToPolicy):
+        def validate_decision_window(self, period, information_date, offset):
+            self.changed_by_check = True
+            return super().validate_decision_window(period, information_date, offset)
+
+        def predict(self, inventory_state_df, *, current_period, **kwargs):
+            assert not hasattr(self, "changed_by_check")
+            return super().predict(inventory_state_df, current_period=current_period, **kwargs)
+
+    policy_class = ChangingCheck if subclass else OrderUpToPolicy
+    checked, decided = [], []
+    original_check = policy_class.validate_decision_window
+    original_select = SimulationEngine._policy_for_decision
+
+    def recording_check(self, *args):
+        checked.append(id(self))
+        return original_check(self, *args)
+
+    def recording_select(*args):
+        snapshot = original_select(*args)
+        decided.append(id(snapshot))
+        return snapshot
+
+    monkeypatch.setattr(policy_class, "validate_decision_window", recording_check)
+    monkeypatch.setattr(SimulationEngine, "_policy_for_decision", staticmethod(recording_select))
+    schedule = {}
+    for period in range(len(DEMAND)):
+        snapshot = policy_class(lead_time=0, review_period=1, freq="D", allow_backorders=False)
+        schedule[period] = snapshot.fit(
+            pd.DataFrame({"unique_id": [SKU], "target": [9.0]}),
+            target_column="target",
+            forecast_origin=OPENING_DATE + pd.Timedelta(days=period),
+        )
+    _run(schedule[0], policy_schedule=schedule)
+    # Built-in checks read the run's own snapshots; a subclass checks a copy.
+    assert len(checked) == len(decided) == len(DEMAND)
+    assert (checked == decided) is not subclass

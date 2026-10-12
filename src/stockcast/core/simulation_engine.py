@@ -63,6 +63,7 @@ from stockcast.core.data_structures import (
     _require_identifiers,
     _require_period_date,
 )
+from stockcast.core.decision_schedule import ExplicitSchedule, OneTimeSchedule, PeriodicSchedule
 from stockcast.core._open_orders import (
     DELIVERY_OUTCOME_COLUMNS,
     ORDER_FRAME_COLUMNS,
@@ -1661,7 +1662,13 @@ class SimulationEngine:
             coverage_policy = policy_schedule.get(period, coverage_policy)
             if not callable(getattr(coverage_policy, "validate_decision_window", None)):
                 continue
-            validate_window = getattr(copy.deepcopy(coverage_policy), "validate_decision_window", None)
+            # A custom check may change its policy, so it runs on a copy; the
+            # built-in checks only read theirs.
+            checked = (
+                coverage_policy if self._read_only_window_check(coverage_policy)
+                else copy.deepcopy(coverage_policy)
+            )
+            validate_window = getattr(checked, "validate_decision_window", None)
             if callable(validate_window):
                 validate_window(period, opening_date + period * period_offset, period_offset)
 
@@ -3363,6 +3370,21 @@ class SimulationEngine:
             f"before the inventory's opening date {opening_date}, so it covers none "
             "of the run's demand. A target's date is the last period it covers, "
             "not the day the forecast was made"
+        )
+
+    @staticmethod
+    def _read_only_window_check(policy: BasePolicy) -> bool:
+        """Whether ``validate_decision_window`` is a built-in, read-only check.
+
+        True for the built-in policy classes with a built-in decision schedule;
+        subclasses and custom schedules may run code that changes the policy.
+        """
+        # Deferred import: stockcast.policies imports this module.
+        from stockcast.policies import OrderUpToPolicy, ReorderPointPolicy, SingleOrderPolicy
+
+        return (
+            type(policy) in (OrderUpToPolicy, ReorderPointPolicy, SingleOrderPolicy)
+            and type(policy.schedule) in (PeriodicSchedule, OneTimeSchedule, ExplicitSchedule)
         )
 
     @staticmethod
