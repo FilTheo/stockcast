@@ -1305,6 +1305,7 @@ class SimulationEngine:
         callbacks: Optional[Sequence[SimulationCallback]] = None,
         supply: Optional[SupplyModel] = None,
         processes: Optional[Sequence[InventoryProcess]] = None,
+        allow_target_reuse: bool = True,
     ) -> SimulationResult:
         """Simulate a policy against a demand path.
 
@@ -1355,6 +1356,13 @@ class SimulationEngine:
                 after each order.
             processes: ``InventoryProcess`` objects (for example
                 ``ShelfLife``), applied in order.
+            allow_target_reuse: ``True`` (default): a policy keeps deciding until
+                ``policy_schedule`` replaces it, so one target can serve many
+                decisions (a static-target experiment). ``False``: every decision
+                needs a target fitted for it: each decision after the first is a
+                key of ``policy_schedule``, and a dated policy used at the first
+                decision has that decision's information date as its forecast
+                origin. Checked before the run.
 
         Returns:
             A ``SimulationResult``.
@@ -1399,6 +1407,8 @@ class SimulationEngine:
             order_during_settlement = False
         if not isinstance(order_during_settlement, bool):
             raise ValueError("order_during_settlement must be boolean")
+        if not isinstance(allow_target_reuse, bool):
+            raise ValueError("allow_target_reuse must be True or False")
         if demand_source_name is not None and (
             not isinstance(demand_source_name, str) or not demand_source_name.strip()
         ):
@@ -1542,6 +1552,14 @@ class SimulationEngine:
             period_offset=period_offset,
             decision_periods=decision_periods,
         )
+        if not allow_target_reuse:
+            self._require_target_per_decision(
+                policy,
+                policy_schedule,
+                decision_periods=decision_periods,
+                opening_date=opening_date,
+                period_offset=period_offset,
+            )
         inventory_skus = set(inventory.get_dataframe()[inventory.sku_column].tolist())
         self._require_fitted_skus(policy, "the policy", inventory_skus)
         for period, snapshot in sorted(policy_schedule.items()):
@@ -1656,6 +1674,8 @@ class SimulationEngine:
             run_settings['supply'] = copy.deepcopy(supply_manifest)
         if process_manifests is not None:
             run_settings['processes'] = copy.deepcopy(process_manifests)
+        if not allow_target_reuse:
+            run_settings['allow_target_reuse'] = False
         run_manifest = self._build_run_manifest(
             demand_data=demand_data,
             demand_source_name=(
@@ -2913,6 +2933,49 @@ class SimulationEngine:
         return validated
 
     @staticmethod
+    def _require_target_per_decision(
+        policy: BasePolicy,
+        policy_schedule: Mapping[int, BasePolicy],
+        *,
+        decision_periods,
+        opening_date: pd.Timestamp,
+        period_offset,
+    ) -> None:
+        """``allow_target_reuse=False``: no decision reuses another decision's target.
+
+        The first decision uses ``policy`` (or its ``policy_schedule`` entry);
+        every later decision needs its own entry. Snapshot origins are already
+        exact (``_validate_policy_schedule``); a dated base policy must be
+        exact too, not merely free of look-ahead.
+        """
+        hint = (
+            "give policy_schedule a policy for every decision (rolling_schedule "
+            "builds one from a table of targets), or pass allow_target_reuse=True "
+            "to reuse a static target on purpose"
+        )
+        periods = sorted(decision_periods)
+        first = periods[0]
+        if first not in policy_schedule:
+            origin = SimulationEngine._policy_origin(policy)
+            information_date = opening_date + first * period_offset
+            if origin is not None and origin != information_date:
+                raise ValueError(
+                    f"allow_target_reuse=False: the policy's forecast_origin "
+                    f"{_date_text(origin)} is not the information date "
+                    f"{_date_text(information_date)} of the first decision (period "
+                    f"{first}), so its target was fitted for another decision; fit it "
+                    f"with forecast_origin {_date_text(information_date)}, or {hint}"
+                )
+        for period in periods[1:]:
+            if period not in policy_schedule:
+                raise ValueError(
+                    f"allow_target_reuse=False: decision period {period} (information "
+                    f"date {_date_text(opening_date + period * period_offset)}) has no "
+                    "policy of its own in policy_schedule, so it would reuse the target "
+                    f"of an earlier decision; {hint}"
+                )
+
+    @staticmethod
     def _policy_frequency(policy: BasePolicy):
         """The period length a fitted policy records (its ``freq``, given or read), or None."""
         get_metadata = getattr(policy, "get_target_metadata", None)
@@ -3312,6 +3375,7 @@ class SimulationEngine:
         callbacks: Optional[Sequence[SimulationCallback]] = None,
         supply: Optional[SupplyModel] = None,
         processes: Optional[Sequence[InventoryProcess]] = None,
+        allow_target_reuse: bool = True,
     ) -> 'ComparisonResult':
         """Simulate several policies on the same experiment.
 
@@ -3360,7 +3424,11 @@ class SimulationEngine:
             policy_schedules=policy_schedules,
             order_constraints=order_constraints,
             callbacks=callbacks,
-            branch_run_options={"supply": supply, "processes": processes},
+            branch_run_options={
+                "supply": supply,
+                "processes": processes,
+                "allow_target_reuse": allow_target_reuse,
+            },
         )
 
     def _run_comparison(

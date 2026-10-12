@@ -330,3 +330,136 @@ def test_unsupported_inputs_raise():
     with pytest.raises(ValueError, match="name the target columns to fit"):
         rolling_schedule(order_up_to(), targets, state())
     assert copy.deepcopy(targets).equals(weekly_targets())  # the table is not changed
+
+
+# ---------------------------------------------------------------------------
+# allow_target_reuse=False (S1)
+# ---------------------------------------------------------------------------
+
+def s1_policy(skus, target, origin=ORIGIN, **kwargs):
+    """The S1 request's policy: a planner target over H = 3 weeks."""
+    return order_up_to(None, **kwargs).fit(
+        pd.DataFrame({"unique_id": skus, "S": target}),
+        target_column="S", forecast_origin=origin,
+    )
+
+
+def s1_demand(skus, values):
+    return pd.DataFrame([(s, p, ORIGIN + (p + 1) * WEEK, v)
+                         for p, v in enumerate(values) for s in skus],
+                        columns=["unique_id", "period", "date", "y"])
+
+
+def _manifest(result):
+    manifest = copy.deepcopy(result.run_manifest)
+    manifest.pop("run_id")
+    manifest.pop("created_at_utc")
+    return manifest
+
+
+def _assert_same_run(left, right, *, ignore_settings=()):
+    pd.testing.assert_frame_equal(left.to_event_frame(), right.to_event_frame(), check_exact=True)
+    pd.testing.assert_frame_equal(left.to_order_frame(), right.to_order_frame(), check_exact=True)
+    pd.testing.assert_frame_equal(left.history, right.history, check_exact=True)
+    pd.testing.assert_frame_equal(left.to_callback_audit_frame(), right.to_callback_audit_frame())
+    pd.testing.assert_frame_equal(left.to_process_flow_frame(), right.to_process_flow_frame())
+    left_manifest, right_manifest = _manifest(left), _manifest(right)
+    for key in ignore_settings:
+        left_manifest["run_settings"].pop(key, None)
+        right_manifest["run_settings"].pop(key, None)
+    assert left_manifest == right_manifest
+
+
+def test_s1_static_target_raises_at_the_first_reused_decision():
+    arguments = dict(policy=s1_policy(["a"], [30.0]),
+                     demand_source=s1_demand(["a"], [10.0] * 15), inventory=state(["a"]))
+    default = SimulationEngine().run(**arguments)
+    assert default.to_event_frame()["decision_flag"].sum() == 15
+    with pytest.raises(ValueError, match=r"allow_target_reuse=False: decision period 1 "
+                                         r"\(information date 2024-01-08\) has no policy of its own "
+                                         r".*rolling_schedule.*allow_target_reuse=True"):
+        SimulationEngine().run(**arguments, allow_target_reuse=False)
+
+
+def test_s1_partial_schedule_raises_at_the_first_uncovered_decision():
+    snapshots = {1: s1_policy(["a"], [31.0], ORIGIN + WEEK),
+                 3: s1_policy(["a"], [33.0], ORIGIN + 3 * WEEK)}
+    arguments = dict(policy=s1_policy(["a"], [30.0]), policy_schedule=snapshots,
+                     demand_source=s1_demand(["a"], [10.0] * 5), inventory=state(["a"]))
+    default = SimulationEngine().run(**arguments)
+    assert default.to_event_frame()["target_level"].tolist() == [30, 31, 31, 33, 33]
+    with pytest.raises(ValueError, match=r"decision period 2 \(information date 2024-01-15\)"):
+        SimulationEngine().run(**arguments, allow_target_reuse=False)
+
+
+def test_complete_rolling_schedule_is_identical_with_and_without_the_guard():
+    schedule = rolling_schedule(order_up_to(), weekly_targets(), state(), target_column="q_90")
+    demand = weekly_demand(SKUS, 5)
+    guarded = run(schedule, demand, allow_target_reuse=False)
+    _assert_same_run(guarded, run(schedule, demand), ignore_settings=("allow_target_reuse",))
+    assert guarded.run_settings["allow_target_reuse"] is False
+    assert guarded.run_manifest["run_settings"]["allow_target_reuse"] is False
+
+
+def test_default_and_explicit_true_are_the_0_1_run():
+    arguments = dict(policy=s1_policy(SKUS, [30.0, 20.0]),
+                     demand_source=s1_demand(SKUS, [10.0, 7.0, 12.0, 9.0]), inventory=state())
+    default = SimulationEngine().run(**arguments)
+    explicit = SimulationEngine().run(**arguments, allow_target_reuse=True)
+    _assert_same_run(default, explicit)
+    assert "allow_target_reuse" not in default.run_settings
+    with pytest.raises(ValueError, match="allow_target_reuse must be True or False"):
+        SimulationEngine().run(**arguments, allow_target_reuse="no")
+
+
+def test_base_policy_origin_must_be_exact_under_the_guard():
+    from stockcast import PeriodicSchedule
+
+    def policy(origin):
+        return s1_policy(["a"], [30.0], origin, review_period=None,
+                         schedule=PeriodicSchedule(every=3, start=1))
+
+    arguments = dict(demand_source=s1_demand(["a"], [10.0] * 3), inventory=state(["a"]))
+    # Default: a target fitted at the opening may serve a first decision a week later.
+    SimulationEngine().run(policy=policy(ORIGIN), **arguments)
+    with pytest.raises(ValueError, match=r"forecast_origin 2024-01-01 is not the information date "
+                                         r"2024-01-08 of the first decision \(period 1\)"):
+        SimulationEngine().run(policy=policy(ORIGIN), allow_target_reuse=False, **arguments)
+    exact = SimulationEngine().run(policy=policy(ORIGIN + WEEK), allow_target_reuse=False,
+                                   **arguments)
+    assert exact.to_event_frame()["decision_flag"].sum() == 1
+
+
+def test_undated_planner_levels_also_need_a_policy_per_decision():
+    planner = ReorderPointPolicy(lead_time=2, review_period=1, order_quantity=12.0,
+                                 allow_backorders=False).fit(reorder_point=5.0)
+    arguments = dict(policy=planner, demand_source=s1_demand(["a"], [10.0] * 3),
+                     inventory=state(["a"]), freq="W-MON")
+    SimulationEngine().run(**arguments)
+    with pytest.raises(ValueError, match="decision period 1 "):
+        SimulationEngine().run(**arguments, allow_target_reuse=False)
+
+
+def test_run_comparison_forwards_the_guard_to_every_branch():
+    schedule = rolling_schedule(order_up_to(), weekly_targets(), state(), target_column="q_90")
+    demand = weekly_demand(SKUS, 5)
+    with pytest.raises(ValueError, match="allow_target_reuse=False: decision period 1"):
+        SimulationEngine().run_comparison(
+            {"rolling": schedule[0], "static": schedule[0]},
+            policy_schedules={"rolling": schedule},
+            demand_source=demand, inventory=state(), allow_target_reuse=False,
+        )
+    comparison = SimulationEngine().run_comparison(
+        {"rolling": schedule[0]}, policy_schedules={"rolling": schedule},
+        demand_source=demand, inventory=state(), allow_target_reuse=False,
+    )
+    assert comparison["rolling"].run_settings["allow_target_reuse"] is False
+    pd.testing.assert_frame_equal(
+        comparison["rolling"].to_event_frame(),
+        run(schedule, demand, allow_target_reuse=False).to_event_frame(), check_exact=True,
+    )
+    plain = SimulationEngine().run_comparison(
+        {"rolling": schedule[0]}, policy_schedules={"rolling": schedule},
+        demand_source=demand, inventory=state(),
+    )
+    assert "allow_target_reuse" not in plain["rolling"].run_settings
