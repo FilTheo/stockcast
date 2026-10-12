@@ -656,3 +656,12 @@ def test_order_variance_is_nan_without_a_decision():
     only_a_decides = two[two["decision_flag"] | (two["unique_id"] == "b")]
     only_a_decides = only_a_decides[(only_a_decides["unique_id"] == "a") | ~only_a_decides["decision_flag"]]
     assert order_variance(only_a_decides) == pytest.approx(np.var([6.0, 0.0]))
+
+
+def test_groupby_accepts_one_column_name():
+    evaluator = InventoryEvaluator().fit(_costed_run())
+    # A string used to be split into its letters (KeyError: 'u').
+    by_name = evaluator.evaluate([fill_rate, order_variance], groupby="unique_id")
+    by_list = evaluator.evaluate([fill_rate, order_variance], groupby=["unique_id"])
+    pd.testing.assert_frame_equal(by_name, by_list)
+    assert by_name["unique_id"].tolist() == ["A", "B"]

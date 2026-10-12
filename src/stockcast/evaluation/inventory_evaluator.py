@@ -4,7 +4,7 @@ Simulation-first inventory evaluator.
 
 from __future__ import annotations
 
-from typing import Iterable, List, Optional, Sequence
+from typing import Iterable, List, Optional, Sequence, Union
 
 import pandas as pd
 
@@ -86,7 +86,7 @@ class InventoryEvaluator:
     def evaluate(
         self,
         metrics: Iterable,
-        groupby: Optional[Sequence[str]] = None,
+        groupby: Optional[Union[str, Sequence[str]]] = None,
         context: Optional[dict] = None,
     ) -> pd.DataFrame:
         """Compute metrics for each group of the fitted event table.
@@ -95,8 +95,9 @@ class InventoryEvaluator:
             metrics: Metric functions (``metric(event_frame, context)``) or objects
                 with ``name`` and ``compute``, such as ``BaseInventoryMetric``
                 subclasses. A function's ``__name__`` becomes its column name.
-            groupby: Event table columns to group by, such as ``["unique_id"]``;
-                ``None`` or ``[]`` (default) gives one pooled row.
+            groupby: Event table columns to group by, such as ``["unique_id"]``,
+                or one column name, such as ``"unique_id"`` (the same as a
+                one-element list); ``None`` or ``[]`` (default) gives one pooled row.
             context: Options and rates for the metrics, for example cost rates,
                 ``cost_components``, ``include_partial_cycles``, or
                 ``periods_per_year``.
@@ -113,7 +114,12 @@ class InventoryEvaluator:
 
         context = context or {}
         metric_specs = [self._normalize_metric(metric) for metric in metrics]
-        group_columns = [] if groupby is None else list(groupby)
+        if groupby is None:
+            group_columns = []
+        elif isinstance(groupby, str):
+            group_columns = [groupby]  # one column name, not its letters
+        else:
+            group_columns = list(groupby)
 
         rows = []
         for keys, group in self._iter_groups(group_columns):
