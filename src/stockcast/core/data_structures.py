@@ -469,6 +469,11 @@ class InventoryStateDataFrame:
         ```
     """
 
+    # Engine-private: True only on the copy of an array-backed state that the
+    # engine hands to a built-in policy. ArrayState.ready() already proved
+    # what _validate_ready_state checks, so inventory_position() skips it.
+    _ready_checked = False
+
     def __init__(self,
                  data: Union[pd.DataFrame, List, np.ndarray],
                  max_lead_time: Optional[int] = None,
@@ -714,7 +719,8 @@ class InventoryStateDataFrame:
         Returns:
             DataFrame with all original columns plus 'inventory_position' column
         """
-        self._validate_ready_state(require_shortage_mode=False)
+        if not self._ready_checked:
+            self._validate_ready_state(require_shortage_mode=False)
         result = self.data.copy()
 
         # Calculate total in_transit per SKU (sum of array)

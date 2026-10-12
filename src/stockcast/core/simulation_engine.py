@@ -929,6 +929,7 @@ class _PeriodRun:
                 (period, pd.Timestamp(before.data['date'].iloc[0]) - self.period_offset)
                 if gaps else None
             ),
+            ready_checked=arrays,
         )
         supply = engine._active_supply
         # Constraints receive the live state in their context, so with
@@ -2322,7 +2323,7 @@ class SimulationEngine:
 
     def _decide_order(
         self, inventory, policy, period, *, run_window, skus_without_target=None,
-        gap_decision=None,
+        gap_decision=None, ready_checked=False,
     ) -> OrderDecision:
         """Predict, apply order callbacks and constraints; return the final order.
 
@@ -2331,10 +2332,15 @@ class SimulationEngine:
         no order, and callbacks cannot adjust them. Constraints see them as zero
         rows and must leave them at zero. ``gap_decision`` is the decision's
         ``(demand period, information date)``, for that error.
+        ``ready_checked`` means ``inventory`` was built from an array state that
+        passed ``ArrayState.ready``; a built-in policy, which reads its copy
+        without changing it, then skips the repeated state validation.
         """
         view = copy.deepcopy(inventory)
         if skus_without_target:
             view = self._without_skus(view, skus_without_target)
+        if ready_checked and self._builtin_policy(policy):
+            view._ready_checked = True
         raw = policy.predict(view, current_period=period)
         if not isinstance(raw, OrderDecision):
             raise TypeError("policy.predict must return an OrderDecision")
@@ -3379,13 +3385,17 @@ class SimulationEngine:
         True for the built-in policy classes with a built-in decision schedule;
         subclasses and custom schedules may run code that changes the policy.
         """
+        return SimulationEngine._builtin_policy(policy) and (
+            type(policy.schedule) in (PeriodicSchedule, OneTimeSchedule, ExplicitSchedule)
+        )
+
+    @staticmethod
+    def _builtin_policy(policy: BasePolicy) -> bool:
+        """Whether ``policy`` is exactly a built-in policy class (not a subclass)."""
         # Deferred import: stockcast.policies imports this module.
         from stockcast.policies import OrderUpToPolicy, ReorderPointPolicy, SingleOrderPolicy
 
-        return (
-            type(policy) in (OrderUpToPolicy, ReorderPointPolicy, SingleOrderPolicy)
-            and type(policy.schedule) in (PeriodicSchedule, OneTimeSchedule, ExplicitSchedule)
-        )
+        return type(policy) in (OrderUpToPolicy, ReorderPointPolicy, SingleOrderPolicy)
 
     @staticmethod
     def _policy_for_decision(
