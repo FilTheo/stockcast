@@ -298,8 +298,9 @@ example when a product's history is still too short. Keep the row and leave
 its target columns empty (NaN). By default `rolling_schedule` stops there and
 names the product and the cutoff. With `missing_targets="no_order"` it leaves
 the product out of that cutoff's policy, and the same option on the run places
-no order for it at that decision. Here coffee has no target at the review of
-14 January:
+no order for it at that decision. Here coffee has no target at the cutoff of
+13 January, so it has none at the review that follows, whose row in the event
+table is dated 14 January:
 
 ```python
 gappy = targets.copy()
@@ -339,9 +340,8 @@ coffee[["date", "decision_flag", "target_level", "order_quantity", "target_missi
 
 Only coffee's order at that review changes: its demand is still served from
 the shelf, and an order placed before the gap still arrives on time. Its
-`target_level` is empty from
-the gap until its next decision with a target, and `target_missing_flag`
-marks the decision without one. The run's settings count these decisions per
+`target_level` is empty from the gap until its next decision with a target,
+and `target_missing_flag` marks the decision without one. The run's settings count these decisions per
 product:
 
 ```python
@@ -355,8 +355,9 @@ gap_run.run_settings["missing_targets"]
 No value is filled in. The zero order is itself a decision, so when you
 compare forecasts with different gaps, report each one's count with its
 results. A missing row, rather than an empty one, always stops
-`rolling_schedule`. A gap product is not part of that decision's order, so a
-callback that changes its order there stops the run. `missing_targets` also
+`rolling_schedule`. A gap product places no order at that decision, so a
+callback or an ordering constraint that gives it an order there stops the
+run. `missing_targets` also
 works with schedules you build by hand: a snapshot without a level for a
 product is a gap for that product.
 

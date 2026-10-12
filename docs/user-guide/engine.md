@@ -35,7 +35,7 @@ result = SimulationEngine(verbose=0).run(
 | `supply` | A [`SupplyModel`](suppliers.md): suppliers, lead times, split deliveries. |
 | `processes` | A list of [inventory processes](processes.md), such as `ShelfLife`. |
 | `allow_target_reuse` | `True` (default): a policy keeps deciding until `policy_schedule` replaces it, so one target can serve many decisions. `False`: every decision needs a target fitted for it ([details](../how-to/rolling-targets.md#one-target-per-decision)). |
-| `missing_targets` | `"raise"` (default): every SKU needs a target at every decision. `"no_order"`: a SKU without a target at a decision gets no order there, flagged in `target_missing_flag` ([details](../how-to/rolling-targets.md#targets-the-forecast-could-not-produce)). |
+| `missing_targets` | `"raise"` (default): every SKU needs a target at every decision. `"no_order"`: a SKU without a target at a decision gets no order there, flagged in `target_missing_flag`; a callback or constraint that gives it an order stops the run ([details](../how-to/rolling-targets.md#targets-the-forecast-could-not-produce)). |
 
 Only the policy, the demand, and the opening state are required. The run
 length and the period length come from them, and every period is scored
