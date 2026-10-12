@@ -9,6 +9,7 @@ missing target, a decision without an origin.
 from __future__ import annotations
 
 import copy
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -19,6 +20,7 @@ from stockcast import (
     InventoryStateDataFrame,
     OrderDecision,
     OrderingConstraint,
+    OrderMultiple,
     OrderUpToPolicy,
     ReorderPointPolicy,
     SimulationEngine,
@@ -813,3 +815,34 @@ def test_validator_accepts_and_rejects_the_flag():
         "target_missing_flag", frame["target_missing_flag"].astype(int)))
     with pytest.raises(ValueError, match="target_missing_flag must contain boolean values"):
         validate_event_frame(as_numbers)
+
+
+@pytest.mark.parametrize("kind", ["order_up_to", "reorder_point"])
+def test_runs_leave_the_callers_policies_and_state_untouched(kind):
+    # The 0.2.0 speed paths use validated snapshots without a second copy and
+    # skip copies around built-in checks; none of that may reach the caller.
+    targets = weekly_targets()
+    if kind == "order_up_to":
+        schedule = rolling_schedule(order_up_to(), targets, state(), target_column="q_90")
+    else:
+        schedule = rolling_schedule(
+            ReorderPointPolicy(lead_time=2, review_period=1, freq="W-MON",
+                               order_quantity=12.0, allow_backorders=False),
+            targets.rename(columns={"q_80": "s"}), state(), reorder_point_column="s",
+        )
+    inventory = state()
+    demand = weekly_demand(SKUS, 5)
+    before = {period: pickle.dumps(policy) for period, policy in schedule.items()}
+    inventory_before = pickle.dumps(inventory)
+
+    run(schedule, demand, inventory=inventory)
+    run(schedule, demand, inventory=inventory, allow_target_reuse=False,
+        order_constraints=[OrderMultiple(5, mode="adjust")])
+    SimulationEngine().run(policy=schedule[0], demand_source=demand, inventory=inventory)
+    SimulationEngine().run_comparison(
+        {"rolling": schedule[0], "static": schedule[0]}, demand, inventory,
+        policy_schedules={"rolling": schedule},
+    )
+
+    assert {period: pickle.dumps(policy) for period, policy in schedule.items()} == before
+    assert pickle.dumps(inventory) == inventory_before
