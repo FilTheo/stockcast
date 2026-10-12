@@ -1346,6 +1346,13 @@ def test_plain_columns_skip_the_encoding_test_hash(values, monkeypatch):
         (pd.DataFrame({"unique_id": ["a", "b"], "notes": [[1], "x"]}), ["unique_id", "notes"]),
         (pd.DataFrame({"unique_id": [10, 9, 100]}).set_axis([5, 6, 7]), ["unique_id"]),
         (pd.DataFrame({"unique_id": ["a", "b"], "date": ["x", "y"]}), ["unique_id", "missing"]),
+        (pd.DataFrame({"unique_id": pd.array(["a", None, "c"], dtype="string")}), ["unique_id"]),
+        (pd.DataFrame({"unique_id": pd.array(["a", "b", "c"], dtype="string")}), ["unique_id"]),
+        (pd.DataFrame({"unique_id": pd.to_datetime(["2025-01-01", None, "2025-01-03"])}), ["unique_id"]),
+        (pd.DataFrame({"unique_id": [np.array([1, 2]), np.array([3, 4])]}), ["unique_id"]),
+        (pd.DataFrame({"unique_id": ["a", "b", "b"], "x": [3, 2, 1]}), ["unique_id", "x"]),
+        (pd.DataFrame({"unique_id": [True, False]}), ["unique_id"]),
+        (pd.DataFrame({"unique_id": ["solo"], "x": [1.0]}), ["unique_id", "x"]),
     ],
 )
 def test_rows_already_in_order_are_kept_exactly_as_sorting_would(frame, sort_columns):

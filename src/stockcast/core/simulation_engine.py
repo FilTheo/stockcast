@@ -2971,11 +2971,12 @@ class SimulationEngine:
             or (isinstance(dtype, np.dtype) and dtype.kind in "biufmMO")
         ):
             return False
+        values = first.to_numpy()
         try:
-            return bool(
-                first.notna().all() and first.is_unique and first.is_monotonic_increasing
-            )
-        except Exception:  # unorderable or unhashable values: sort as before
+            # Strictly increasing implies no missing value (NaN, NaT and NA
+            # never compare as less) and no tie.
+            return bool(np.all(values[:-1] < values[1:]))
+        except Exception:  # unorderable values (mixed types, NA, arrays): sort as before
             return False
 
     @staticmethod
