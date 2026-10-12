@@ -15,7 +15,10 @@ import pandas as pd
 import pytest
 
 from stockcast import (
+    ConstraintResult,
     InventoryStateDataFrame,
+    OrderDecision,
+    OrderingConstraint,
     OrderUpToPolicy,
     ReorderPointPolicy,
     SimulationEngine,
@@ -632,15 +635,101 @@ def test_unusable_no_order_runs_raise():
 
 
 def test_a_callback_cannot_adjust_a_sku_at_its_gap_decision():
-    from stockcast import CallbackError, ScheduledOrderOverride
+    from stockcast import CallbackError, OrderAdjustmentResult, ScheduledOrderOverride, SimulationCallback
 
     _, with_gap = gap_schedule()
     override = ScheduledOrderOverride(pd.DataFrame(
         {"unique_id": ["b"], "date": [ORIGIN + 3 * WEEK], "order_quantity": [4.0]},
     ))
-    with pytest.raises(CallbackError, match="absent from the predicted decision"):
+    with pytest.raises(CallbackError) as caught:
         run(with_gap, weekly_demand(SKUS, 5), state(on_hand=5.0), missing_targets="no_order",
             callbacks=[override])
+    assert str(caught.value.__cause__) == (
+        "order adjustment targets SKUs absent from the predicted decision: ['b']; it has "
+        "no target at this decision, and missing_targets='no_order' places no order for it"
+    )
+
+    class Adjust(SimulationCallback):
+        """Sets the order of the given SKUs at the gap decision."""
+
+        def __init__(self, skus):
+            self.skus = skus
+
+        def on_after_prediction(self, decision, context):
+            if context.date != ORIGIN + 3 * WEEK:
+                return None
+            return OrderAdjustmentResult(
+                pd.DataFrame({"unique_id": self.skus, "order_quantity": 1.0}))
+
+    # A SKU unknown for another reason keeps the 0.1.0 message, word for word ...
+    full, _ = gap_schedule()
+    with pytest.raises(CallbackError) as caught:
+        run(full, weekly_demand(SKUS, 5), state(on_hand=5.0), callbacks=[Adjust(["zz"])])
+    assert str(caught.value.__cause__) == (
+        "order adjustment targets SKUs absent from the predicted decision: ['zz']"
+    )
+    # ... and a mix names the SKU without a target.
+    with pytest.raises(CallbackError) as caught:
+        run(with_gap, weekly_demand(SKUS, 5), state(on_hand=5.0), missing_targets="no_order",
+            callbacks=[Adjust(["b", "zz"])])
+    assert str(caught.value.__cause__) == (
+        "order adjustment targets SKUs absent from the predicted decision: ['b', 'zz']; "
+        "['b'] has no target at this decision, and missing_targets='no_order' places no "
+        "order for it"
+    )
+
+
+class _GiveB(OrderingConstraint):
+    """A custom constraint that orders 5 units of 'b' at every decision."""
+
+    name = "give_b"
+
+    def apply(self, order, context):
+        frame = order.get_dataframe()
+        requested = frame["order_quantity"].astype(float)
+        frame["order_quantity"] = np.where(frame[order.sku_column] == "b", 5.0, requested)
+        changed = frame["order_quantity"] != requested
+        audit = pd.DataFrame({
+            "unique_id": frame[order.sku_column].tolist(),
+            "requested_order_quantity": requested,
+            "constrained_order_quantity": frame["order_quantity"],
+            "constraint_adjustment_units": frame["order_quantity"] - requested,
+            "constraint_binding_flag": changed,
+            "capacity_violation_flag": False,
+            "binding_constraints": np.where(changed, self.name, ""),
+        })
+        return ConstraintResult(
+            OrderDecision(frame, sku_column=order.sku_column, lead_time=order.lead_time), audit,
+        )
+
+
+def test_a_constraint_that_orders_a_sku_without_a_target_stops_the_run():
+    _, with_gap = gap_schedule()
+    with pytest.raises(ValueError) as caught:
+        run(with_gap, weekly_demand(SKUS, 5), state(on_hand=5.0), missing_targets="no_order",
+            order_constraints=[_GiveB()])
+    assert str(caught.value) == (
+        "ordering constraints gave an order to 1 SKU(s) without a target at decision "
+        "period 2 (information date 2024-01-15): ['b']; with missing_targets='no_order' a "
+        "SKU without a target places no order, so constraints must leave its order at zero"
+    )
+
+
+def test_adjusting_constraints_leave_a_gap_sku_at_zero():
+    from stockcast import MinimumOrderQuantity, OrderMultiple
+    from stockcast.evaluation import validate_event_frame
+
+    _, with_gap = gap_schedule()
+    result = run(with_gap, weekly_demand(SKUS, 5), state(on_hand=5.0), missing_targets="no_order",
+                 order_constraints=[MinimumOrderQuantity(6.0, mode="adjust"),
+                                    OrderMultiple(5.0, mode="adjust")])
+    events = validate_event_frame(result.to_event_frame())
+    gap = events.query("unique_id == 'b' and demand_period == 2").iloc[0]
+    assert gap["target_missing_flag"] and gap["order_quantity"] == 0
+    # The constraints did act on the other orders.
+    assert events.loc[events["decision_flag"] & ~events["target_missing_flag"],
+                      "order_quantity"].mod(5).eq(0).all()
+    assert events["constraint_binding_flag"].any()
 
 
 def test_run_comparison_forwards_missing_targets():

@@ -924,6 +924,10 @@ class _PeriodRun:
             before, active_policy, sim_period,
             run_window=run_window,
             skus_without_target=gaps,
+            gap_decision=(
+                (period, pd.Timestamp(before.data['date'].iloc[0]) - self.period_offset)
+                if gaps else None
+            ),
         )
         supply = engine._active_supply
         # Constraints receive the live state in their context, so with
@@ -1431,8 +1435,9 @@ class SimulationEngine:
                 row in ``target_missing_flag``. ``run_settings["missing_targets"]``
                 counts these decisions per SKU. Needs built-in policies (their
                 fitted SKUs are known); a SKU without a target at any decision
-                raises. The SKU is not in the decision callbacks see, so a
-                callback cannot adjust its order there.
+                raises. The SKU is not in the decision callbacks see, and a
+                callback or ordering constraint that gives it an order there
+                stops the run.
 
         Returns:
             A ``SimulationResult``.
@@ -2310,12 +2315,15 @@ class SimulationEngine:
 
     def _decide_order(
         self, inventory, policy, period, *, run_window, skus_without_target=None,
+        gap_decision=None,
     ) -> OrderDecision:
         """Predict, apply order callbacks and constraints; return the final order.
 
         SKUs in ``skus_without_target`` (``missing_targets="no_order"``) are left
         out of the state the policy sees, so they are absent from the decision:
-        no order, and callbacks cannot adjust them.
+        no order, and callbacks cannot adjust them. Constraints see them as zero
+        rows and must leave them at zero. ``gap_decision`` is the decision's
+        ``(demand period, information date)``, for that error.
         """
         view = copy.deepcopy(inventory)
         if skus_without_target:
@@ -2347,7 +2355,8 @@ class SimulationEngine:
                         "on_after_prediction must return OrderAdjustmentResult or None"
                     )
                 adjusted, audit = self._apply_order_adjustment_result(
-                    adjusted, result, inventory, callback, position, context
+                    adjusted, result, inventory, callback, position, context,
+                    skus_without_target=skus_without_target,
                 )
             except Exception as exc:
                 if isinstance(exc, CallbackError):
@@ -2357,7 +2366,21 @@ class SimulationEngine:
                 ) from exc
             self._callback_audit_rows.extend(audit)
         self._capture_callback_order_trail(raw, adjusted, inventory)
-        return self._constrain_and_count(inventory, adjusted, policy=policy)
+        final = self._constrain_and_count(inventory, adjusted, policy=policy)
+        if skus_without_target:
+            frame = final.data
+            ordered = frame.loc[frame['order_quantity'].fillna(0.0) != 0, final.sku_column]
+            given = [sku for sku in ordered.tolist() if sku in skus_without_target]
+            if given:
+                decision_period, information_date = gap_decision
+                raise ValueError(
+                    f"ordering constraints gave an order to {len(given)} SKU(s) without a "
+                    f"target at decision period {decision_period} (information date "
+                    f"{_date_text(information_date)}): {_identifier_sample(given)}; with "
+                    "missing_targets='no_order' a SKU without a target places no order, so "
+                    "constraints must leave its order at zero"
+                )
+        return final
 
     @staticmethod
     def _without_skus(state: InventoryStateDataFrame, skus: frozenset) -> InventoryStateDataFrame:
@@ -2390,7 +2413,8 @@ class SimulationEngine:
         )
 
     def _apply_order_adjustment_result(
-        self, decision, result, inventory, callback, position, context
+        self, decision, result, inventory, callback, position, context,
+        skus_without_target=None,
     ) -> tuple[OrderDecision, list[dict]]:
         frame = result.get_dataframe()
         required = {"unique_id", "order_quantity"}
@@ -2409,10 +2433,23 @@ class SimulationEngine:
         )
         unknown = actual - current_ids
         if unknown:
-            raise ValueError(
+            message = (
                 "order adjustment targets SKUs absent from the predicted decision: "
                 f"{_identifier_sample(unknown)}"
             )
+            gaps = {sku for sku in unknown if sku in (skus_without_target or ())}
+            if gaps:
+                # missing_targets="no_order": say why the SKU is absent.
+                if gaps == unknown:
+                    subject, pronoun = ("it has", "it") if len(gaps) == 1 else ("they have", "them")
+                else:
+                    subject = f"{_identifier_sample(gaps)} {'has' if len(gaps) == 1 else 'have'}"
+                    pronoun = "it" if len(gaps) == 1 else "them"
+                message += (
+                    f"; {subject} no target at this decision, and "
+                    f"missing_targets='no_order' places no order for {pronoun}"
+                )
+            raise ValueError(message)
         quantities = pd.to_numeric(frame["order_quantity"], errors="coerce")
         if (
             quantities.isna().any()
