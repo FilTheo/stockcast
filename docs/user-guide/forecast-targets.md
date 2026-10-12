@@ -250,6 +250,12 @@ $\text{opening date} + t\,\Delta$. See
 [Refresh targets as forecasts roll](../how-to/rolling-targets.md) and
 [Notebook 04d](../notebooks/04d_rolling_cumulative_targets.ipynb).
 
+When every decision must use a target fitted for it, pass
+`allow_target_reuse=False` to `run`: the run then stops before it starts if a
+decision would reuse an older target.
+[`rolling_schedule`](../how-to/rolling-targets.md#from-a-table-of-targets)
+builds the schedule from one table of targets.
+
 ## Target probability and realised service
 
 The target probability describes the forecast: "with probability at least

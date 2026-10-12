@@ -150,8 +150,11 @@ forecasts: `{decision_period: fitted_policy}`. Each snapshot must be the same
 policy class with the same lead time, schedule, service level, and shortage
 rule; only the fitted targets change. Its forecast origin must equal the
 decision's information date, $\text{opening date} + t\,\Delta$. The manifest
-logs every update. See
-[Refresh targets as forecasts roll](../how-to/rolling-targets.md).
+logs every update. A decision without its own snapshot reuses the previous
+policy; with `allow_target_reuse=False` the run requires a snapshot for every
+decision instead. See
+[Refresh targets as forecasts roll](../how-to/rolling-targets.md), which also
+builds the snapshots from one table of targets.
 
 ## Write your own schedule
 

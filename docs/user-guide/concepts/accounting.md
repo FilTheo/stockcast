@@ -114,8 +114,9 @@ grams or millilitres balance just as well as event tables in units.
 - **Demand uses the shelf first.** A row cannot record a shortage while stock
   was still available for that demand.
 - **Stock or backorders, not both.** No row ends with both.
-- **Types and labels.** Flags are booleans, window labels are known, and
-  `order_arrival_flag` is set only on rows that received stock.
+- **Types and labels.** Flags are booleans, window labels are known,
+  `order_arrival_flag` is set only on rows that received stock, and
+  `target_missing_flag` only on decision rows with no order and no target.
 
 ??? example "Setup: the tea shop from the Walkthrough"
 

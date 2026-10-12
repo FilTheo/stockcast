@@ -310,6 +310,17 @@ more detail: whether $Q_{t-L}$ arrives before or after the demand of period
 $t$. Before is Case 2. After means the goods first sell in period
 $t + 1$, one period later, so `lead_time = L`.
 
+## Backtests with dated origins
+
+In a backtest each target usually carries its forecast origin: the last
+period its forecast saw. Keep that origin as it is. A source's order "at the
+end of period $t$" and Stockcast's decision at the start of $t + 1$ have seen
+the same demand, so the target made at origin $t$ belongs to that decision
+whatever the source calls the moment of ordering. Only `lead_time` and the
+window change, as in the cases above.
+[`rolling_schedule`](rolling-targets.md#from-a-table-of-targets) places each
+origin on its decision.
+
 ## What the translation changes
 
 When the policy, constraints and other components make the same decisions,

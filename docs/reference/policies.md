@@ -12,6 +12,8 @@ Ordering rules and their target providers. Guide: [Policies](../user-guide/polic
 
 ::: stockcast.policies.newsvendor_critical_fractile
 
+::: stockcast.policies.rolling_schedule
+
 ::: stockcast.policies.ReorderPointTargetProvider
 
 ::: stockcast.policies.ReorderPointTargets

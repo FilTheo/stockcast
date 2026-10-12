@@ -44,6 +44,7 @@ columns are listed in `stockcast.evaluation.CANONICAL_EVENT_COLUMNS`.
 | `stockout_flag` | `shortage_units > 0` |
 | `backorder_flag` | `backorders_end > 0` |
 | `order_arrival_flag` | a replenishment order arrived: the first delivery of an order was received this period. An order split across suppliers, partial deliveries, or delays is flagged once, when its first units arrive; declared opening orders with the same order period count as one order. Written by every run and used by `cycle_service_level`; it is not in `CANONICAL_EVENT_COLUMNS`, so event tables without it still validate |
+| `target_missing_flag` | the SKU had no target at this decision, so it placed no order (`target_level` is missing). Present only in runs with `missing_targets="no_order"`, right after `order_arrival_flag` |
 
 ### Stock flows
 

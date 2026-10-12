@@ -14,6 +14,7 @@ result = SimulationEngine(verbose=0).run(
     demand_source_name=None, random_seed=None,
     policy_schedule=None, order_constraints=None, callbacks=None,
     supply=None, processes=None,
+    allow_target_reuse=True, missing_targets="raise",
 )
 ```
 
@@ -33,6 +34,8 @@ result = SimulationEngine(verbose=0).run(
 | `callbacks` | A list of [callbacks](callbacks.md), applied in order. |
 | `supply` | A [`SupplyModel`](suppliers.md): suppliers, lead times, split deliveries. |
 | `processes` | A list of [inventory processes](processes.md), such as `ShelfLife`. |
+| `allow_target_reuse` | `True` (default): a policy keeps deciding until `policy_schedule` replaces it, so one target can serve many decisions. `False`: every decision needs a target fitted for it ([details](../how-to/rolling-targets.md#one-target-per-decision)). |
+| `missing_targets` | `"raise"` (default): every SKU needs a target at every decision. `"no_order"`: a SKU without a target at a decision gets no order there, flagged in `target_missing_flag` ([details](../how-to/rolling-targets.md#targets-the-forecast-could-not-produce)). |
 
 Only the policy, the demand, and the opening state are required. The run
 length and the period length come from them, and every period is scored
@@ -62,10 +65,11 @@ explanation when something is missing:
   settlement window where ordering is off;
 - every scheduled callback has at least one row inside the run;
 - the policy has a fitted target for every SKU of the inventory (extra SKUs
-  are fine);
+  are fine), unless `missing_targets="no_order"`;
 - every `policy_schedule` snapshot has the same configuration as `policy`, a
   target for every SKU, and the right forecast origin (when `policy` is dated,
   so is every snapshot);
+- with `allow_target_reuse=False`, every decision has a target fitted for it;
 - window lengths add up to `n_periods`.
 
 The engine then copies the state and the policy. Your objects are not
@@ -178,6 +182,7 @@ without `labels` to use the policies' names.
   outcomes follow each branch's own deliveries.
 - `policy_schedules` gives each branch its own refits: one per policy in
   list order, or `{label: schedule}` with a dict of policies.
+- `allow_target_reuse` and `missing_targets` apply to every branch.
 
 `comparison[label]` is a normal `SimulationResult`; iterate over `comparison`
 for the labels.
